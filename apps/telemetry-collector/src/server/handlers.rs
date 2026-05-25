@@ -1,9 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use chrono::{DateTime, Utc};
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
@@ -11,11 +6,11 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::{error, info, instrument, warn};
 
-use crate::models::TelemetryRecord;
 use crate::metrics::{
-    DATABASE_INSERT_LATENCY, KAFKA_PUBLISH_LATENCY, PROCESSING_LATENCY,
-    TELEMETRY_INVALID_TOTAL, TELEMETRY_RECEIVED_TOTAL, REGISTRY,
+    DATABASE_INSERT_LATENCY, KAFKA_PUBLISH_LATENCY, PROCESSING_LATENCY, REGISTRY,
+    TELEMETRY_INVALID_TOTAL, TELEMETRY_RECEIVED_TOTAL,
 };
+use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;
 
 #[derive(Clone)]
@@ -45,13 +40,18 @@ pub async fn ingest_telemetry(
 ) -> impl IntoResponse {
     let start_time = Instant::now();
     let sat_id = payload.satellite_id.clone();
-    
+
     // Check validation constraints
     if let Err(validation_errors) = payload.validate() {
-        warn!("Validation failed for satellite {}: {:?}", sat_id, validation_errors);
-        
+        warn!(
+            "Validation failed for satellite {}: {:?}",
+            sat_id, validation_errors
+        );
+
         // Track metrics
-        TELEMETRY_RECEIVED_TOTAL.with_label_values(&[&sat_id, "invalid"]).inc();
+        TELEMETRY_RECEIVED_TOTAL
+            .with_label_values(&[&sat_id, "invalid"])
+            .inc();
         for err in &validation_errors {
             TELEMETRY_INVALID_TOTAL.with_label_values(&[err]).inc();
         }
@@ -61,19 +61,25 @@ pub async fn ingest_telemetry(
             "record": payload,
             "errors": validation_errors,
             "rejected_at": Utc::now()
-        }).to_string();
+        })
+        .to_string();
 
-        let _ = state.kafka_producer.publish(&state.invalid_topic, &sat_id, &serialized_err).await;
+        let _ = state
+            .kafka_producer
+            .publish(&state.invalid_topic, &sat_id, &serialized_err)
+            .await;
 
         let err_resp = ErrorResponse {
             error: "Payload validation failed".to_string(),
             details: validation_errors,
         };
-        
+
         return (StatusCode::BAD_REQUEST, Json(err_resp)).into_response();
     }
 
-    TELEMETRY_RECEIVED_TOTAL.with_label_values(&[&sat_id, "valid"]).inc();
+    TELEMETRY_RECEIVED_TOTAL
+        .with_label_values(&[&sat_id, "valid"])
+        .inc();
 
     // Serialise telemetry payload
     let serialized_payload = match serde_json::to_string(&payload) {
@@ -90,7 +96,11 @@ pub async fn ingest_telemetry(
 
     // Publish to Kafka telemetry.raw
     let publish_start = Instant::now();
-    match state.kafka_producer.publish(&state.raw_topic, &sat_id, &serialized_payload).await {
+    match state
+        .kafka_producer
+        .publish(&state.raw_topic, &sat_id, &serialized_payload)
+        .await
+    {
         Ok(_) => {
             KAFKA_PUBLISH_LATENCY.observe(publish_start.elapsed().as_secs_f64());
             PROCESSING_LATENCY.observe(start_time.elapsed().as_secs_f64());
@@ -141,7 +151,7 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
     }
 
     // Since Axum holds the KafkaProducer, it's UP if the producer initialization was successful
-    let kafka_status = "UP".to_string(); 
+    let kafka_status = "UP".to_string();
 
     let code = if status == "UP" {
         StatusCode::OK
@@ -165,17 +175,25 @@ pub async fn metrics_endpoint() -> impl IntoResponse {
     let encoder = TextEncoder::new();
     let metric_families = REGISTRY.gather();
     let mut buffer = Vec::new();
-    
+
     if let Err(e) = encoder.encode(&metric_families, &mut buffer) {
         error!("Failed to encode metrics: {}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to scrape metrics").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to scrape metrics",
+        )
+            .into_response();
     }
 
     let response = match String::from_utf8(buffer) {
         Ok(s) => s,
         Err(e) => {
             error!("Metrics buffer contains invalid UTF-8: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Invalid metrics encoding").into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Invalid metrics encoding",
+            )
+                .into_response();
         }
     };
 

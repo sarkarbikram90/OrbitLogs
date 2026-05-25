@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::time::SystemTime;
+use uuid::Uuid;
 
 use crate::scenario::Scenario;
 
@@ -11,21 +11,21 @@ use crate::scenario::Scenario;
 pub struct TelemetryRecord {
     pub satellite_id: String,
     pub timestamp: DateTime<Utc>,
-    pub battery_voltage: f64,      // Volts
-    pub battery_current: f64,      // Amperes
-    pub solar_panel_output: f64,   // Watts
-    pub cpu_usage: f32,            // %
+    pub battery_voltage: f64,       // Volts
+    pub battery_current: f64,       // Amperes
+    pub solar_panel_output: f64,    // Watts
+    pub cpu_usage: f32,             // %
     pub memory_usage: f32,          // %
-    pub temperature: f64,          // °C
-    pub orientation_pitch: f32,    // Degrees
-    pub orientation_roll: f32,     // Degrees
-    pub orientation_yaw: f32,      // Degrees
-    pub velocity: f64,             // km/s
-    pub altitude: f64,             // km
-    pub fuel_remaining: f32,       // %
-    pub communication_latency: f32,// ms
-    pub packet_loss: f32,          // %
-    pub signal_strength: f32,      // dBm
+    pub temperature: f64,           // °C
+    pub orientation_pitch: f32,     // Degrees
+    pub orientation_roll: f32,      // Degrees
+    pub orientation_yaw: f32,       // Degrees
+    pub velocity: f64,              // km/s
+    pub altitude: f64,              // km
+    pub fuel_remaining: f32,        // %
+    pub communication_latency: f32, // ms
+    pub packet_loss: f32,           // %
+    pub signal_strength: f32,       // dBm
     pub event_id: Uuid,
 }
 
@@ -33,14 +33,14 @@ pub struct SatelliteSimulator {
     pub id: String,
     pub scenario: Scenario,
     pub ticks: u64,
-    
+
     // Internal base state variables
     battery_voltage: f64,
     fuel_remaining: f32,
     temperature: f64,
     altitude: f64,
     velocity: f64,
-    
+
     // RNG implementation
     rng: ChaCha8Rng,
 }
@@ -53,7 +53,7 @@ impl SatelliteSimulator {
                 .unwrap()
                 .as_nanos() as u64
         });
-        
+
         // Derive satellite-specific seed
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         use std::hash::{Hash, Hasher};
@@ -80,22 +80,22 @@ impl SatelliteSimulator {
 
     pub fn next_record(&mut self) -> TelemetryRecord {
         self.ticks += 1;
-        
+
         // Add random walk or cyclic components depending on ticks
         let orbital_phase = (self.ticks as f64 * 0.05).sin(); // Simulated day/night cycle
-        
+
         // Base fluctuations
         let volt_noise = self.rng.gen_range(-0.1..0.1);
         let temp_noise = self.rng.gen_range(-0.5..0.5);
         let alt_noise = self.rng.gen_range(-0.2..0.2);
-        
+
         // Base normal variables
         let mut solar_panel = if orbital_phase > 0.0 {
             120.0 * orbital_phase + self.rng.gen_range(-5.0..5.0)
         } else {
             0.0 // In Shadow
         };
-        
+
         let mut bat_current = if solar_panel > 10.0 {
             // Charging battery
             (solar_panel / 12.0) - 3.0 + self.rng.gen_range(-0.5..0.5)
@@ -111,7 +111,7 @@ impl SatelliteSimulator {
                 self.temperature = 25.0 + 5.0 * orbital_phase + temp_noise;
                 self.battery_voltage = 13.6 + 0.6 * orbital_phase + volt_noise;
                 self.fuel_remaining -= 0.0001; // Normal micro-usage
-                
+
                 if self.battery_voltage < 11.5 {
                     self.battery_voltage = 11.5;
                 }
@@ -178,12 +178,14 @@ impl SatelliteSimulator {
         let cpu = match self.scenario {
             Scenario::ThermalSpike => 90.0 + self.rng.gen_range(-5.0..5.0), // High CPU causing or caused by thermal
             _ => 15.0 + 10.0 * orbital_phase as f32 + self.rng.gen_range(-2.0..2.0),
-        }.clamp(1.0, 100.0);
+        }
+        .clamp(1.0, 100.0);
 
         let mem = match self.scenario {
             Scenario::ThermalSpike => 85.0 + self.rng.gen_range(-2.0..2.0),
             _ => 22.0 + self.rng.gen_range(-1.0..1.0),
-        }.clamp(1.0, 100.0);
+        }
+        .clamp(1.0, 100.0);
 
         TelemetryRecord {
             satellite_id: self.id.clone(),
@@ -235,9 +237,10 @@ mod tests {
 
     #[test]
     fn test_thermal_spike_scenario() {
-        let mut sim = SatelliteSimulator::new("SAT-0002".to_string(), Scenario::ThermalSpike, Some(101));
+        let mut sim =
+            SatelliteSimulator::new("SAT-0002".to_string(), Scenario::ThermalSpike, Some(101));
         let base_rec = sim.next_record();
-        
+
         let mut prev_temp = base_rec.temperature;
         for _ in 0..5 {
             let rec = sim.next_record();
@@ -248,7 +251,8 @@ mod tests {
 
     #[test]
     fn test_fuel_leakage_scenario() {
-        let mut sim = SatelliteSimulator::new("SAT-0003".to_string(), Scenario::FuelLeakage, Some(202));
+        let mut sim =
+            SatelliteSimulator::new("SAT-0003".to_string(), Scenario::FuelLeakage, Some(202));
         let rec = sim.next_record();
         assert!(rec.fuel_remaining < 95.0);
     }

@@ -6,9 +6,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 
-use crate::models::TelemetryRecord;
-use crate::metrics::{DATABASE_INSERT_LATENCY, TELEMETRY_PROCESSED_TOTAL};
 use crate::consumer::db;
+use crate::metrics::{DATABASE_INSERT_LATENCY, TELEMETRY_PROCESSED_TOTAL};
+use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;
 
 pub struct ConsumerConfig {
@@ -26,11 +26,7 @@ pub struct TelemetryConsumer {
 }
 
 impl TelemetryConsumer {
-    pub fn new(
-        config: ConsumerConfig,
-        db_pool: PgPool,
-        kafka_producer: KafkaProducer,
-    ) -> Self {
+    pub fn new(config: ConsumerConfig, db_pool: PgPool, kafka_producer: KafkaProducer) -> Self {
         Self {
             config,
             db_pool,
@@ -49,7 +45,10 @@ impl TelemetryConsumer {
             .create()?;
 
         consumer.subscribe(&[&self.config.raw_topic])?;
-        info!("Kafka Consumer subscribed to topic '{}'", self.config.raw_topic);
+        info!(
+            "Kafka Consumer subscribed to topic '{}'",
+            self.config.raw_topic
+        );
 
         loop {
             match consumer.recv().await {
@@ -69,37 +68,51 @@ impl TelemetryConsumer {
                     let record: TelemetryRecord = match serde_json::from_str(payload) {
                         Ok(r) => r,
                         Err(e) => {
-                            error!("JSON deserialization failed for message: {}. Payload: {}", e, payload);
+                            error!(
+                                "JSON deserialization failed for message: {}. Payload: {}",
+                                e, payload
+                            );
                             // Route to dead letter topic since message is corrupted
-                            let _ = self.kafka_producer.publish(
-                                &self.config.invalid_topic,
-                                "corrupt-payload",
-                                &serde_json::json!({
-                                    "payload": payload,
-                                    "error": e.to_string(),
-                                    "reason": "json_deserialization_failed"
-                                }).to_string()
-                            ).await;
+                            let _ = self
+                                .kafka_producer
+                                .publish(
+                                    &self.config.invalid_topic,
+                                    "corrupt-payload",
+                                    &serde_json::json!({
+                                        "payload": payload,
+                                        "error": e.to_string(),
+                                        "reason": "json_deserialization_failed"
+                                    })
+                                    .to_string(),
+                                )
+                                .await;
                             continue;
                         }
                     };
 
                     // Run anomaly checks and insert into DB with backoff retries
                     if let Err(e) = self.process_record(&record).await {
-                        error!("Failed to process record for satellite {}: {}", record.satellite_id, e);
-                        
+                        error!(
+                            "Failed to process record for satellite {}: {}",
+                            record.satellite_id, e
+                        );
+
                         // Dead letter route if processing/database insertion completely fails
                         let dlq_payload = serde_json::json!({
                             "record": record,
                             "error": e.to_string(),
                             "reason": "database_persistence_failed"
-                        }).to_string();
+                        })
+                        .to_string();
 
-                        let _ = self.kafka_producer.publish(
-                            &self.config.invalid_topic,
-                            &record.satellite_id,
-                            &dlq_payload
-                        ).await;
+                        let _ = self
+                            .kafka_producer
+                            .publish(
+                                &self.config.invalid_topic,
+                                &record.satellite_id,
+                                &dlq_payload,
+                            )
+                            .await;
                     }
                 }
                 Err(e) => {
@@ -131,10 +144,16 @@ impl TelemetryConsumer {
                 Err(e) => {
                     attempts += 1;
                     if attempts >= max_attempts {
-                        error!("Database insert failed after {} attempts: {}", max_attempts, e);
+                        error!(
+                            "Database insert failed after {} attempts: {}",
+                            max_attempts, e
+                        );
                         return Err(anyhow::anyhow!("Database write exhausted: {}", e));
                     }
-                    warn!("Database insert attempt {} failed. Retrying in {:?}: {}", attempts, backoff, e);
+                    warn!(
+                        "Database insert attempt {} failed. Retrying in {:?}: {}",
+                        attempts, backoff, e
+                    );
                     tokio::time::sleep(backoff).await;
                     backoff *= 2;
                 }
@@ -143,7 +162,9 @@ impl TelemetryConsumer {
 
         // Publish to telemetry.processed topic
         let processed_payload = serde_json::to_string(record)?;
-        self.kafka_producer.publish(&self.config.processed_topic, sat_id, &processed_payload).await?;
+        self.kafka_producer
+            .publish(&self.config.processed_topic, sat_id, &processed_payload)
+            .await?;
 
         // Update telemetry counters
         TELEMETRY_PROCESSED_TOTAL.with_label_values(&[sat_id]).inc();
@@ -164,9 +185,13 @@ impl TelemetryConsumer {
                 sat_id,
                 "ANOMALY_THERMAL_SPIKE",
                 "CRITICAL",
-                &format!("Satellite temperature has spiked to {}°C", record.temperature),
-                details
-            ).await;
+                &format!(
+                    "Satellite temperature has spiked to {}°C",
+                    record.temperature
+                ),
+                details,
+            )
+            .await;
         }
 
         // 2. Battery Degradation anomaly detection
@@ -181,8 +206,9 @@ impl TelemetryConsumer {
                 "ANOMALY_BATTERY_DEGRADATION",
                 "CRITICAL",
                 &format!("Battery voltage is critical: {}V", record.battery_voltage),
-                details
-            ).await;
+                details,
+            )
+            .await;
         }
 
         // 3. Fuel Leak anomaly detection
@@ -195,10 +221,18 @@ impl TelemetryConsumer {
                 &self.db_pool,
                 sat_id,
                 "ANOMALY_FUEL_LOW",
-                if record.fuel_remaining < 5.0 { "CRITICAL" } else { "WARNING" },
-                &format!("Satellite fuel level has dropped to {}%", record.fuel_remaining),
-                details
-            ).await;
+                if record.fuel_remaining < 5.0 {
+                    "CRITICAL"
+                } else {
+                    "WARNING"
+                },
+                &format!(
+                    "Satellite fuel level has dropped to {}%",
+                    record.fuel_remaining
+                ),
+                details,
+            )
+            .await;
         }
 
         // 4. Communication Degradation anomaly detection
@@ -212,9 +246,13 @@ impl TelemetryConsumer {
                 sat_id,
                 "ANOMALY_COMMUNICATION_DEGRADED",
                 "WARNING",
-                &format!("Communications degraded. Latency: {}ms, Packet Loss: {}%", record.communication_latency, record.packet_loss),
-                details
-            ).await;
+                &format!(
+                    "Communications degraded. Latency: {}ms, Packet Loss: {}%",
+                    record.communication_latency, record.packet_loss
+                ),
+                details,
+            )
+            .await;
         }
     }
 }

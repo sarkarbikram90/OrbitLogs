@@ -4,9 +4,7 @@ use std::time::Duration;
 use tracing::{error, info};
 
 use telemetry_collector::{
-    consumer, metrics, models, server,
-    server::handlers::AppState,
-    server::producer::KafkaProducer,
+    consumer, metrics, models, server, server::handlers::AppState, server::producer::KafkaProducer,
     telemetry,
 };
 
@@ -20,10 +18,18 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(long, env = "DATABASE_URL", default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops")]
+    #[arg(
+        long,
+        env = "DATABASE_URL",
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+    )]
     database_url: String,
 
-    #[arg(long, env = "OTEL_EXPORTER_OTLP_ENDPOINT", default_value = "http://localhost:4317")]
+    #[arg(
+        long,
+        env = "OTEL_EXPORTER_OTLP_ENDPOINT",
+        default_value = "http://localhost:4317"
+    )]
     otel_endpoint: String,
 
     #[arg(long, env = "RAW_TOPIC", default_value = "telemetry.raw")]
@@ -61,12 +67,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Start OpenTelemetry & tracing
     if let Err(e) = telemetry::init_telemetry("open-spaceops-collector", &cli.otel_endpoint) {
-        error!("Failed to initialize OTel tracing: {}. Local console logger initialized.", e);
+        error!(
+            "Failed to initialize OTel tracing: {}. Local console logger initialized.",
+            e
+        );
         // Fall back to standard tracing subscriber if OTLP is unreachable
         tracing_subscriber::fmt::init();
     }
 
-    info!("Starting Open SpaceOps services in mode: {:?}", cli.command.as_ref().unwrap_or(&Commands::RunAll));
+    info!(
+        "Starting Open SpaceOps services in mode: {:?}",
+        cli.command.as_ref().unwrap_or(&Commands::RunAll)
+    );
 
     // Register Prometheus collector metrics
     metrics::register_metrics();
@@ -74,7 +86,10 @@ async fn main() -> Result<(), anyhow::Error> {
     // Init Kafka Producer (used by both Server to queue and Consumer to route to DLQ)
     let kafka_producer = match KafkaProducer::new(&cli.kafka_brokers) {
         Ok(p) => {
-            info!("Kafka Producer successfully initialized for brokers: {}", cli.kafka_brokers);
+            info!(
+                "Kafka Producer successfully initialized for brokers: {}",
+                cli.kafka_brokers
+            );
             p
         }
         Err(e) => {
@@ -86,7 +101,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // DB Connection Pool configuration (configured with fallback retries for self-bootstrapping Compose setups)
     let mut db_pool = None;
     let run_mode = cli.command.as_ref().unwrap_or(&Commands::RunAll);
-    
+
     // Only connect to DB if we need consumer or health checking
     match run_mode {
         Commands::RunConsumer | Commands::RunAll | Commands::RunServer => {
@@ -107,7 +122,10 @@ async fn main() -> Result<(), anyhow::Error> {
                     }
                     Err(e) => {
                         retries -= 1;
-                        error!("Failed to connect to TimescaleDB. Retries remaining: {}. Error: {}", retries, e);
+                        error!(
+                            "Failed to connect to TimescaleDB. Retries remaining: {}. Error: {}",
+                            retries, e
+                        );
                         if retries > 0 {
                             tokio::time::sleep(Duration::from_secs(3)).await;
                         }
@@ -130,7 +148,9 @@ async fn main() -> Result<(), anyhow::Error> {
             server::start_server(cli.http_port, app_state).await?;
         }
         Commands::RunConsumer => {
-            let pool = db_pool.ok_or_else(|| anyhow::anyhow!("TimescaleDB connection pool is required for Consumer mode"))?;
+            let pool = db_pool.ok_or_else(|| {
+                anyhow::anyhow!("TimescaleDB connection pool is required for Consumer mode")
+            })?;
             let consumer_config = consumer::ConsumerConfig {
                 brokers: cli.kafka_brokers,
                 group_id: cli.group_id,
@@ -141,8 +161,12 @@ async fn main() -> Result<(), anyhow::Error> {
             consumer::start_consumer(consumer_config, pool, kafka_producer).await?;
         }
         Commands::RunAll => {
-            let pool = db_pool.clone().ok_or_else(|| anyhow::anyhow!("TimescaleDB connection pool is required for running both server and consumer"))?;
-            
+            let pool = db_pool.clone().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "TimescaleDB connection pool is required for running both server and consumer"
+                )
+            })?;
+
             // Server State setup
             let app_state = AppState {
                 kafka_producer: kafka_producer.clone(),
@@ -162,10 +186,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Spawn both in concurrent tasks
             let server_handle = tokio::spawn(server::start_server(cli.http_port, app_state));
-            let consumer_handle = tokio::spawn(consumer::start_consumer(consumer_config, pool, kafka_producer));
+            let consumer_handle = tokio::spawn(consumer::start_consumer(
+                consumer_config,
+                pool,
+                kafka_producer,
+            ));
 
             info!("All services spawned in concurrent tokio tasks.");
-            
+
             tokio::select! {
                 res = server_handle => {
                     match res {

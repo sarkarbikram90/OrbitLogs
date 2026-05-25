@@ -1,5 +1,5 @@
-pub mod models;
-pub mod metrics;
-pub mod telemetry;
-pub mod server;
 pub mod consumer;
+pub mod metrics;
+pub mod models;
+pub mod server;
+pub mod telemetry;

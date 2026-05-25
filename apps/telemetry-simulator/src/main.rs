@@ -36,9 +36,15 @@ lazy_static! {
 }
 
 fn register_metrics() {
-    REGISTRY.register(Box::new(TELEMETRY_GENERATED_TOTAL.clone())).unwrap();
-    REGISTRY.register(Box::new(TELEMETRY_POST_SUCCESS_TOTAL.clone())).unwrap();
-    REGISTRY.register(Box::new(TELEMETRY_POST_FAILURE_TOTAL.clone())).unwrap();
+    REGISTRY
+        .register(Box::new(TELEMETRY_GENERATED_TOTAL.clone()))
+        .unwrap();
+    REGISTRY
+        .register(Box::new(TELEMETRY_POST_SUCCESS_TOTAL.clone()))
+        .unwrap();
+    REGISTRY
+        .register(Box::new(TELEMETRY_POST_FAILURE_TOTAL.clone()))
+        .unwrap();
 }
 
 async fn start_metrics_server(port: u16) {
@@ -50,7 +56,10 @@ async fn start_metrics_server(port: u16) {
             return;
         }
     };
-    info!("Simulator metrics server running on http://localhost:{}/metrics", port);
+    info!(
+        "Simulator metrics server running on http://localhost:{}/metrics",
+        port
+    );
 
     loop {
         match listener.accept().await {
@@ -94,7 +103,10 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let config = Config::parse();
-    info!("Launching Telemetry Simulator with configuration: {:?}", config);
+    info!(
+        "Launching Telemetry Simulator with configuration: {:?}",
+        config
+    );
 
     // Register Prometheus metrics
     register_metrics();
@@ -106,7 +118,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .timeout(Duration::from_millis(5000))
         .tcp_keepalive(Duration::from_secs(60))
         .build()?;
-    
+
     let client = Arc::new(client);
     let config = Arc::new(config);
 
@@ -115,11 +127,15 @@ async fn main() -> Result<(), anyhow::Error> {
     // Spawn simulation task for each satellite in the fleet
     for i in 1..=config.fleet_size {
         let satellite_id = format!("SAT-{:04}", i);
-        
+
         // Scenario distribution: rotate scenarios among satellites if not normal
         // E.g., satellite 1 is normal, satellite 2 gets the custom scenario, others get normal or customized
         let sat_scenario = if i == 2 && config.get_scenario() != scenario::Scenario::Normal {
-            info!("Configuring satellite {} with anomaly scenario: {:?}", satellite_id, config.get_scenario());
+            info!(
+                "Configuring satellite {} with anomaly scenario: {:?}",
+                satellite_id,
+                config.get_scenario()
+            );
             config.get_scenario()
         } else {
             scenario::Scenario::Normal
@@ -148,7 +164,10 @@ async fn main() -> Result<(), anyhow::Error> {
                 let client_ref = Arc::clone(&client);
 
                 tokio::spawn(async move {
-                    debug!("Posting telemetry for satellite {}: {}", telemetry.satellite_id, payload);
+                    debug!(
+                        "Posting telemetry for satellite {}: {}",
+                        telemetry.satellite_id, payload
+                    );
                     let res = client_ref
                         .post(&url)
                         .header("Content-Type", "application/json")
@@ -159,15 +178,25 @@ async fn main() -> Result<(), anyhow::Error> {
                     match res {
                         Ok(resp) if resp.status().is_success() => {
                             TELEMETRY_POST_SUCCESS_TOTAL.inc();
-                            debug!("Successfully posted telemetry for {}", telemetry.satellite_id);
+                            debug!(
+                                "Successfully posted telemetry for {}",
+                                telemetry.satellite_id
+                            );
                         }
                         Ok(resp) => {
                             TELEMETRY_POST_FAILURE_TOTAL.inc();
-                            error!("Collector responded with error status {} for satellite {}", resp.status(), telemetry.satellite_id);
+                            error!(
+                                "Collector responded with error status {} for satellite {}",
+                                resp.status(),
+                                telemetry.satellite_id
+                            );
                         }
                         Err(e) => {
                             TELEMETRY_POST_FAILURE_TOTAL.inc();
-                            error!("Failed to post telemetry for satellite {}: {}", telemetry.satellite_id, e);
+                            error!(
+                                "Failed to post telemetry for satellite {}: {}",
+                                telemetry.satellite_id, e
+                            );
                         }
                     }
                 });

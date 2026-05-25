@@ -6,20 +6,18 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), anyhow::Error> {
     // Configure OpenTelemetry Tracing pipeline
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(otlp_endpoint),
-        )
-        .with_trace_config(
-            sdktrace::config().with_resource(Resource::new(vec![KeyValue::new(
-                "service.name",
-                service_name.to_string(),
-            )])),
-        )
-        .install_batch(runtime::Tokio)?;
+    let tracer =
+        opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .tonic()
+                    .with_endpoint(otlp_endpoint),
+            )
+            .with_trace_config(sdktrace::config().with_resource(Resource::new(vec![
+                KeyValue::new("service.name", service_name.to_string()),
+            ])))
+            .install_batch(runtime::Tokio)?;
 
     // Integrate with Tracing Registry
     let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
@@ -31,7 +29,10 @@ pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), any
         .with(telemetry_layer)
         .init();
 
-    info!("Tracing telemetry initialized for service '{}'", service_name);
+    info!(
+        "Tracing telemetry initialized for service '{}'",
+        service_name
+    );
     Ok(())
 }
 

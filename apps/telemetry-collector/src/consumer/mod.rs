@@ -1,9 +1,9 @@
 pub mod db;
 pub mod processor;
 
+use crate::server::producer::KafkaProducer;
 pub use processor::{ConsumerConfig, TelemetryConsumer};
 use sqlx::PgPool;
-use crate::server::producer::KafkaProducer;
 use tracing::info;
 
 pub async fn start_consumer(

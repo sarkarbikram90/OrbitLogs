@@ -1,6 +1,6 @@
 use chrono::Utc;
-use uuid::Uuid;
 use telemetry_collector::models::TelemetryRecord;
+use uuid::Uuid;
 
 // This integration test suite validates the core processing flows of the spaceops telemetry system
 #[test]
@@ -27,10 +27,16 @@ fn test_e2e_telemetry_flow_validation() {
     };
 
     // 1. Verify schema constraints are met
-    assert!(raw_payload.validate().is_ok(), "Telemetry validation must pass for realistic mock data");
+    assert!(
+        raw_payload.validate().is_ok(),
+        "Telemetry validation must pass for realistic mock data"
+    );
 
     // 2. Verify invalid ranges are rejected
     let mut invalid_payload = raw_payload.clone();
     invalid_payload.battery_voltage = 150.0; // Above limit
-    assert!(invalid_payload.validate().is_err(), "Telemetry validation must fail for voltages exceeding bounds");
+    assert!(
+        invalid_payload.validate().is_err(),
+        "Telemetry validation must fail for voltages exceeding bounds"
+    );
 }

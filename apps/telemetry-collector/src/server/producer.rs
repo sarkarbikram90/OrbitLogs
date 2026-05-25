@@ -19,14 +19,20 @@ impl KafkaProducer {
         Ok(Self { producer })
     }
 
-    pub async fn publish(&self, topic: &str, key: &str, payload: &str) -> Result<(), anyhow::Error> {
-        let record = FutureRecord::to(topic)
-            .key(key)
-            .payload(payload);
+    pub async fn publish(
+        &self,
+        topic: &str,
+        key: &str,
+        payload: &str,
+    ) -> Result<(), anyhow::Error> {
+        let record = FutureRecord::to(topic).key(key).payload(payload);
 
         match self.producer.send(record, Duration::from_secs(5)).await {
             Ok((partition, offset)) => {
-                debug!("Successfully published event to topic {} [partition: {}, offset: {}]", topic, partition, offset);
+                debug!(
+                    "Successfully published event to topic {} [partition: {}, offset: {}]",
+                    topic, partition, offset
+                );
                 Ok(())
             }
             Err((e, _)) => {

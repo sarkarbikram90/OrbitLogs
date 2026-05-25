@@ -1,12 +1,16 @@
+use crate::scenario::Scenario;
 use clap::Parser;
 use std::str::FromStr;
-use crate::scenario::Scenario;
 
 #[derive(Parser, Debug, Clone)]
 #[command(name = "Open SpaceOps - Telemetry Simulator")]
 #[command(about = "Simulates satellite telemetry stream for testing the observability platform", long_about = None)]
 pub struct Config {
-    #[arg(long, env = "COLLECTOR_URL", default_value = "http://localhost:8080/telemetry")]
+    #[arg(
+        long,
+        env = "COLLECTOR_URL",
+        default_value = "http://localhost:8080/telemetry"
+    )]
     pub collector_url: String,
 
     #[arg(long, env = "SIM_FLEET_SIZE", default_value = "5")]

@@ -1,6 +1,6 @@
-use sqlx::{PgPool, Error};
-use tracing::{debug, error, info};
 use crate::models::TelemetryRecord;
+use sqlx::{Error, PgPool};
+use tracing::{debug, error, info};
 
 pub async fn ensure_satellite_exists(pool: &PgPool, satellite_id: &str) -> Result<(), Error> {
     // Check and upsert satellite metadata if it does not exist
@@ -58,7 +58,10 @@ pub async fn insert_telemetry(pool: &PgPool, record: &TelemetryRecord) -> Result
     .execute(pool)
     .await?;
 
-    debug!("Telemetry inserted into database for {}", record.satellite_id);
+    debug!(
+        "Telemetry inserted into database for {}",
+        record.satellite_id
+    );
     Ok(())
 }
 
@@ -89,6 +92,9 @@ pub async fn insert_event(
     .execute(pool)
     .await?;
 
-    info!("Logged space event for satellite {}: [{}] {}", satellite_id, severity, message);
+    info!(
+        "Logged space event for satellite {}: [{}] {}",
+        satellite_id, severity, message
+    );
     Ok(())
 }

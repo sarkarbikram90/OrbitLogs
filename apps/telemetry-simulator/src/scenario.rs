@@ -17,8 +17,12 @@ impl FromStr for Scenario {
         match s.to_lowercase().as_str() {
             "normal" => Ok(Scenario::Normal),
             "thermal_spike" | "thermal-spike" | "thermal" => Ok(Scenario::ThermalSpike),
-            "battery_degradation" | "battery-degradation" | "battery" => Ok(Scenario::BatteryDegradation),
-            "communication_degradation" | "communication-degradation" | "comm" => Ok(Scenario::CommunicationDegradation),
+            "battery_degradation" | "battery-degradation" | "battery" => {
+                Ok(Scenario::BatteryDegradation)
+            }
+            "communication_degradation" | "communication-degradation" | "comm" => {
+                Ok(Scenario::CommunicationDegradation)
+            }
             "fuel_leakage" | "fuel-leakage" | "fuel" => Ok(Scenario::FuelLeakage),
             _ => Err(format!("Unknown scenario: {}", s)),
         }

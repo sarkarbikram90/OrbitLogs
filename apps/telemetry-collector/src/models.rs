@@ -6,21 +6,21 @@ use uuid::Uuid;
 pub struct TelemetryRecord {
     pub satellite_id: String,
     pub timestamp: DateTime<Utc>,
-    pub battery_voltage: f64,      // Volts
-    pub battery_current: f64,      // Amperes
-    pub solar_panel_output: f64,   // Watts
-    pub cpu_usage: f32,            // %
+    pub battery_voltage: f64,       // Volts
+    pub battery_current: f64,       // Amperes
+    pub solar_panel_output: f64,    // Watts
+    pub cpu_usage: f32,             // %
     pub memory_usage: f32,          // %
-    pub temperature: f64,          // °C
-    pub orientation_pitch: f32,    // Degrees
-    pub orientation_roll: f32,     // Degrees
-    pub orientation_yaw: f32,      // Degrees
-    pub velocity: f64,             // km/s
-    pub altitude: f64,             // km
-    pub fuel_remaining: f32,       // %
-    pub communication_latency: f32,// ms
-    pub packet_loss: f32,          // %
-    pub signal_strength: f32,      // dBm
+    pub temperature: f64,           // °C
+    pub orientation_pitch: f32,     // Degrees
+    pub orientation_roll: f32,      // Degrees
+    pub orientation_yaw: f32,       // Degrees
+    pub velocity: f64,              // km/s
+    pub altitude: f64,              // km
+    pub fuel_remaining: f32,        // %
+    pub communication_latency: f32, // ms
+    pub packet_loss: f32,           // %
+    pub signal_strength: f32,       // dBm
     pub event_id: Uuid,
 }
 
@@ -30,40 +30,68 @@ impl TelemetryRecord {
 
         if self.satellite_id.trim().is_empty() {
             errors.push("satellite_id cannot be empty".to_string());
-        } else if !self.satellite_id.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        } else if !self
+            .satellite_id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-')
+        {
             errors.push("satellite_id must be alphanumeric or contain dashes".to_string());
         }
 
         if self.battery_voltage < 0.0 || self.battery_voltage > 100.0 {
-            errors.push(format!("battery_voltage must be between 0 and 100, got {}", self.battery_voltage));
+            errors.push(format!(
+                "battery_voltage must be between 0 and 100, got {}",
+                self.battery_voltage
+            ));
         }
 
         if self.cpu_usage < 0.0 || self.cpu_usage > 100.0 {
-            errors.push(format!("cpu_usage must be between 0 and 100, got {}", self.cpu_usage));
+            errors.push(format!(
+                "cpu_usage must be between 0 and 100, got {}",
+                self.cpu_usage
+            ));
         }
 
         if self.memory_usage < 0.0 || self.memory_usage > 100.0 {
-            errors.push(format!("memory_usage must be between 0 and 100, got {}", self.memory_usage));
+            errors.push(format!(
+                "memory_usage must be between 0 and 100, got {}",
+                self.memory_usage
+            ));
         }
 
         if self.fuel_remaining < 0.0 || self.fuel_remaining > 100.0 {
-            errors.push(format!("fuel_remaining must be between 0 and 100, got {}", self.fuel_remaining));
+            errors.push(format!(
+                "fuel_remaining must be between 0 and 100, got {}",
+                self.fuel_remaining
+            ));
         }
 
         if self.packet_loss < 0.0 || self.packet_loss > 100.0 {
-            errors.push(format!("packet_loss must be between 0 and 100, got {}", self.packet_loss));
+            errors.push(format!(
+                "packet_loss must be between 0 and 100, got {}",
+                self.packet_loss
+            ));
         }
 
         if self.orientation_pitch < -360.0 || self.orientation_pitch > 360.0 {
-            errors.push(format!("orientation_pitch must be between -360 and 360, got {}", self.orientation_pitch));
+            errors.push(format!(
+                "orientation_pitch must be between -360 and 360, got {}",
+                self.orientation_pitch
+            ));
         }
 
         if self.orientation_roll < -360.0 || self.orientation_roll > 360.0 {
-            errors.push(format!("orientation_roll must be between -360 and 360, got {}", self.orientation_roll));
+            errors.push(format!(
+                "orientation_roll must be between -360 and 360, got {}",
+                self.orientation_roll
+            ));
         }
 
         if self.orientation_yaw < -360.0 || self.orientation_yaw > 360.0 {
-            errors.push(format!("orientation_yaw must be between -360 and 360, got {}", self.orientation_yaw));
+            errors.push(format!(
+                "orientation_yaw must be between -360 and 360, got {}",
+                self.orientation_yaw
+            ));
         }
 
         if self.timestamp > Utc::now() + chrono::Duration::minutes(5) {
