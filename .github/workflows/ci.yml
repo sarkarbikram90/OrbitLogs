@@ -13,14 +13,32 @@ jobs:
   rust-ci:
     name: Rust Formatting, Linting & Testing
     runs-on: ubuntu-latest
-    
+
+    services:
+      timescaledb:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_DB: spaceops
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d spaceops"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/spaceops
+
     steps:
       - uses: actions/checkout@v3
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev cmake gcc g++ build-essential
+          sudo apt-get install -y pkg-config libssl-dev cmake gcc g++ build-essential postgresql-client
 
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -29,6 +47,10 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+
+      - name: Initialize Database Schema
+        run: |
+          PGPASSWORD=postgrespassword psql -h localhost -U postgres -d spaceops -f deployments/postgres/migrations/01_init.sql
 
       - name: Check code formatting
         run: cargo fmt --check
