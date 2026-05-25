@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - "rules.yml"
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "telemetry-collector"
+    static_configs:
+      - targets: ["telemetry-collector:8080"]
+
+  - job_name: "telemetry-simulator"
+    static_configs:
+      - targets: ["telemetry-simulator:8081"]

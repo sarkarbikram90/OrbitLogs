@@ -1,0 +1,54 @@
+name: Open SpaceOps CI/CD
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-ci:
+    name: Rust Formatting, Linting & Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev cmake gcc g++ build-essential
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check code formatting
+        run: cargo fmt --check
+
+      - name: Cargo clippy linting
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run unit & integration tests
+        run: cargo test --all-targets --all-features
+
+  container-builds:
+    name: Container Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build Telemetry Simulator Container
+        run: |
+          docker build -t open-spaceops/telemetry-simulator:test -f apps/telemetry-simulator/Dockerfile .
+
+      - name: Build Telemetry Collector Container
+        run: |
+          docker build -t open-spaceops/telemetry-collector:test -f apps/telemetry-collector/Dockerfile .

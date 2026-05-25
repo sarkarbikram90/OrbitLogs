@@ -1,0 +1,65 @@
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
+
+// Get target rate from environment or default to 1000 events/sec
+const TARGET_RATE = __ENV.TARGET_RATE ? parseInt(__ENV.TARGET_RATE) : 1000;
+const DURATION = __ENV.DURATION ? __ENV.DURATION : '30s';
+
+export const options = {
+  scenarios: {
+    telemetry_ingestion: {
+      executor: 'constant-arrival-rate',
+      rate: TARGET_RATE,
+      timeUnit: '1s',
+      duration: DURATION,
+      preAllocatedVUs: Math.max(50, Math.floor(TARGET_RATE / 20)),
+      maxVUs: Math.max(200, Math.floor(TARGET_RATE / 5)),
+    },
+  },
+  thresholds: {
+    http_req_failed: ['rate<0.01'], // less than 1% errors
+    http_req_duration: ['p(95)<100'], // 95% of requests must complete below 100ms
+  },
+};
+
+export default function () {
+  const satId = `SAT-${String(Math.floor(Math.random() * 50) + 1).padStart(4, '0')}`;
+  
+  const payload = JSON.stringify({
+    satellite_id: satId,
+    timestamp: new Date().toISOString(),
+    battery_voltage: 13.5 + Math.random() * 1.0,
+    battery_current: 2.0 - Math.random() * 4.0,
+    solar_panel_output: 100.0 + Math.random() * 40.0,
+    cpu_usage: 20.0 + Math.random() * 30.0,
+    memory_usage: 40.0 + Math.random() * 10.0,
+    temperature: 25.0 + Math.random() * 15.0,
+    orientation_pitch: Math.random() * 10.0 - 5.0,
+    orientation_roll: Math.random() * 10.0 - 5.0,
+    orientation_yaw: Math.random() * 10.0 - 5.0,
+    velocity: 7.67,
+    altitude: 520.0 + Math.random() * 10.0,
+    fuel_remaining: 85.0 - Math.random() * 0.05,
+    communication_latency: 30.0 + Math.random() * 20.0,
+    packet_loss: Math.random() * 0.5,
+    signal_strength: -70.0 + Math.random() * 10.0,
+    event_id: uuidv4(),
+  });
+
+  const params = {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  };
+
+  const res = http.post('http://localhost:8080/telemetry', payload, params);
+
+  check(res, {
+    'status is 202': (r) => r.status === 202,
+    'has event_id': (r) => {
+      const body = JSON.parse(r.body);
+      return body && body.event_id !== undefined;
+    },
+  });
+}

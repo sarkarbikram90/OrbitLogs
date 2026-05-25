@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/telemetry-simulator",
+    "apps/telemetry-collector",
+]
+
+[workspace.dependencies]
+tokio = { version = "1.36", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.7", features = ["v4", "serde"] }
+rand = "0.8"
+reqwest = { version = "0.11", features = ["json"] }
+clap = { version = "4.5", features = ["derive", "env"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid"] }
+rdkafka = { version = "0.36", features = ["cmake-build"] }
+prometheus = { version = "0.13", features = ["process"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+opentelemetry = { version = "0.21", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.14", features = ["grpc-tonic"] }
+tracing-opentelemetry = "0.22"
+anyhow = "1.0"
+dotenvy = "0.15"
+
+# Optimize profiles for production build speed vs runtime execution speed
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

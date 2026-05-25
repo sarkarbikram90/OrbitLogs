@@ -1,0 +1,34 @@
+# Builder Stage
+FROM rust:1.75-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev cmake g++
+
+WORKDIR /usr/src/open-spaceops
+
+# Copy workspace configurations
+COPY Cargo.toml ./
+COPY apps/telemetry-simulator/Cargo.toml apps/telemetry-simulator/Cargo.toml
+COPY apps/telemetry-collector/Cargo.toml apps/telemetry-collector/Cargo.toml
+
+# Create dummy source files to pre-compile dependencies
+RUN mkdir -p apps/telemetry-simulator/src && echo "fn main() {}" > apps/telemetry-simulator/src/main.rs
+RUN mkdir -p apps/telemetry-collector/src && echo "fn main() {}" > apps/telemetry-collector/src/main.rs
+
+# Build dependencies only (cached layer)
+RUN cargo build --release -p telemetry-simulator
+
+# Copy actual source files
+COPY apps/telemetry-simulator/src apps/telemetry-simulator/src
+
+# Rebuild actual application
+RUN touch apps/telemetry-simulator/src/main.rs
+RUN cargo build --release -p telemetry-simulator
+
+# Runner Stage
+FROM alpine:3.18
+RUN apk add --no-cache ca-certificates libgcc libstdc++
+
+COPY --from=builder /usr/src/open-spaceops/target/release/telemetry-simulator /usr/local/bin/telemetry-simulator
+
+ENTRYPOINT ["telemetry-simulator"]

@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: 'Open SpaceOps Dashboards'
+    orgId: 1
+    folder: 'Open SpaceOps'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 5
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

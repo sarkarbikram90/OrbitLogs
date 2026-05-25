@@ -1,0 +1,8 @@
+groups:
+  - name: telemetry_rules
+    rules:
+      - record: job:telemetry_received_rate:5m
+        expr: rate(telemetry_received_total[5m])
+
+      - record: job:processing_latency_avg:5m
+        expr: rate(processing_latency_sum[5m]) / rate(processing_latency_count[5m])

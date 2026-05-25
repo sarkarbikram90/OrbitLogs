@@ -1,0 +1,334 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 2,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "Battery Voltage",
+      "type": "gauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT battery_voltage as value FROM telemetry WHERE satellite_id = '$satellite' ORDER BY timestamp DESC LIMIT 1;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 5,
+          "max": 16,
+          "unit": "volts",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 11
+              },
+              {
+                "color": "green",
+                "value": 12.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "title": "CPU Load",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT cpu_usage as value FROM telemetry WHERE satellite_id = '$satellite' ORDER BY timestamp DESC LIMIT 1;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "title": "Fuel Remaining",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT fuel_remaining as value FROM telemetry WHERE satellite_id = '$satellite' ORDER BY timestamp DESC LIMIT 1;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 15
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "title": "Signal Strength",
+      "type": "gauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT signal_strength as value FROM telemetry WHERE satellite_id = '$satellite' ORDER BY timestamp DESC LIMIT 1;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": -130,
+          "max": -30,
+          "unit": "dBm",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": -100
+              },
+              {
+                "color": "green",
+                "value": -80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "title": "Electrical Power Systems (Solar vs Battery Current)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS time, solar_panel_output as \"Solar output (W)\", battery_current * 10 as \"Battery current (A x10)\" FROM telemetry WHERE satellite_id = '$satellite' AND timestamp > $__timeFrom() AND timestamp < $__timeTo() ORDER BY timestamp ASC;"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 6,
+      "title": "Attitude & Orientation Profile",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS time, orientation_pitch as pitch, orientation_roll as roll, orientation_yaw as yaw FROM telemetry WHERE satellite_id = '$satellite' AND timestamp > $__timeFrom() AND timestamp < $__timeTo() ORDER BY timestamp ASC;"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 7,
+      "title": "Communication Health (Latency & Loss)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS time, communication_latency as \"Latency (ms)\", packet_loss as \"Packet Loss (%)\" FROM telemetry WHERE satellite_id = '$satellite' AND timestamp > $__timeFrom() AND timestamp < $__timeTo() ORDER BY timestamp ASC;"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["spaceops", "satellite"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {
+          "type": "postgres",
+          "uid": "TimescaleDB"
+        },
+        "name": "satellite",
+        "query": "SELECT id FROM satellites;",
+        "type": "query",
+        "refresh": 1,
+        "sort": 1
+      }
+    ]
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "title": "Open SpaceOps - Satellite Health",
+  "version": 1
+}

@@ -1,0 +1,217 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 4,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "TimescaleDB Size on Disk",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT pg_size_pretty(pg_database_size('spaceops')) as value;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 2,
+      "title": "Hypertable Compression Ratio",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(ROUND(100 - (100 * sum(compressed_total_bytes)::numeric / sum(uncompressed_total_bytes)::numeric), 1), 0.0) as value FROM hypertable_compression_stats('telemetry');"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
+      "title": "Active DB Connections",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) as value FROM pg_stat_activity WHERE datname = 'spaceops';"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 4,
+      "title": "Active Collector OS Threads & Memory",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "process_resident_memory_bytes{job=\"telemetry-collector\"} / 1024 / 1024",
+          "legendFormat": "Memory Resident Set Size (MB)"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "process_cpu_seconds_total{job=\"telemetry-collector\"}",
+          "legendFormat": "Collector CPU seconds"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 5,
+      "title": "Hypertable Chunk Sizing",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT chunk_name, pg_size_pretty(total_bytes) as chunk_size, pg_size_pretty(compressed_total_bytes) as compressed_chunk_size FROM chunk_relation_size('telemetry') JOIN show_chunks('telemetry') ON true LIMIT 10;"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["spaceops", "infra"],
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "title": "Open SpaceOps - Infrastructure Health",
+  "version": 1
+}

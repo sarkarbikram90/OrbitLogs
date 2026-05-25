@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  # --- DATABASE (TimescaleDB) ---
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: spaceops-timescaledb
+    environment:
+      POSTGRES_DB: spaceops
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ../postgres/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spaceops"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # --- EVENT STREAMING (Zookeeper & Kafka) ---
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: spaceops-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: spaceops-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server kafka:29092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # --- TRACING (Jaeger) ---
+  jaeger:
+    image: jaegertracing/all-in-one:1.47
+    container_name: spaceops-jaeger
+    ports:
+      - "16686:16686" # Web UI
+      - "4317:4317"   # OTLP gRPC receiver (Jaeger native)
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
+
+  # --- METRICS & OBSERVABILITY (Prometheus, OTel Collector, Grafana) ---
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.82.0
+    container_name: spaceops-otel-collector
+    volumes:
+      - ../otel/otel-collector-config.yml:/etc/otelcol/config.yaml
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "4318:4318" # OTLP HTTP receiver
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.46.0
+    container_name: spaceops-prometheus
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../prometheus/rules.yml:/etc/prometheus/rules.yml
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.0.3
+    container_name: spaceops-grafana
+    volumes:
+      - ../grafana/provision/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ../grafana/provision/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ../grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - timescaledb
+    restart: unless-stopped
+
+  # --- APPLICATIONS (Collector & Simulator) ---
+  telemetry-collector:
+    build:
+      context: ../../
+      dockerfile: apps/telemetry-collector/Dockerfile
+    container_name: spaceops-collector
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info,telemetry_collector=debug
+      - DATABASE_URL=postgres://postgres:postgrespassword@timescaledb:5432/spaceops
+      - KAFKA_BROKERS=kafka:29092
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - HTTP_PORT=8080
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  telemetry-simulator:
+    build:
+      context: ../../
+      dockerfile: apps/telemetry-simulator/Dockerfile
+    container_name: spaceops-simulator
+    ports:
+      - "8081:8081"
+    environment:
+      - RUST_LOG=info,telemetry_simulator=debug
+      - COLLECTOR_URL=http://telemetry-collector:8080/telemetry
+      - SIM_FLEET_SIZE=10
+      - SIM_FREQUENCY_MS=1000
+      - METRICS_PORT=8081
+    depends_on:
+      - telemetry-collector
+    restart: unless-stopped
+
+volumes:
+  timescaledb_data:
