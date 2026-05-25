@@ -72,7 +72,9 @@ flowchart TD
     PROM -->|Scrape /metrics| TS
     GRAF -->|Query TimescaleDB| T_HYPER
     GRAF -->|Query Prometheus| PROM
-    API & KC & TS -->|Traces (OTLP)| OTEL
+    API -->|Traces (OTLP)| OTEL
+    KC -->|Traces (OTLP)| OTEL
+    TS -->|Traces (OTLP)| OTEL
 ```
 
 For a detailed analysis of our engineering decisions and distributed design trade-offs, see the [System Architecture Document](file:///c:/Users/bikrams/Open-SpaceOps/Open-SpaceOps/docs/architecture/system_architecture.md).
