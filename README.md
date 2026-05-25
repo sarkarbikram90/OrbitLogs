@@ -10,6 +10,75 @@
 
 Open SpaceOps is a production-grade, highly performant real-time satellite telemetry ingestion, processing, and visualization platform. Built entirely in Rust and designed with event-driven principles, it showcases how modern observability frameworks can monitor large-scale satellite fleets orbiting Earth.
 
+## 📐 System Architecture
+
+The following diagram illustrates the complete, decoupled, and event-driven architecture of the Open SpaceOps platform, highlighting the real-time flow of telemetry packets from generation to time-series storage and multi-dimensional observability.
+
+```mermaid
+graph TD
+    %% Define styles and colors for high aesthetics
+    classDef simulator fill:#E05A47,stroke:#FFF,stroke-width:1px,color:#FFF;
+    classDef api fill:#2B6CB0,stroke:#FFF,stroke-width:1px,color:#FFF;
+    classDef broker fill:#2F855A,stroke:#FFF,stroke-width:1px,color:#FFF;
+    classDef consumer fill:#6B46C1,stroke:#FFF,stroke-width:1px,color:#FFF;
+    classDef db fill:#319795,stroke:#FFF,stroke-width:1px,color:#FFF;
+    classDef visual fill:#D53F8C,stroke:#FFF,stroke-width:1px,color:#FFF;
+    classDef trace fill:#DD6B20,stroke:#FFF,stroke-width:1px,color:#FFF;
+
+    %% Nodes
+    SIM["🚀 Telemetry Simulator<br/>(Satellites Fleet SAT-0001 - SAT-NNNN)"]:::simulator
+    API["🔌 Ingestion API<br/>(Rust Axum Server on Port 8080)"]:::api
+    K_RAW["📥 Kafka Topic: telemetry.raw<br/>(Keyed Partition by satellite_id)"]:::broker
+    K_PROC["📤 Kafka Topic: telemetry.processed"]:::broker
+    K_DLQ["⚠️ Kafka Topic: telemetry.invalid<br/>(Dead Letter Queue)"]:::broker
+    CON["⚙️ Telemetry Consumer<br/>(Tokio Async Multi-threaded Engine)"]:::consumer
+    TSDB[("🗄️ TimescaleDB<br/>(Postgres + Time-Series Hypertables)")]:::db
+    GRA["📊 Grafana Dashboards<br/>(Fleet, Health, Throughput, Infra)"]:::visual
+    PROM["📈 Prometheus Scraper"]:::visual
+    JAEG["🔍 Jaeger UI<br/>(Distributed OTLP Tracing)"]:::trace
+    OTEL["🔌 OTel Collector"]:::trace
+
+    %% Data Flow Connections
+    SIM -->|HTTP POST /telemetry| API
+    API -->|Schema Validation Fails| K_DLQ
+    API -->|Enriched & Validated Payload| K_RAW
+    K_RAW -->|Stream Consume Event| CON
+    CON -->|Perform Anomaly Detection| CON
+    CON -->|Batch Write Telemetry & Alerts| TSDB
+    CON -->|Publish Validation Update| K_PROC
+    CON -->|Failure Fallback / DLQ| K_DLQ
+
+    %% Observability Scrapes & Connections
+    API -.->|Metrics /metrics| PROM
+    SIM -.->|Metrics /metrics| PROM
+    PROM -.->|Query Metrics| GRA
+    TSDB -.->|Query Hypertable Data| GRA
+    API -.->|Traces via OTLP gRPC| OTEL
+    CON -.->|Traces via OTLP gRPC| OTEL
+    OTEL -.->|Forward Traces| JAEG
+    GRA -.->|Integrated Trace Navigation| JAEG
+
+    %% Legend / Subgraph for Organization
+    subgraph Event-Driven Ingestion Pipeline
+        API
+        K_RAW
+        K_DLQ
+    end
+
+    subgraph Stream Processing & Storage
+        CON
+        TSDB
+        K_PROC
+    end
+
+    subgraph Observability Suite
+        PROM
+        GRA
+        OTEL
+        JAEG
+    end
+```
+
 ## 🛠️ Quick Start
 
 Get the entire observability ecosystem running locally with a single command!
