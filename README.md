@@ -16,39 +16,39 @@ Open SpaceOps is a production-grade, highly performant real-time satellite telem
 
 ```mermaid
 flowchart TD
-    subgraph Simulator [Telemetry Simulator (Rust)]
-        TS[Simulator Engine]
-        TS_CRON[RNG & Scenarios]
+    subgraph Simulator ["Telemetry Simulator (Rust)"]
+        TS["Simulator Engine"]
+        TS_CRON["RNG & Scenarios"]
     end
 
-    subgraph Ingestion [Telemetry Collector (Rust)]
-        API[Axum HTTP API]
-        VAL[Schema Validator]
-        ENR[Metadata Enricher]
-        KP[Kafka Producer]
+    subgraph Ingestion ["Telemetry Collector (Rust)"]
+        API["Axum HTTP API"]
+        VAL["Schema Validator"]
+        ENR["Metadata Enricher"]
+        KP["Kafka Producer"]
     end
 
-    subgraph Queue [Apache Kafka]
-        T_RAW[telemetry.raw]
-        T_PROC[telemetry.processed]
-        T_ERR[telemetry.invalid]
+    subgraph Queue ["Apache Kafka"]
+        T_RAW["telemetry.raw"]
+        T_PROC["telemetry.processed"]
+        T_ERR["telemetry.invalid"]
     end
 
-    subgraph Consumer [Telemetry Consumer (Rust)]
-        KC[Kafka Consumer]
-        DB_POOL[SQLx Connection Pool]
+    subgraph Consumer ["Telemetry Consumer (Rust)"]
+        KC["Kafka Consumer"]
+        DB_POOL["SQLx Connection Pool"]
     end
 
-    subgraph Storage [TimescaleDB]
-        S_TBL[satellites Metadata]
-        T_HYPER[telemetry Hypertable]
-        E_HYPER[events Hypertable]
+    subgraph Storage ["TimescaleDB"]
+        S_TBL["satellites Metadata"]
+        T_HYPER["telemetry Hypertable"]
+        E_HYPER["events Hypertable"]
     end
 
-    subgraph Visuals [Observability Stack]
-        PROM[Prometheus Scraper]
-        GRAF[Grafana Dashboards]
-        OTEL[OTel Collector & Jaeger]
+    subgraph Visuals ["Observability Stack"]
+        PROM["Prometheus Scraper"]
+        GRAF["Grafana Dashboards"]
+        OTEL["OTel Collector & Jaeger"]
     end
 
     %% Flows
