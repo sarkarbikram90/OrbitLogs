@@ -4,82 +4,11 @@
 [![Language: Rust](https://img.shields.io/badge/Language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Database: TimescaleDB](https://img.shields.io/badge/Database-TimescaleDB-blue.svg)](https://www.timescale.com/)
 [![Message Queue: Kafka](https://img.shields.io/badge/Queue-Kafka-black.svg)](https://kafka.apache.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: Apache](https://img.shields.io/badge/License-Apache-green.svg)](LICENSE)
 
 > **Real-Time Satellite Telemetry Observability Platform**
 
 Open SpaceOps is a production-grade, highly performant real-time satellite telemetry ingestion, processing, and visualization platform. Built entirely in Rust and designed with event-driven principles, it showcases how modern observability frameworks can monitor large-scale satellite fleets orbiting Earth.
-
----
-
-## 🛰️ Platform Architecture
-
-```mermaid
-flowchart TD
-    subgraph Simulator ["Telemetry Simulator (Rust)"]
-        TS["Simulator Engine"]
-        TS_CRON["RNG & Scenarios"]
-    end
-
-    subgraph Ingestion ["Telemetry Collector (Rust)"]
-        API["Axum HTTP API"]
-        VAL["Schema Validator"]
-        ENR["Metadata Enricher"]
-        KP["Kafka Producer"]
-    end
-
-    subgraph Queue ["Apache Kafka"]
-        T_RAW["telemetry.raw"]
-        T_PROC["telemetry.processed"]
-        T_ERR["telemetry.invalid"]
-    end
-
-    subgraph Consumer ["Telemetry Consumer (Rust)"]
-        KC["Kafka Consumer"]
-        DB_POOL["SQLx Connection Pool"]
-    end
-
-    subgraph Storage ["TimescaleDB"]
-        S_TBL["satellites Metadata"]
-        T_HYPER["telemetry Hypertable"]
-        E_HYPER["events Hypertable"]
-    end
-
-    subgraph Visuals ["Observability Stack"]
-        PROM["Prometheus Scraper"]
-        GRAF["Grafana Dashboards"]
-        OTEL["OTel Collector & Jaeger"]
-    end
-
-    %% Flows
-    TS -->|POST /telemetry| API
-    API --> VAL
-    VAL -->|Valid| ENR
-    VAL -->|Invalid| T_ERR
-    ENR --> KP
-    KP -->|Produce| T_RAW
-
-    KC -->|Consume| T_RAW
-    KC -->|Filter/Route| DB_POOL
-    KC -->|Publish Success| T_PROC
-    KC -->|Publish Fail/Dead-Letter| T_ERR
-
-    DB_POOL -->|Batch Insert| T_HYPER
-    DB_POOL -->|Store Events| E_HYPER
-
-    %% Scrapes & Observability
-    PROM -->|Scrape /metrics| API
-    PROM -->|Scrape /metrics| TS
-    GRAF -->|Query TimescaleDB| T_HYPER
-    GRAF -->|Query Prometheus| PROM
-    API -->|Traces (OTLP)| OTEL
-    KC -->|Traces (OTLP)| OTEL
-    TS -->|Traces (OTLP)| OTEL
-```
-
-For a detailed analysis of our engineering decisions and distributed design trade-offs, see the [System Architecture Document](file:///c:/Users/bikrams/Open-SpaceOps/Open-SpaceOps/docs/architecture/system_architecture.md).
-
----
 
 ## 🛠️ Quick Start
 
