@@ -50,6 +50,15 @@ jobs:
 
       - name: Initialize Database Schema
         run: |
+          echo "Waiting for TimescaleDB to accept connections on localhost..."
+          for i in {1..30}; do
+            if PGPASSWORD=postgrespassword psql -h localhost -U postgres -d spaceops -c "SELECT 1" >/dev/null 2>&1; then
+              echo "Database is ready!"
+              break
+            fi
+            echo "Waiting for database (attempt $i)..."
+            sleep 1
+          done
           PGPASSWORD=postgrespassword psql -h localhost -U postgres -d spaceops -f deployments/postgres/migrations/01_init.sql
 
       - name: Check code formatting

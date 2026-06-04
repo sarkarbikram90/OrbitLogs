@@ -16,6 +16,9 @@ allow = [
     "Unicode-DFS-2016",
     "Unicode-3.0",
     "OpenSSL",
+    "0BSD",
+    "CC0-1.0",
+    "Unlicense",
 ]
 confidence-threshold = 0.8
 

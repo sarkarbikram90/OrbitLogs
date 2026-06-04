@@ -27,6 +27,6 @@ spaceops-models = { workspace = true }
 tower = { version = "0.5", features = ["limit", "util", "buffer"] }
 
 [dev-dependencies]
-tower = { version = "0.5", features = ["util"] }
+tower = { version = "0.5", features = ["util", "limit", "buffer"] }
 hyper = { version = "1.0", features = ["full"] }
 http-body-util = "0.1"
