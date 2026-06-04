@@ -1,4 +1,5 @@
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post},
     Router,
 };
@@ -18,7 +19,10 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
     let app = Router::new()
         .route("/telemetry", post(handlers::ingest_telemetry))
         .route("/health", get(handlers::health_check))
+        .route("/readiness", get(handlers::readiness_check))
+        .route("/liveness", get(handlers::liveness_check))
         .route("/metrics", get(handlers::metrics_endpoint))
+        .layer(DefaultBodyLimit::max(10_240)) // 10KB max payload
         .with_state(state_arc);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));

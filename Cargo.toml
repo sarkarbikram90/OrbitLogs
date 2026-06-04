@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "apps/telemetry-simulator",
     "apps/telemetry-collector",
+    "crates/spaceops-models",
 ]
 
 [workspace.dependencies]
@@ -25,6 +26,7 @@ opentelemetry-otlp = { version = "0.14", features = ["grpc-tonic", "tokio"] }
 tracing-opentelemetry = "0.22"
 anyhow = "1.0"
 dotenvy = "0.15"
+spaceops-models = { path = "crates/spaceops-models" }
 
 # Optimize profiles for production build speed vs runtime execution speed
 [profile.release]

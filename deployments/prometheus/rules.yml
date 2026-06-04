@@ -1,8 +1,66 @@
 groups:
-  - name: telemetry_rules
+  # Recording rules for pre-computed query optimizations
+  - name: telemetry_recording_rules
     rules:
       - record: job:telemetry_received_rate:5m
         expr: rate(telemetry_received_total[5m])
 
       - record: job:processing_latency_avg:5m
         expr: rate(processing_latency_sum[5m]) / rate(processing_latency_count[5m])
+
+  # Alerting rules for production monitoring
+  - name: telemetry_alerts
+    rules:
+      - alert: HighTelemetryRejectRate
+        expr: sum(rate(telemetry_invalid_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High telemetry rejection rate detected"
+          description: "More than 1 telemetry event/sec is being rejected over the last 5 minutes. Check payload validation and simulator configuration."
+
+      - alert: DatabaseInsertFailures
+        expr: rate(database_insert_latency_count[5m]) == 0 and rate(telemetry_received_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database inserts have stalled"
+          description: "Telemetry is being received but no database inserts are completing. Check TimescaleDB connectivity."
+
+      - alert: DLQPublishFailures
+        expr: rate(dlq_publish_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dead letter queue publish failures detected"
+          description: "Failed to publish messages to the DLQ topic. Rejected telemetry may be lost. Check Kafka connectivity."
+
+      - alert: CollectorDown
+        expr: up{job="telemetry-collector"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Telemetry Collector is down"
+          description: "The telemetry-collector service is unreachable by Prometheus. Check container health."
+
+      - alert: SimulatorDown
+        expr: up{job="telemetry-simulator"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Telemetry Simulator is down"
+          description: "The telemetry-simulator service is unreachable. Telemetry generation has stopped."
+
+      - alert: HighProcessingLatency
+        expr: histogram_quantile(0.95, rate(processing_latency_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High telemetry processing latency"
+          description: "P95 processing latency exceeds 100ms. Check system load and Kafka broker health."

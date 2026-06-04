@@ -33,7 +33,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/spaceops
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install system dependencies
         run: |
@@ -61,11 +61,35 @@ jobs:
       - name: Run unit & integration tests
         run: cargo test --all-targets --all-features
 
+  security-audit:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run dependency vulnerability audit
+        run: cargo audit
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Run license and advisory checks
+        run: cargo deny check advisories licenses
+
   container-builds:
     name: Container Build Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Build Telemetry Simulator Container
         run: |
@@ -74,3 +98,11 @@ jobs:
       - name: Build Telemetry Collector Container
         run: |
           docker build -t open-spaceops/telemetry-collector:test -f apps/telemetry-collector/Dockerfile .
+
+      - name: Verify non-root container execution
+        run: |
+          echo "Checking collector runs as non-root..."
+          docker run --rm --entrypoint whoami open-spaceops/telemetry-collector:test | grep -q spaceops
+          echo "Checking simulator runs as non-root..."
+          docker run --rm --entrypoint whoami open-spaceops/telemetry-simulator:test | grep -q spaceops
+          echo "All containers verified as non-root."

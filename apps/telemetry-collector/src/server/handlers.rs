@@ -1,14 +1,16 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::http::HeaderMap;
 use chrono::{DateTime, Utc};
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{error, info, instrument, warn};
+use uuid::Uuid;
 
 use crate::metrics::{
-    DATABASE_INSERT_LATENCY, KAFKA_PUBLISH_LATENCY, PROCESSING_LATENCY, REGISTRY,
-    TELEMETRY_INVALID_TOTAL, TELEMETRY_RECEIVED_TOTAL,
+    DATABASE_INSERT_LATENCY, DLQ_PUBLISH_FAILURES_TOTAL, KAFKA_PUBLISH_LATENCY,
+    PROCESSING_LATENCY, REGISTRY, TELEMETRY_INVALID_TOTAL, TELEMETRY_RECEIVED_TOTAL,
 };
 use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;
@@ -25,25 +27,39 @@ pub struct AppState {
 pub struct IngestionResponse {
     pub message: String,
     pub event_id: String,
+    pub request_id: String,
 }
 
 #[derive(Serialize)]
 pub struct ErrorResponse {
     pub error: String,
     pub details: Vec<String>,
+    pub request_id: String,
 }
 
-#[instrument(skip(state, payload))]
+/// Extract or generate a request correlation ID from headers
+fn extract_request_id(headers: &HeaderMap) -> String {
+    headers
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string())
+}
+
+#[instrument(skip(state, payload, headers))]
 pub async fn ingest_telemetry(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<TelemetryRecord>,
 ) -> impl IntoResponse {
     let start_time = Instant::now();
     let sat_id = payload.satellite_id.clone();
+    let request_id = extract_request_id(&headers);
 
     // Check validation constraints
     if let Err(validation_errors) = payload.validate() {
         warn!(
+            request_id = %request_id,
             "Validation failed for satellite {}: {:?}",
             sat_id, validation_errors
         );
@@ -60,18 +76,27 @@ pub async fn ingest_telemetry(
         let serialized_err = serde_json::json!({
             "record": payload,
             "errors": validation_errors,
-            "rejected_at": Utc::now()
+            "rejected_at": Utc::now(),
+            "request_id": request_id
         })
         .to_string();
 
-        let _ = state
+        if let Err(e) = state
             .kafka_producer
             .publish(&state.invalid_topic, &sat_id, &serialized_err)
-            .await;
+            .await
+        {
+            error!(
+                request_id = %request_id,
+                "DLQ publish failed for satellite {}: {}", sat_id, e
+            );
+            DLQ_PUBLISH_FAILURES_TOTAL.inc();
+        }
 
         let err_resp = ErrorResponse {
             error: "Payload validation failed".to_string(),
             details: validation_errors,
+            request_id,
         };
 
         return (StatusCode::BAD_REQUEST, Json(err_resp)).into_response();
@@ -85,10 +110,14 @@ pub async fn ingest_telemetry(
     let serialized_payload = match serde_json::to_string(&payload) {
         Ok(s) => s,
         Err(e) => {
-            error!("Serialization failed for satellite {}: {}", sat_id, e);
+            error!(
+                request_id = %request_id,
+                "Serialization failed for satellite {}: {}", sat_id, e
+            );
             let err_resp = ErrorResponse {
                 error: "Internal serialization error".to_string(),
                 details: vec![e.to_string()],
+                request_id,
             };
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(err_resp)).into_response();
         }
@@ -108,14 +137,19 @@ pub async fn ingest_telemetry(
             let success_resp = IngestionResponse {
                 message: "Telemetry received and queued".to_string(),
                 event_id: payload.event_id.to_string(),
+                request_id,
             };
             (StatusCode::ACCEPTED, Json(success_resp)).into_response()
         }
         Err(e) => {
-            error!("Kafka produce failure for satellite {}: {}", sat_id, e);
+            error!(
+                request_id = %request_id,
+                "Kafka produce failure for satellite {}: {}", sat_id, e
+            );
             let err_resp = ErrorResponse {
                 error: "Failed to queue telemetry event".to_string(),
                 details: vec![e.to_string()],
+                request_id,
             };
             (StatusCode::SERVICE_UNAVAILABLE, Json(err_resp)).into_response()
         }
@@ -135,6 +169,7 @@ pub struct ServiceStatus {
     pub kafka_producer: String,
 }
 
+/// Deep health check — validates database and Kafka connectivity
 pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let mut db_status = "NOT_CONFIGURED".to_string();
     let mut status = "UP";
@@ -169,6 +204,63 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
     };
 
     (code, Json(resp))
+}
+
+#[derive(Serialize)]
+pub struct ReadinessResponse {
+    pub ready: bool,
+    pub timestamp: DateTime<Utc>,
+    pub checks: ReadinessChecks,
+}
+
+#[derive(Serialize)]
+pub struct ReadinessChecks {
+    pub database: bool,
+    pub kafka: bool,
+}
+
+/// Readiness probe — returns 200 only when all dependencies are healthy
+pub async fn readiness_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let mut db_ready = false;
+    let kafka_ready = true; // Producer is initialized at startup
+
+    if let Some(ref pool) = state.db_pool {
+        db_ready = sqlx::query("SELECT 1").execute(pool).await.is_ok();
+    }
+
+    let ready = db_ready && kafka_ready;
+    let code = if ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    let resp = ReadinessResponse {
+        ready,
+        timestamp: Utc::now(),
+        checks: ReadinessChecks {
+            database: db_ready,
+            kafka: kafka_ready,
+        },
+    };
+
+    (code, Json(resp))
+}
+
+#[derive(Serialize)]
+pub struct LivenessResponse {
+    pub alive: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Liveness probe — always returns 200 if the process is running
+pub async fn liveness_check() -> impl IntoResponse {
+    let resp = LivenessResponse {
+        alive: true,
+        timestamp: Utc::now(),
+    };
+
+    (StatusCode::OK, Json(resp))
 }
 
 pub async fn metrics_endpoint() -> impl IntoResponse {

@@ -1,33 +1,13 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::scenario::Scenario;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TelemetryRecord {
-    pub satellite_id: String,
-    pub timestamp: DateTime<Utc>,
-    pub battery_voltage: f64,       // Volts
-    pub battery_current: f64,       // Amperes
-    pub solar_panel_output: f64,    // Watts
-    pub cpu_usage: f32,             // %
-    pub memory_usage: f32,          // %
-    pub temperature: f64,           // °C
-    pub orientation_pitch: f32,     // Degrees
-    pub orientation_roll: f32,      // Degrees
-    pub orientation_yaw: f32,       // Degrees
-    pub velocity: f64,              // km/s
-    pub altitude: f64,              // km
-    pub fuel_remaining: f32,        // %
-    pub communication_latency: f32, // ms
-    pub packet_loss: f32,           // %
-    pub signal_strength: f32,       // dBm
-    pub event_id: Uuid,
-}
+// TelemetryRecord is imported from the shared domain crate
+pub use spaceops_models::TelemetryRecord;
 
 pub struct SatelliteSimulator {
     pub id: String,

@@ -29,6 +29,11 @@ RUN cargo build --release -p telemetry-collector
 FROM alpine:3.18
 RUN apk add --no-cache ca-certificates libgcc libstdc++ openssl
 
+# Create non-root user for security hardening (UID/GID 10001)
+RUN addgroup -g 10001 -S spaceops && adduser -u 10001 -S spaceops -G spaceops
+
 COPY --from=builder /usr/src/open-spaceops/target/release/telemetry-collector /usr/local/bin/telemetry-collector
+
+USER spaceops
 
 ENTRYPOINT ["telemetry-collector"]

@@ -1,6 +1,5 @@
 use clap::Parser;
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
-use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;

@@ -1,0 +1,23 @@
+# Rust build artifacts
+/target/
+
+# Environment files (may contain secrets)
+.env
+
+# IDE configuration
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Test coverage output
+coverage/
+
+# Benchmark reports (generated)
+benchmarks/reports/
+
+# Cargo-deny advisories cache
+advisory-db/

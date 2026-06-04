@@ -1,13 +1,12 @@
 use rdkafka::config::ClientConfig;
-use rdkafka::consumer::{Consumer, StreamConsumer};
+use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use sqlx::PgPool;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 
 use crate::consumer::db;
-use crate::metrics::{DATABASE_INSERT_LATENCY, TELEMETRY_PROCESSED_TOTAL};
+use crate::metrics::{DATABASE_INSERT_LATENCY, DLQ_PUBLISH_FAILURES_TOTAL, TELEMETRY_PROCESSED_TOTAL};
 use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;
 
@@ -40,13 +39,13 @@ impl TelemetryConsumer {
             .set("group.id", &self.config.group_id)
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
-            .set("enable.auto.commit", "true")
+            .set("enable.auto.commit", "false")
             .set("auto.offset.reset", "earliest")
             .create()?;
 
         consumer.subscribe(&[&self.config.raw_topic])?;
         info!(
-            "Kafka Consumer subscribed to topic '{}'",
+            "Kafka Consumer subscribed to topic '{}' with manual offset management (at-least-once delivery)",
             self.config.raw_topic
         );
 
@@ -57,10 +56,17 @@ impl TelemetryConsumer {
                         Some(Ok(s)) => s,
                         Some(Err(e)) => {
                             error!("Error parsing message payload as string: {}", e);
+                            // Commit offset to skip corrupt binary message
+                            if let Err(ce) = consumer.commit_message(&msg, CommitMode::Async) {
+                                error!("Failed to commit offset for corrupt message: {}", ce);
+                            }
                             continue;
                         }
                         None => {
                             warn!("Received empty message payload from Kafka");
+                            if let Err(ce) = consumer.commit_message(&msg, CommitMode::Async) {
+                                error!("Failed to commit offset for empty message: {}", ce);
+                            }
                             continue;
                         }
                     };
@@ -73,7 +79,7 @@ impl TelemetryConsumer {
                                 e, payload
                             );
                             // Route to dead letter topic since message is corrupted
-                            let _ = self
+                            if let Err(dlq_err) = self
                                 .kafka_producer
                                 .publish(
                                     &self.config.invalid_topic,
@@ -85,7 +91,15 @@ impl TelemetryConsumer {
                                     })
                                     .to_string(),
                                 )
-                                .await;
+                                .await
+                            {
+                                error!("DLQ publish failed for corrupt payload: {}", dlq_err);
+                                DLQ_PUBLISH_FAILURES_TOTAL.inc();
+                            }
+                            // Commit offset to prevent infinite reprocessing of corrupt data
+                            if let Err(ce) = consumer.commit_message(&msg, CommitMode::Async) {
+                                error!("Failed to commit offset after DLQ routing: {}", ce);
+                            }
                             continue;
                         }
                     };
@@ -105,14 +119,27 @@ impl TelemetryConsumer {
                         })
                         .to_string();
 
-                        let _ = self
+                        if let Err(dlq_err) = self
                             .kafka_producer
                             .publish(
                                 &self.config.invalid_topic,
                                 &record.satellite_id,
                                 &dlq_payload,
                             )
-                            .await;
+                            .await
+                        {
+                            error!(
+                                "DLQ publish failed for satellite {} after DB failure: {}",
+                                record.satellite_id, dlq_err
+                            );
+                            DLQ_PUBLISH_FAILURES_TOTAL.inc();
+                        }
+                    }
+
+                    // Commit offset only after successful processing or DLQ routing
+                    // This ensures at-least-once delivery semantics
+                    if let Err(ce) = consumer.commit_message(&msg, CommitMode::Async) {
+                        error!("Failed to commit Kafka offset: {}", ce);
                     }
                 }
                 Err(e) => {
@@ -180,7 +207,7 @@ impl TelemetryConsumer {
                 "temperature": record.temperature,
                 "limit": 85.0
             });
-            let _ = db::insert_event(
+            if let Err(e) = db::insert_event(
                 &self.db_pool,
                 sat_id,
                 "ANOMALY_THERMAL_SPIKE",
@@ -191,7 +218,10 @@ impl TelemetryConsumer {
                 ),
                 details,
             )
-            .await;
+            .await
+            {
+                error!("Failed to log thermal spike anomaly for {}: {}", sat_id, e);
+            }
         }
 
         // 2. Battery Degradation anomaly detection
@@ -200,7 +230,7 @@ impl TelemetryConsumer {
                 "battery_voltage": record.battery_voltage,
                 "limit": 11.0
             });
-            let _ = db::insert_event(
+            if let Err(e) = db::insert_event(
                 &self.db_pool,
                 sat_id,
                 "ANOMALY_BATTERY_DEGRADATION",
@@ -208,7 +238,10 @@ impl TelemetryConsumer {
                 &format!("Battery voltage is critical: {}V", record.battery_voltage),
                 details,
             )
-            .await;
+            .await
+            {
+                error!("Failed to log battery anomaly for {}: {}", sat_id, e);
+            }
         }
 
         // 3. Fuel Leak anomaly detection
@@ -217,7 +250,7 @@ impl TelemetryConsumer {
                 "fuel_remaining": record.fuel_remaining,
                 "limit": 15.0
             });
-            let _ = db::insert_event(
+            if let Err(e) = db::insert_event(
                 &self.db_pool,
                 sat_id,
                 "ANOMALY_FUEL_LOW",
@@ -232,7 +265,10 @@ impl TelemetryConsumer {
                 ),
                 details,
             )
-            .await;
+            .await
+            {
+                error!("Failed to log fuel anomaly for {}: {}", sat_id, e);
+            }
         }
 
         // 4. Communication Degradation anomaly detection
@@ -241,7 +277,7 @@ impl TelemetryConsumer {
                 "packet_loss": record.packet_loss,
                 "latency": record.communication_latency
             });
-            let _ = db::insert_event(
+            if let Err(e) = db::insert_event(
                 &self.db_pool,
                 sat_id,
                 "ANOMALY_COMMUNICATION_DEGRADED",
@@ -252,7 +288,10 @@ impl TelemetryConsumer {
                 ),
                 details,
             )
-            .await;
+            .await
+            {
+                error!("Failed to log communication anomaly for {}: {}", sat_id, e);
+            }
         }
     }
 }
