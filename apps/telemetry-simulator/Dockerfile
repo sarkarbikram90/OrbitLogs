@@ -10,18 +10,22 @@ WORKDIR /usr/src/open-spaceops
 COPY Cargo.toml ./
 COPY apps/telemetry-simulator/Cargo.toml apps/telemetry-simulator/Cargo.toml
 COPY apps/telemetry-collector/Cargo.toml apps/telemetry-collector/Cargo.toml
+COPY crates/spaceops-models/Cargo.toml crates/spaceops-models/Cargo.toml
 
 # Create dummy source files to pre-compile dependencies
 RUN mkdir -p apps/telemetry-simulator/src && echo "fn main() {}" > apps/telemetry-simulator/src/main.rs
 RUN mkdir -p apps/telemetry-collector/src && echo "fn main() {}" > apps/telemetry-collector/src/main.rs
+RUN mkdir -p crates/spaceops-models/src && touch crates/spaceops-models/src/lib.rs
 
 # Build dependencies only (cached layer)
 RUN cargo build --release -p telemetry-simulator
 
 # Copy actual source files
+COPY crates/spaceops-models/src crates/spaceops-models/src
 COPY apps/telemetry-simulator/src apps/telemetry-simulator/src
 
 # Rebuild actual application
+RUN touch crates/spaceops-models/src/lib.rs
 RUN touch apps/telemetry-simulator/src/main.rs
 RUN cargo build --release -p telemetry-simulator
 
