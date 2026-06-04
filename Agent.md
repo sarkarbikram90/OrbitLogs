@@ -1,467 +1,665 @@
-# Open SpaceOps V1 Production Hardening & Remediation Program
+# AGENT.md
 
-You are a Principal Rust Engineer, Staff Site Reliability Engineer, Principal Security Engineer, Kafka Expert, PostgreSQL Architect, and Production Readiness Reviewer.
+# Open SpaceOps
 
-You have already completed a full architecture and code review of the Open SpaceOps repository.
+## Vision
 
-Your task is NOT to build new features.
+Open SpaceOps is not a monitoring dashboard.
 
-Your task is to execute a production-hardening remediation program based on the review findings.
+Open SpaceOps is an open-source Mission Operations Platform that demonstrates how modern satellite operators monitor, analyze, troubleshoot, replay, and recover spacecraft using contemporary observability technologies.
 
-====================================================
-OBJECTIVE
-=========
+The project combines:
 
-Increase Open SpaceOps production readiness from:
+* Spacecraft Telemetry
+* Distributed Systems
+* Observability Engineering
+* Site Reliability Engineering
+* Event Streaming
+* Mission Operations
+* Artificial Intelligence
 
-Current:
+The long-term goal is to build a miniature version of:
 
-* Production Readiness: 8.5/10
+* SpaceX Mission Control
+* NASA Mission Operations
+* ESA Ground Segment
+* Datadog
+* Grafana Cloud
+* Splunk Observability
+* Modern AI Incident Management Platforms
 
-Target:
-
-* Production Readiness: 9.5/10+
-
-The repository must remain functionally identical while improving:
-
-* Security
-* Reliability
-* Observability
-* Testing
-* Maintainability
-* Operational Excellence
-
-====================================================
-PHASE 1
-CRITICAL FINDINGS
-=================
-
-Implement all Critical findings.
+The project should be technically realistic, highly observable, well-documented, professionally engineered, and capable of serving as a flagship GitHub portfolio repository.
 
 ---
 
-1. NON-ROOT CONTAINERS
+# Core Philosophy
+
+The project must prioritize:
+
+1. Mission Operations Realism
+2. Engineering Quality
+3. Reliability
+4. Observability
+5. Documentation
+6. Testing
+7. Security
+8. Scalability
+
+Feature count is less important than realism and execution quality.
+
+Every architectural decision should answer:
+
+> Would a mission operations engineer, SRE, platform engineer, or space-tech engineer find this realistic and useful?
 
 ---
 
-Current Issue:
+# Engineering Principles
 
-Containers run as root.
+## Principle 1
 
-Tasks:
+Never break existing functionality.
 
-* Update all Dockerfiles
-* Create dedicated spaceops user
-* Run containers as UID/GID 10001
-* Validate file permissions
-* Ensure application still starts correctly
-
-Acceptance Criteria:
-
-* docker exec confirms non-root user
-* all tests pass
-* documentation updated
+All new capabilities must be backward compatible.
 
 ---
 
-2. HTTP BODY SIZE LIMIT
+## Principle 2
+
+Every service must expose:
+
+* Logs
+* Metrics
+* Traces
+
+Observability is mandatory.
 
 ---
 
-Current Issue:
+## Principle 3
 
-No request size limit exists.
+Every feature requires:
 
-Tasks:
-
-Add Axum body limits.
-
-Maximum request size:
-
-10KB
-
-Implement:
-
-DefaultBodyLimit
-
-Acceptance Criteria:
-
-* valid telemetry accepted
-* oversized payload rejected
-* integration tests added
-
-====================================================
-PHASE 2
-HIGH PRIORITY FINDINGS
-======================
+* Architecture documentation
+* Design documentation
+* Diagrams
+* Unit tests
+* Integration tests
 
 ---
 
-3. KAFKA MANUAL OFFSET MANAGEMENT
+## Principle 4
+
+All services communicate through event-driven architecture whenever practical.
+
+Kafka is the primary integration mechanism.
 
 ---
 
-Current Issue:
+## Principle 5
 
-enable.auto.commit = true
+Documentation quality should be comparable to:
 
-Risk:
-
-Potential telemetry loss.
-
-Tasks:
-
-* disable auto commit
-* implement manual commits
-* commit only after successful DB write
-* document delivery semantics
-
-Target:
-
-At-Least-Once Delivery
-
-Acceptance Criteria:
-
-* no message loss during crash simulation
-* replay validation passes
-* integration tests added
+* Grafana Labs
+* Datadog
+* Cloudflare
+* Stripe
+* Google SRE
 
 ---
 
-4. HARD-CODED SECRETS REMOVAL
+## Principle 6
+
+All operational assumptions must be documented.
+
+Failure scenarios must be documented.
+
+Recovery procedures must be documented.
 
 ---
 
-Current Issue:
+## Principle 7
 
-Passwords exist in source code.
+Every subsystem must be observable.
 
-Tasks:
+Every event must be traceable.
 
-* introduce .env support
-* update docker-compose
-* update Grafana datasource config
-* update CI configuration
-
-Acceptance Criteria:
-
-* no passwords committed
-* local setup remains simple
+Every failure must be diagnosable.
 
 ---
 
-5. CREATE .GITIGNORE
+# Current Foundation (V1)
+
+Existing Architecture:
+
+Telemetry Simulator
+↓
+Rust Telemetry Collector
+↓
+Kafka
+↓
+TimescaleDB/PostgreSQL
+↓
+Grafana
+
+This foundation must remain stable.
+
+Future work should build on top of it rather than replacing it.
 
 ---
 
-Tasks:
+# Target End-State Architecture
 
-Create comprehensive .gitignore.
-
-Include:
-
-target/
-.env
-.idea/
-.vscode/
-coverage/
-benchmarks/reports/
-
-Acceptance Criteria:
-
-Repository hygiene improved.
-
----
-
-6. SECURITY AUDIT IN CI
-
----
-
-Tasks:
-
-Add:
-
-cargo-audit
-cargo-deny
-
-GitHub Actions Steps:
-
-* dependency vulnerability scan
-* license validation
-* fail build on critical findings
-
-Acceptance Criteria:
-
-Security scans execute automatically.
+Spacecraft Subsystems
+↓
+Telemetry Packet Layer
+↓
+Ground Station Network
+↓
+Telemetry Collector
+↓
+Kafka Event Bus
+↓
+Mission Health Engine
+↓
+Telemetry Archive
+↓
+Replay Engine
+↓
+Mission Control UI
+↓
+AI Incident Commander
 
 ---
 
-7. DLQ FAILURE OBSERVABILITY
+# Phase 1
 
----
+## Spacecraft Subsystem Architecture
 
-Current Issue:
-
-DLQ publishing failures are ignored.
-
-Tasks:
-
-* log failures
-* create metric:
-  dlq_publish_failures_total
-* expose metric to Prometheus
-* add Grafana visualization
-
-Acceptance Criteria:
-
-No silent failures.
-
-====================================================
-PHASE 3
-MEDIUM PRIORITY FINDINGS
-========================
-
----
-
-8. SHARED DOMAIN CRATE
-
----
-
-Current Issue:
-
-TelemetryRecord duplicated.
-
-Tasks:
+Replace simplistic telemetry generation with realistic spacecraft subsystem modeling.
 
 Create:
 
-crates/
-spaceops-models/
+* Power System
+* Thermal Control System
+* Communications System
+* Propulsion System
+* ADCS
+* Payload System
+* Flight Computer
 
-Move:
+Each subsystem must emit independent telemetry.
 
-TelemetryRecord
-Enums
-Validation models
+Telemetry must include:
 
-Refactor:
+* satellite_id
+* subsystem_id
+* mission_id
+* timestamp
 
-Simulator
-Collector
+Subsystem failures must propagate realistic side effects.
 
-Acceptance Criteria:
+Example:
 
-Single source of truth.
+Thermal failure
+↓
+CPU throttling
+↓
+Communication degradation
+↓
+Mission health degradation
 
----
+Deliverables:
 
-9. PROMETHEUS ALERTING RULES
-
----
-
-Create alerts:
-
-HighTelemetryRejectRate
-
-KafkaConsumerLag
-
-DatabaseInsertFailures
-
-DLQPublishFailures
-
-CollectorDown
-
-SimulatorDown
-
-Acceptance Criteria:
-
-rules.yml updated
-alerting documented
+* Architecture document
+* Sequence diagrams
+* Failure mode documentation
+* Unit tests
+* Integration tests
 
 ---
 
-10. SECURITY DOCUMENTATION ALIGNMENT
+# Phase 2
+
+## Mission Health Engine
+
+Create:
+
+apps/mission-health-engine
+
+Purpose:
+
+Convert raw telemetry into operational state.
+
+Input:
+
+Kafka telemetry streams
+
+Output:
+
+Fleet Health Score
+
+Satellite Health Score
+
+Subsystem Health Score
+
+Health States:
+
+GREEN
+
+YELLOW
+
+RED
+
+Health assessments should be explainable.
+
+Publish results to:
+
+mission.health
+
+Store mission health history.
+
+Create Grafana dashboards.
+
+Mission operators should see:
+
+Mission Status
+
+instead of
+
+Raw Metrics
 
 ---
 
-Tasks:
+# Phase 3
 
-Review all security docs.
+## Ground Station Simulator
 
-Ensure:
+Create:
 
-Every documented feature actually exists.
+apps/ground-station-simulator
 
-Remove inaccurate claims.
+Purpose:
 
-Acceptance Criteria:
+Simulate realistic space-to-ground communications.
 
-Documentation matches implementation.
+Model:
 
----
+* Signal Strength
+* Packet Loss
+* Antenna Health
+* Weather Interference
+* Latency
+* Bandwidth
+* Outages
 
-11. TRUE INTEGRATION TESTS
+Create scenarios:
 
----
+* Ground station outage
+* Severe weather
+* Antenna degradation
+* Network congestion
 
-Implement real integration tests.
+Publish:
 
-Test:
+groundstation.health
 
-HTTP -> Collector
-
-Collector -> Kafka
-
-Kafka -> Database
-
-Database persistence
-
-Prometheus metrics
-
-Acceptance Criteria:
-
-Tests execute automatically in CI.
+Integrate with mission health engine.
 
 ---
 
-12. SERDE HARDENING
+# Phase 4
 
----
+## Telemetry Packet Layer
 
-Tasks:
+Create:
 
-Add:
-
-#[serde(deny_unknown_fields)]
-
-Acceptance Criteria:
-
-Unknown fields rejected.
-
-Tests added.
-
-====================================================
-PHASE 4
-ADDITIONAL PRODUCTION HARDENING
-===============================
+crates/spaceops-packets
 
 Implement:
 
-Rate limiting
+TelemetryPacket
 
-Request correlation IDs
+TelemetryFrame
 
-Graceful shutdown validation
+PacketEncoder
 
-Structured error responses
+PacketDecoder
 
-Custom histogram buckets
+Capabilities:
 
-Health check improvements
+* Binary serialization
+* Versioning
+* Checksum validation
+* Metadata support
 
-Readiness endpoint
+Maintain JSON compatibility for external APIs.
 
-Liveness endpoint
+Telemetry should begin resembling real spacecraft telemetry rather than generic monitoring data.
 
-====================================================
-TESTING REQUIREMENTS
-====================
+Include documentation explaining simplified CCSDS-inspired design concepts.
+
+---
+
+# Phase 5
+
+## Mission Replay Engine
+
+Create:
+
+apps/mission-replay-engine
+
+Purpose:
+
+Answer:
+
+"What happened before the failure?"
+
+Capabilities:
+
+Replay:
+
+* Telemetry
+* Events
+* Health changes
+* Anomalies
+
+Replay speeds:
+
+* 1x
+* 5x
+* 10x
+* 50x
+* 100x
+
+Features:
+
+* Pause
+* Resume
+* Timeline scrubbing
+* Event markers
+* Failure markers
+
+Store replay metadata.
+
+Create replay APIs.
+
+Create replay dashboards.
+
+Generate sequence diagrams.
+
+---
+
+# Phase 6
+
+## Mission Control User Interface
+
+Replace Grafana-only operational experience.
+
+Create:
+
+mission-control-ui
+
+Technology:
+
+* React
+* TypeScript
+* WebSocket
+* Three.js
+
+Capabilities:
+
+Fleet Overview
+
+Satellite Status
+
+Mission Status
+
+Anomalies
+
+Ground Station Status
+
+Replay Controls
+
+Mission Timeline
+
+Mission Health Visualization
+
+Grafana remains available.
+
+Mission Control becomes the primary operator interface.
+
+---
+
+# Phase 7
+
+## Orbital Visualization
+
+Create:
+
+3D Earth Visualization
+
+Capabilities:
+
+* Real-time satellite tracking
+* Orbit rendering
+* Ground station rendering
+* Coverage maps
+* Historical playback
+
+Display:
+
+* Active anomalies
+* Health state
+* Communication links
+
+Performance Goal:
+
+1000+ satellites
+
+Integrate with replay engine.
+
+---
+
+# Phase 8
+
+## AI Incident Commander
+
+Create:
+
+apps/incident-commander
+
+Purpose:
+
+Assist mission operators during incidents.
+
+Input:
+
+* Telemetry
+* Metrics
+* Logs
+* Traces
+* Events
+* Runbooks
+* Mission history
+
+Capabilities:
+
+### Incident Summary
 
 Generate:
+
+* Executive summary
+* Technical summary
+* Impact assessment
+
+---
+
+### Timeline Generation
+
+Generate:
+
+Chronological incident timelines.
+
+---
+
+### Root Cause Analysis
+
+Correlate:
+
+* Telemetry
+* Health changes
+* Ground station failures
+* System events
+
+Provide:
+
+* Confidence scores
+* Supporting evidence
+
+---
+
+### Remediation Guidance
+
+Generate:
+
+* Recommended actions
+* Recovery steps
+* Runbook references
+
+---
+
+### Postmortem Generation
+
+Generate:
+
+* Markdown
+* HTML
+* PDF
+
+Postmortems automatically.
+
+---
+
+# Observability Requirements
+
+Every service must expose:
+
+Metrics:
+
+Prometheus
+
+Logs:
+
+Structured Logging
+
+Traces:
+
+OpenTelemetry
+
+Required Dashboards:
+
+* Fleet Health
+* Satellite Health
+* Ground Station Health
+* Kafka Health
+* Database Health
+* Replay Activity
+* AI Incident Activity
+
+---
+
+# Testing Requirements
+
+Every feature requires:
 
 Unit Tests
 
 Integration Tests
 
-Regression Tests
+End-to-End Tests
 
 Load Tests
 
-Security Tests
+Failure Injection Tests
 
-Coverage Report
+Coverage Target:
 
-Acceptance Criteria:
+90%+
 
-Minimum 90% coverage
+All CI pipelines must pass.
 
-====================================================
-BENCHMARKING
-============
+---
 
-Re-run benchmarks.
+# Documentation Requirements
 
-Scenarios:
+Every phase must include:
 
-1000 events/sec
+Architecture Document
 
-5000 events/sec
+Design Document
 
-10000 events/sec
+Sequence Diagrams
 
-Generate:
+Component Diagrams
 
-Before/After comparison
+Deployment Diagrams
 
-CPU
+ER Diagrams
 
-Memory
+Operational Runbooks
 
-Latency
+Troubleshooting Guides
 
-Throughput
+Benchmark Reports
 
-====================================================
-DOCUMENTATION
-=============
+All diagrams must be GitHub-renderable using Mermaid.
 
-Update all documentation.
+Documentation is a first-class deliverable.
 
-Generate:
+---
 
-Architecture updates
+# GitHub Repository Goals
 
-Security updates
+The repository should demonstrate expertise in:
 
-Testing updates
+* Rust
+* Kafka
+* PostgreSQL
+* TimescaleDB
+* Prometheus
+* Grafana
+* OpenTelemetry
+* Distributed Systems
+* Observability Engineering
+* SRE
+* Mission Operations
+* AI Systems
+* Platform Engineering
 
-Operational updates
+The project should feel like a realistic mission operations platform rather than a generic monitoring application.
 
-Migration notes
+Every feature should reinforce that vision.
 
-Changelog
+---
 
-Production Readiness Report
+# Success Criteria
 
-====================================================
-FINAL DELIVERABLE
-=================
-
-Generate:
-
-1. Complete code changes
-
-2. Pull Request style summary
-
-3. Production Readiness Report
-
-4. Security Improvements Report
-
-5. Reliability Improvements Report
-
-6. Updated architecture diagrams
-
-7. Updated benchmarks
-
-8. Remaining technical debt list
-
-The final result should reflect engineering practices expected from:
+A senior engineer from:
 
 * SpaceX
 * NASA
-* Datadog
+* ESA
+* ISRO
+* Pixxel
+* Skyroot
+* Agnikul
 * Grafana Labs
+* Datadog
 * Cloudflare
-* Google SRE
+* Google
 
-The repository should be suitable for public GitHub publication and technical review by senior aerospace, observability, platform engineering, and distributed systems engineers.
+should be able to review the repository and immediately understand:
+
+"This engineer understands observability, distributed systems, reliability engineering, and mission operations software."
+
+Also create a docs/architecture/roadmap.md file and maintain a checklist for every phase. That gives a clear execution plan and gives future GitHub visitors a visible product roadmap rather than a collection of disconnected features.

@@ -1,5 +1,5 @@
 use crate::models::TelemetryRecord;
-use sqlx::{Error, PgPool};
+use sqlx::{Error, PgPool, Row};
 use tracing::{debug, info};
 
 pub async fn ensure_satellite_exists(pool: &PgPool, satellite_id: &str) -> Result<(), Error> {
@@ -20,6 +20,54 @@ pub async fn ensure_satellite_exists(pool: &PgPool, satellite_id: &str) -> Resul
     Ok(())
 }
 
+pub async fn get_latest_telemetry(pool: &PgPool, satellite_id: &str) -> Result<Option<TelemetryRecord>, Error> {
+    let row = sqlx::query(
+        r#"
+        SELECT 
+            timestamp, satellite_id, subsystem_id, mission_id, battery_voltage, battery_current, solar_panel_output,
+            cpu_usage, memory_usage, temperature, orientation_pitch, orientation_roll,
+            orientation_yaw, velocity, altitude, fuel_remaining, communication_latency,
+            packet_loss, signal_strength, payload_power_draw, payload_active, event_id
+        FROM telemetry
+        WHERE satellite_id = $1
+        ORDER BY timestamp DESC
+        LIMIT 1
+        "#
+    )
+    .bind(satellite_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(row) = row {
+        Ok(Some(TelemetryRecord {
+            satellite_id: row.get("satellite_id"),
+            subsystem_id: row.get("subsystem_id"),
+            mission_id: row.get("mission_id"),
+            timestamp: row.get("timestamp"),
+            battery_voltage: row.get("battery_voltage"),
+            battery_current: row.get("battery_current"),
+            solar_panel_output: row.get("solar_panel_output"),
+            cpu_usage: row.get("cpu_usage"),
+            memory_usage: row.get("memory_usage"),
+            temperature: row.get("temperature"),
+            orientation_pitch: row.get("orientation_pitch"),
+            orientation_roll: row.get("orientation_roll"),
+            orientation_yaw: row.get("orientation_yaw"),
+            velocity: row.get("velocity"),
+            altitude: row.get("altitude"),
+            fuel_remaining: row.get("fuel_remaining"),
+            communication_latency: row.get("communication_latency"),
+            packet_loss: row.get("packet_loss"),
+            signal_strength: row.get("signal_strength"),
+            payload_power_draw: row.get("payload_power_draw"),
+            payload_active: row.get("payload_active"),
+            event_id: row.get("event_id"),
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
 pub async fn insert_telemetry(pool: &PgPool, record: &TelemetryRecord) -> Result<(), Error> {
     // Ensure satellite parent record exists
     ensure_satellite_exists(pool, &record.satellite_id).await?;
@@ -28,17 +76,19 @@ pub async fn insert_telemetry(pool: &PgPool, record: &TelemetryRecord) -> Result
     sqlx::query(
         r#"
         INSERT INTO telemetry (
-            timestamp, satellite_id, battery_voltage, battery_current, solar_panel_output,
+            timestamp, satellite_id, subsystem_id, mission_id, battery_voltage, battery_current, solar_panel_output,
             cpu_usage, memory_usage, temperature, orientation_pitch, orientation_roll,
             orientation_yaw, velocity, altitude, fuel_remaining, communication_latency,
-            packet_loss, signal_strength, event_id
+            packet_loss, signal_strength, payload_power_draw, payload_active, event_id
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
         )
         "#,
     )
     .bind(record.timestamp)
     .bind(&record.satellite_id)
+    .bind(&record.subsystem_id)
+    .bind(&record.mission_id)
     .bind(record.battery_voltage)
     .bind(record.battery_current)
     .bind(record.solar_panel_output)
@@ -54,6 +104,8 @@ pub async fn insert_telemetry(pool: &PgPool, record: &TelemetryRecord) -> Result
     .bind(record.communication_latency)
     .bind(record.packet_loss)
     .bind(record.signal_strength)
+    .bind(record.payload_power_draw)
+    .bind(record.payload_active)
     .bind(record.event_id)
     .execute(pool)
     .await?;

@@ -149,62 +149,98 @@ async fn main() -> Result<(), anyhow::Error> {
         let client = Arc::clone(&client);
         let config = Arc::clone(&config);
 
-        let handle = tokio::spawn(async move {
-            let mut simulator = SatelliteSimulator::new(satellite_id.clone(), sat_scenario, seed);
-            info!("Started simulation loop for satellite {}", satellite_id);
+        let simulator = Arc::new(std::sync::Mutex::new(SatelliteSimulator::new(
+            satellite_id.clone(),
+            sat_scenario,
+            seed,
+        )));
 
-            loop {
-                let telemetry = simulator.next_record();
-                TELEMETRY_GENERATED_TOTAL.inc();
+        // Assign satellites to mission IDs dynamically
+        let mission_id = if i % 2 == 0 { "MISSION-ALPHA" } else { "MISSION-BETA" };
 
-                // Post JSON payload to the collector
-                let payload = serde_json::to_string(&telemetry).unwrap();
-                let url = config.collector_url.clone();
-                let client_ref = Arc::clone(&client);
+        let subsystems = vec![
+            "Power",
+            "Thermal",
+            "Communications",
+            "Propulsion",
+            "ADCS",
+            "Payload",
+            "Flight Computer",
+        ];
 
-                tokio::spawn(async move {
-                    debug!(
-                        "Posting telemetry for satellite {}: {}",
-                        telemetry.satellite_id, payload
-                    );
-                    let res = client_ref
-                        .post(&url)
-                        .header("Content-Type", "application/json")
-                        .body(payload)
-                        .send()
-                        .await;
+        for subsystem in subsystems {
+            let simulator = Arc::clone(&simulator);
+            let client = Arc::clone(&client);
+            let config = Arc::clone(&config);
+            let satellite_id = satellite_id.clone();
+            let mission_id = mission_id.to_string();
+            let subsystem_name = subsystem.to_string();
 
-                    match res {
-                        Ok(resp) if resp.status().is_success() => {
-                            TELEMETRY_POST_SUCCESS_TOTAL.inc();
-                            debug!(
-                                "Successfully posted telemetry for {}",
-                                telemetry.satellite_id
-                            );
+            let handle = tokio::spawn(async move {
+                info!(
+                    "Started simulation loop for satellite {} subsystem {}",
+                    satellite_id, subsystem_name
+                );
+
+                loop {
+                    let telemetry = {
+                        let mut sim = simulator.lock().unwrap();
+                        sim.next_subsystem_record(&subsystem_name, &mission_id)
+                    };
+                    TELEMETRY_GENERATED_TOTAL.inc();
+
+                    // Post JSON payload to the collector
+                    let payload = serde_json::to_string(&telemetry).unwrap();
+                    let url = config.collector_url.clone();
+                    let client_ref = Arc::clone(&client);
+                    let sat_id = telemetry.satellite_id.clone();
+                    let sub_name = subsystem_name.clone();
+
+                    tokio::spawn(async move {
+                        debug!(
+                            "Posting telemetry for satellite {} subsystem {}: {}",
+                            sat_id, sub_name, payload
+                        );
+                        let res = client_ref
+                            .post(&url)
+                            .header("Content-Type", "application/json")
+                            .body(payload)
+                            .send()
+                            .await;
+
+                        match res {
+                            Ok(resp) if resp.status().is_success() => {
+                                TELEMETRY_POST_SUCCESS_TOTAL.inc();
+                                debug!(
+                                    "Successfully posted telemetry for satellite {} subsystem {}",
+                                    sat_id, sub_name
+                                );
+                            }
+                            Ok(resp) => {
+                                TELEMETRY_POST_FAILURE_TOTAL.inc();
+                                error!(
+                                    "Collector responded with error status {} for satellite {} subsystem {}",
+                                    resp.status(),
+                                    sat_id,
+                                    sub_name
+                                );
+                            }
+                            Err(e) => {
+                                TELEMETRY_POST_FAILURE_TOTAL.inc();
+                                error!(
+                                    "Failed to post telemetry for satellite {} subsystem {}: {}",
+                                    sat_id, sub_name, e
+                                );
+                            }
                         }
-                        Ok(resp) => {
-                            TELEMETRY_POST_FAILURE_TOTAL.inc();
-                            error!(
-                                "Collector responded with error status {} for satellite {}",
-                                resp.status(),
-                                telemetry.satellite_id
-                            );
-                        }
-                        Err(e) => {
-                            TELEMETRY_POST_FAILURE_TOTAL.inc();
-                            error!(
-                                "Failed to post telemetry for satellite {}: {}",
-                                telemetry.satellite_id, e
-                            );
-                        }
-                    }
-                });
+                    });
 
-                sleep(Duration::from_millis(config.frequency_ms)).await;
-            }
-        });
+                    sleep(Duration::from_millis(config.frequency_ms)).await;
+                }
+            });
 
-        handles.push(handle);
+            handles.push(handle);
+        }
     }
 
     // Wait for all simulator routines (runs infinitely)

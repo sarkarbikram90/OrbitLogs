@@ -90,22 +90,26 @@ fn create_test_app() -> Router {
 fn test_e2e_telemetry_flow_validation() {
     let raw_payload = TelemetryRecord {
         satellite_id: "SAT-TEST-99".to_string(),
+        subsystem_id: "unified".to_string(),
+        mission_id: "unknown".to_string(),
         timestamp: Utc::now(),
-        battery_voltage: 14.2,
-        battery_current: 1.2,
-        solar_panel_output: 120.0,
-        cpu_usage: 12.5,
-        memory_usage: 25.1,
-        temperature: 24.5,
-        orientation_pitch: 0.1,
-        orientation_roll: -0.2,
-        orientation_yaw: 0.0,
-        velocity: 7.67,
-        altitude: 521.2,
-        fuel_remaining: 98.4,
-        communication_latency: 22.1,
-        packet_loss: 0.0,
-        signal_strength: -60.0,
+        battery_voltage: Some(14.2),
+        battery_current: Some(1.2),
+        solar_panel_output: Some(120.0),
+        cpu_usage: Some(12.5),
+        memory_usage: Some(25.1),
+        temperature: Some(24.5),
+        orientation_pitch: Some(0.1),
+        orientation_roll: Some(-0.2),
+        orientation_yaw: Some(0.0),
+        velocity: Some(7.67),
+        altitude: Some(521.2),
+        fuel_remaining: Some(98.4),
+        communication_latency: Some(22.1),
+        packet_loss: Some(0.0),
+        signal_strength: Some(-60.0),
+        payload_power_draw: Some(15.0),
+        payload_active: Some(true),
         event_id: Uuid::new_v4(),
     };
 
@@ -117,7 +121,7 @@ fn test_e2e_telemetry_flow_validation() {
 
     // 2. Verify invalid ranges are rejected
     let mut invalid_payload = raw_payload.clone();
-    invalid_payload.battery_voltage = 150.0; // Above limit
+    invalid_payload.battery_voltage = Some(150.0); // Above limit
     assert!(
         invalid_payload.validate().is_err(),
         "Telemetry validation must fail for voltages exceeding bounds"
@@ -128,22 +132,26 @@ fn test_e2e_telemetry_flow_validation() {
 fn test_validation_multiple_errors_collected() {
     let rec = TelemetryRecord {
         satellite_id: "".to_string(),
+        subsystem_id: "unified".to_string(),
+        mission_id: "unknown".to_string(),
         timestamp: Utc::now(),
-        battery_voltage: -5.0,
-        battery_current: 0.0,
-        solar_panel_output: 0.0,
-        cpu_usage: 150.0,
-        memory_usage: -10.0,
-        temperature: 0.0,
-        orientation_pitch: 0.0,
-        orientation_roll: 0.0,
-        orientation_yaw: 0.0,
-        velocity: 0.0,
-        altitude: 0.0,
-        fuel_remaining: 200.0,
-        communication_latency: 0.0,
-        packet_loss: 0.0,
-        signal_strength: 0.0,
+        battery_voltage: Some(-5.0),
+        battery_current: Some(0.0),
+        solar_panel_output: Some(0.0),
+        cpu_usage: Some(150.0),
+        memory_usage: Some(-10.0),
+        temperature: Some(0.0),
+        orientation_pitch: Some(0.0),
+        orientation_roll: Some(0.0),
+        orientation_yaw: Some(0.0),
+        velocity: Some(0.0),
+        altitude: Some(0.0),
+        fuel_remaining: Some(200.0),
+        communication_latency: Some(0.0),
+        packet_loss: Some(0.0),
+        signal_strength: Some(0.0),
+        payload_power_draw: Some(0.0),
+        payload_active: Some(false),
         event_id: Uuid::new_v4(),
     };
 
