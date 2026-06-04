@@ -1,5 +1,5 @@
 # Builder Stage
-FROM rust:latest-alpine as builder
+FROM rust:1.82-alpine as builder
 
 # Install building system requirements
 RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev cmake g++
