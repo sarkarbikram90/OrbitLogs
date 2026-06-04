@@ -33,3 +33,15 @@ We utilize consumer groups to scale performance horizontally:
 - **Consumer Group**: `telemetry-consumer-group`.
 - **Scaling Limit**: With 3 partitions on `telemetry.raw`, we can scale up to **3 concurrent consumer processes** in parallel. Each consumer process will handle exactly 1 partition.
 - **Rebalance**: If a consumer process dies, the Kafka broker automatically detects the heart-beat failure and reassigns its partition to the surviving consumers, ensuring zero downtime.
+
+---
+
+## 4. Delivery Semantics & Manual Offset Commits
+
+To prevent telemetry loss during service crashes or database failures, Open SpaceOps implements **At-Least-Once Delivery** semantics.
+
+- **Auto Commit Disabled**: `enable.auto.commit` is set to `false` in the Kafka consumer config. This prevents the consumer from automatically committing offsets before telemetry is safely stored.
+- **Manual Offset Management**: The consumer manually commits partition offsets (`CommitMode::Async`) only *after*:
+  1. Telemetry is successfully persisted to the TimescaleDB database.
+  2. Or, if the payload is invalid and rejected, after it has been safely routed to the Dead-Letter Queue (DLQ) topic `telemetry.invalid`.
+- **Handling DB/DLQ Failures**: If writing to the database or routing to the DLQ fails, the offset is *not* committed. When the consumer restarts or partition rebalancing occurs, Kafka will redeliver these messages, preventing any data loss.

@@ -3,10 +3,12 @@ use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use sqlx::PgPool;
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use crate::consumer::db;
-use crate::metrics::{DATABASE_INSERT_LATENCY, DLQ_PUBLISH_FAILURES_TOTAL, TELEMETRY_PROCESSED_TOTAL};
+use crate::metrics::{
+    DATABASE_INSERT_LATENCY, DLQ_PUBLISH_FAILURES_TOTAL, TELEMETRY_PROCESSED_TOTAL,
+};
 use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;
 

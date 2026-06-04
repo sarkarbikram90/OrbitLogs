@@ -54,6 +54,7 @@ impl SatelliteSimulator {
         }
     }
 
+    #[allow(dead_code)]
     pub fn set_scenario(&mut self, scenario: Scenario) {
         self.scenario = scenario;
     }
@@ -156,16 +157,16 @@ impl SatelliteSimulator {
 
         // Resource usage
         let cpu = match self.scenario {
-            Scenario::ThermalSpike => 90.0 + self.rng.gen_range(-5.0..5.0), // High CPU causing or caused by thermal
-            _ => 15.0 + 10.0 * orbital_phase as f32 + self.rng.gen_range(-2.0..2.0),
+            Scenario::ThermalSpike => 90.0f32 + self.rng.gen_range(-5.0f32..5.0f32), // High CPU causing or caused by thermal
+            _ => 15.0f32 + 10.0f32 * orbital_phase as f32 + self.rng.gen_range(-2.0f32..2.0f32),
         }
-        .clamp(1.0, 100.0);
+        .clamp(1.0f32, 100.0f32);
 
         let mem = match self.scenario {
-            Scenario::ThermalSpike => 85.0 + self.rng.gen_range(-2.0..2.0),
-            _ => 22.0 + self.rng.gen_range(-1.0..1.0),
+            Scenario::ThermalSpike => 85.0f32 + self.rng.gen_range(-2.0f32..2.0f32),
+            _ => 22.0f32 + self.rng.gen_range(-1.0f32..1.0f32),
         }
-        .clamp(1.0, 100.0);
+        .clamp(1.0f32, 100.0f32);
 
         TelemetryRecord {
             satellite_id: self.id.clone(),

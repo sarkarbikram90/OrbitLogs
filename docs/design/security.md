@@ -11,7 +11,9 @@ The API ingestion tier employs strict input validation policies to mitigate thre
 ```mermaid
 flowchart LR
     Client[Telemetry Simulator] -->|JSON Over HTTP| Ingress[Axum Ingestion Layer]
-    Ingress -->|1. Size Limitation| SizeCheck{Payload < 10KB?}
+    Ingress -->|1. Rate Limiting| RateCheck{Rate <= 100 rps?}
+    RateCheck -->|No| Reject429[429 Too Many Requests]
+    RateCheck -->|Yes| SizeCheck{Payload < 10KB?}
     SizeCheck -->|No| Reject[413 Payload Too Large]
     SizeCheck -->|Yes| Parse[Serde Struct Parse]
     Parse -->|2. Deserialization| ModelCheck{Strict Data Typing?}
@@ -20,12 +22,13 @@ flowchart LR
     Validate -->|3. Bounds Checking| DBWrite[Kafka Enqueue]
 ```
 
-### Ingress Sizing Constraints
-- **Payload Max Limit**: HTTP payloads are limited to **10 KB** at the Axum layer to eliminate memory exhaustion attacks.
-- **Strict Parsing**: The Axum JSON parser rejects any extra fields or duplicate JSON keys (enforced using Serde's `deny_unknown_fields` container attribute if needed).
+### Ingress Sizing & Rate Constraints
+- **Rate Limiting**: Enforced at the network ingestion point to prevent denial-of-service (DoS) floods. Telemetry ingestion is rate-limited to 100 requests per second using a Tower rate-limiting middleware with an in-memory buffer, returning `429 Too Many Requests` when exceeded.
+- **Payload Max Limit**: HTTP payloads are limited to **10 KB** at the Axum layer to eliminate memory exhaustion attacks, returning `413 Payload Too Large` when exceeded.
+- **Strict Parsing**: The Axum JSON parser rejects any extra fields or duplicate JSON keys (enforced using Serde's `#[serde(deny_unknown_fields)]` container attribute).
 
 ### Multi-Field Range Checks
-Validation checks are implemented inside [models.rs](file:///c:/Users/bikrams/Open-SpaceOps/Open-SpaceOps/apps/telemetry-collector/src/models.rs):
+Validation checks are implemented inside [lib.rs](file:///c:/Users/bikrams/Open-SpaceOps/Open-SpaceOps/crates/spaceops-models/src/lib.rs):
 - **Satellite ID Regex Rules**: Alphanumeric and dashes only, preventing path traversal or formatting attacks.
 - **Bounds Checking**: Restricts numeric parameters (like `battery_voltage`, `cpu_usage`, and angles) to physical ranges to block anomalous data.
 

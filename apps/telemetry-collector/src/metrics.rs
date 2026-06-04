@@ -37,7 +37,9 @@ lazy_static! {
             "processing_latency",
             "Time taken to validate, enrich and queue incoming telemetry (seconds)"
         )
-        .buckets(vec![0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0])
+        .buckets(vec![
+            0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0
+        ])
     )
     .expect("processing_latency metric must be created");
     pub static ref KAFKA_PUBLISH_LATENCY: Histogram = Histogram::with_opts(
@@ -45,7 +47,9 @@ lazy_static! {
             "kafka_publish_latency",
             "Time taken to publish message to Kafka topic (seconds)"
         )
-        .buckets(vec![0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0])
+        .buckets(vec![
+            0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0
+        ])
     )
     .expect("kafka_publish_latency metric must be created");
     pub static ref DATABASE_INSERT_LATENCY: Histogram = Histogram::with_opts(
@@ -53,7 +57,9 @@ lazy_static! {
             "database_insert_latency",
             "Time taken to write telemetry payload to TimescaleDB (seconds)"
         )
-        .buckets(vec![0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0])
+        .buckets(vec![
+            0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0
+        ])
     )
     .expect("database_insert_latency metric must be created");
 }

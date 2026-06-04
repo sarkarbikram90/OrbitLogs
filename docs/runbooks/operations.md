@@ -76,3 +76,37 @@ This document contains step-by-step troubleshooting procedures, maintenance guid
    ```
 2. **Correlate with Logs**:
    Look for `Validation failed for satellite X` log messages in the `telemetry-collector` container stream. Common failures include future-dated timestamps or parameter bounds violations.
+
+---
+
+## 4. Incident: DLQ Publish Failures
+
+### Symptom
+- Prometheus metric `dlq_publish_failures_total` is greater than 0 (`dlq_publish_failures_total > 0`).
+- PromQL alert triggers: `DLQPublishFailures`.
+- Service logs show `DLQ publish failed for satellite X` errors.
+
+### Triage Procedures
+1. **Verify Kafka Broker Connectivity**:
+   Check if the collector service can successfully ping the Kafka brokers.
+   ```bash
+   docker exec -it spaceops-collector nc -zv kafka 29092
+   ```
+2. **Check Topic Existence**:
+   Verify that `telemetry.invalid` exists in the Kafka broker.
+   ```bash
+   docker exec -it spaceops-kafka kafka-topics --bootstrap-server localhost:9092 --list | grep telemetry.invalid
+   ```
+3. **Inspect Cluster Health**:
+   Check Kafka's broker status and check for leader election issues on the topic partition.
+   ```bash
+   docker exec -it spaceops-kafka kafka-topics --bootstrap-server localhost:9092 --describe --topic telemetry.invalid
+   ```
+
+### Mitigations
+- **Auto-Provision Topic**: If `telemetry.invalid` is missing, auto-create it using the Kafka CLI tools.
+- **Restart Kafka/Zookeeper**: If Kafka is in an unhealthy state, restart the containers:
+  ```bash
+  docker compose restart kafka zookeeper
+  ```
+- **Scale Buffers**: If Kafka is experiencing transient traffic spikes, adjust the broker memory or client producer pool settings.

@@ -5,14 +5,14 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::time::sleep;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 mod config;
 mod generator;
 mod scenario;
 
 use config::Config;
-use generator::{SatelliteSimulator, TelemetryRecord};
+use generator::SatelliteSimulator;
 use lazy_static::lazy_static;
 
 lazy_static! {

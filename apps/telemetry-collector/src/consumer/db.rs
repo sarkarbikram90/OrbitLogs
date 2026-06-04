@@ -1,6 +1,6 @@
 use crate::models::TelemetryRecord;
 use sqlx::{Error, PgPool};
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 pub async fn ensure_satellite_exists(pool: &PgPool, satellite_id: &str) -> Result<(), Error> {
     // Check and upsert satellite metadata if it does not exist

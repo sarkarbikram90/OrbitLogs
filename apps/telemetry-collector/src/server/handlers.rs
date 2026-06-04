@@ -1,16 +1,16 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum::http::HeaderMap;
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use chrono::{DateTime, Utc};
 use prometheus::{Encoder, TextEncoder};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{error, info, instrument, warn};
+use tracing::{error, instrument, warn};
 use uuid::Uuid;
 
 use crate::metrics::{
-    DATABASE_INSERT_LATENCY, DLQ_PUBLISH_FAILURES_TOTAL, KAFKA_PUBLISH_LATENCY,
-    PROCESSING_LATENCY, REGISTRY, TELEMETRY_INVALID_TOTAL, TELEMETRY_RECEIVED_TOTAL,
+    DLQ_PUBLISH_FAILURES_TOTAL, KAFKA_PUBLISH_LATENCY, PROCESSING_LATENCY, REGISTRY,
+    TELEMETRY_INVALID_TOTAL, TELEMETRY_RECEIVED_TOTAL,
 };
 use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;

@@ -146,6 +146,20 @@ Benchmark metrics will output directly into `benchmarks/reports/`. Under load, o
 
 ---
 
-## 🗺️ Version 1 Roadmap & Retrospectives
-- **V1 (Scope Done)**: Fully async Axum ingestion tier, key-based partitioned Kafka topics, self-healing database hypertables with compression, Jaeger distributed traces, and provisioning Grafana dashboards.
+## 🛡️ Production-Grade Hardening & Security Features
+
+As part of a production-readiness program, the platform has been hardened with the following enterprise features:
+
+- **At-Least-Once Delivery**: Switched from auto-commits to manual offset commits. Offsets are committed only after successful database writes or DLQ storage, ensuring zero telemetry loss during outages.
+- **Non-Root Container Execution**: All container workloads run as a dedicated, non-privileged `spaceops` system user (UID/GID 10001) to minimize the container escape attack surface.
+- **Ingestion Protection & Rate Limiting**: Enforced a strict **10KB payload limit** and integrated a route-specific **rate-limiting middleware** (100 req/sec) to defend the ingestion endpoint from resource exhaustion and Denial of Service (DoS) attacks.
+- **Serde Hardening**: Shared models extracted to a dedicated `spaceops-models` crate with `#[serde(deny_unknown_fields)]` enabled to automatically reject telemetry structures containing unrecognized or malicious keys.
+- **Supply Chain Protection**: Integrated automated vulnerability auditing (`cargo-audit`) and license compliance checks (`cargo-deny`) into the CI/CD pipeline.
+- **Orchestration Health Probes**: Implemented `/readiness` (checks database + message queue health) and `/liveness` endpoints to support Kubernetes or ECS rolling updates.
+- **Advanced Observability & Alerting**: Configured custom sub-10ms latency histogram buckets, exposed DLQ publishing failure counters (`dlq_publish_failures_total`), and defined production alert rules in Prometheus.
+
+---
+
+## 🗺️ Version 2 Roadmap & Retrospectives
+- **V1 (Completed)**: Decoupled async ingestion, key-based Kafka partitioning, self-healing database hypertables, Jaeger traces, and production-grade security/hardening program.
 - **V2 (Future)**: Real-time ground station command relaying, orbital visualization overlays, and Prometheus-based anomaly alerting webhooks.

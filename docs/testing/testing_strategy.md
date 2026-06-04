@@ -43,9 +43,12 @@ cargo test --lib
 
 ## 3. Integration Testing Layer
 
-Integration tests are defined in the `apps/telemetry-collector/tests/` directory:
-- **Scope**: Verifies integration between payload parser structures and validation rules.
-- **Execution**: Can be run locally alongside standard test routines.
+Integration tests are defined in [integration_tests.rs](file:///c:/Users/bikrams/Open-SpaceOps/Open-SpaceOps/apps/telemetry-collector/tests/integration_tests.rs):
+- **HTTP Routing & Health**: Verifies that `/health`, `/liveness`, `/readiness`, and `/metrics` respond with correct HTTP status codes and structure.
+- **Ingress Limit Enforcement**: Verifies that payloads exceeding the 10KB limit are immediately rejected with `413 Payload Too Large` without invoking downstream systems.
+- **Ingestion Rate Limiting**: Verifies that requests exceeding 100 requests per second are throttled with `429 Too Many Requests`.
+- **Serde Hardening (Schema Rejection)**: Verifies that JSON payloads containing unknown fields are rejected with `422 Unprocessable Entity` (or parsing failure).
+- **Execution**: Can be run locally alongside standard test routines and executes automatically in the GitHub Actions CI pipeline.
 
 Run the integration tests:
 ```bash

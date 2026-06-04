@@ -13,17 +13,27 @@ use uuid::Uuid;
 
 use telemetry_collector::metrics;
 use telemetry_collector::models::TelemetryRecord;
-use telemetry_collector::server::handlers::{AppState, IngestionResponse, ErrorResponse};
+use telemetry_collector::server::handlers::{AppState, ErrorResponse, IngestionResponse};
+
+async fn mock_ingest_telemetry(
+    _headers: axum::http::HeaderMap,
+    _body: String,
+) -> impl axum::response::IntoResponse {
+    StatusCode::ACCEPTED
+}
 
 /// Create a test application without real Kafka/DB dependencies.
 /// This allows HTTP-layer integration testing without infrastructure.
 fn create_test_app() -> Router {
+    use axum::error_handling::HandleErrorLayer;
+    use axum::BoxError;
+    use std::time::Duration;
+    use tower::limit::RateLimitLayer;
+    use tower::ServiceBuilder;
+
     // Register metrics (idempotent in tests due to lazy_static)
     let _ = std::panic::catch_unwind(|| metrics::register_metrics());
 
-    // We cannot create a real KafkaProducer without a broker,
-    // so we test only the routes that don't require Kafka (health, readiness, liveness, metrics).
-    // For full ingestion tests, we validate the TelemetryRecord parsing and validation.
     let state = Arc::new(AppState {
         kafka_producer: unsafe { std::mem::zeroed() }, // Will not be called in health tests
         raw_topic: "telemetry.raw".to_string(),
@@ -31,11 +41,40 @@ fn create_test_app() -> Router {
         db_pool: None,
     });
 
+    let rate_limit_layer = ServiceBuilder::new()
+        .layer(HandleErrorLayer::new(|err: BoxError| async move {
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                serde_json::json!({
+                    "error": "Rate limit exceeded",
+                    "details": vec![err.to_string()]
+                })
+                .to_string(),
+            )
+        }))
+        .layer(RateLimitLayer::new(100, Duration::from_secs(1)));
+
     Router::new()
-        .route("/health", get(telemetry_collector::server::handlers::health_check))
-        .route("/readiness", get(telemetry_collector::server::handlers::readiness_check))
-        .route("/liveness", get(telemetry_collector::server::handlers::liveness_check))
-        .route("/metrics", get(telemetry_collector::server::handlers::metrics_endpoint))
+        .route(
+            "/telemetry",
+            post(mock_ingest_telemetry).layer(rate_limit_layer),
+        )
+        .route(
+            "/health",
+            get(telemetry_collector::server::handlers::health_check),
+        )
+        .route(
+            "/readiness",
+            get(telemetry_collector::server::handlers::readiness_check),
+        )
+        .route(
+            "/liveness",
+            get(telemetry_collector::server::handlers::liveness_check),
+        )
+        .route(
+            "/metrics",
+            get(telemetry_collector::server::handlers::metrics_endpoint),
+        )
         .layer(DefaultBodyLimit::max(10_240))
         .with_state(state)
 }
@@ -220,4 +259,60 @@ async fn test_metrics_endpoint() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_oversized_payload_rejection() {
+    let app = create_test_app();
+
+    // Create an oversized body (11 KB)
+    let body = vec![b'a'; 11 * 1024];
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/telemetry")
+                .header("Content-Type", "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn test_rate_limiting() {
+    let app = create_test_app();
+
+    // Send 150 requests rapidly.
+    // Since the limit is 100 requests per second, some of these should get a 429 status code.
+    let mut hit_rate_limit = false;
+
+    for _ in 0..150 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/telemetry")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
+            hit_rate_limit = true;
+            break;
+        }
+    }
+
+    assert!(
+        hit_rate_limit,
+        "Expected at least one request to be rate limited (429)"
+    );
 }
