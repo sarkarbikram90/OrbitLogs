@@ -24,9 +24,9 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 spaceops-models = { workspace = true }
-tower = { version = "0.5", features = ["limit", "util", "buffer"] }
+tower = { version = "0.5", features = ["limit", "util", "buffer", "load-shed"] }
 
 [dev-dependencies]
-tower = { version = "0.5", features = ["util", "limit", "buffer"] }
+tower = { version = "0.5", features = ["util", "limit", "buffer", "load-shed"] }
 hyper = { version = "1.0", features = ["full"] }
 http-body-util = "0.1"

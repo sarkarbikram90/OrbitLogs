@@ -6,14 +6,13 @@ use axum::{
     Router,
 };
 use chrono::Utc;
-use serde_json::json;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
 use telemetry_collector::metrics;
 use telemetry_collector::models::TelemetryRecord;
-use telemetry_collector::server::handlers::{AppState, ErrorResponse, IngestionResponse};
+use telemetry_collector::server::handlers::AppState;
 
 async fn mock_ingest_telemetry(
     _headers: axum::http::HeaderMap,
@@ -28,14 +27,16 @@ fn create_test_app() -> Router {
     use axum::error_handling::HandleErrorLayer;
     use axum::BoxError;
     use std::time::Duration;
-    use tower::limit::RateLimitLayer;
     use tower::ServiceBuilder;
 
     // Register metrics (idempotent in tests due to lazy_static)
-    let _ = std::panic::catch_unwind(|| metrics::register_metrics());
+    let _ = std::panic::catch_unwind(metrics::register_metrics);
+
+    let kafka_producer = telemetry_collector::server::producer::KafkaProducer::new("localhost:9092")
+        .expect("failed to create mock kafka producer for test");
 
     let state = Arc::new(AppState {
-        kafka_producer: unsafe { std::mem::zeroed() }, // Will not be called in health tests
+        kafka_producer,
         raw_topic: "telemetry.raw".to_string(),
         invalid_topic: "telemetry.invalid".to_string(),
         db_pool: None,
@@ -52,7 +53,9 @@ fn create_test_app() -> Router {
                 .to_string(),
             )
         }))
-        .layer(RateLimitLayer::new(100, Duration::from_secs(1)));
+        .load_shed()
+        .buffer(1)
+        .rate_limit(100, Duration::from_secs(1));
 
     Router::new()
         .route(
@@ -283,18 +286,19 @@ async fn test_oversized_payload_rejection() {
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_rate_limiting() {
     let app = create_test_app();
 
-    // Send 150 requests rapidly.
+    // Send 150 requests concurrently.
     // Since the limit is 100 requests per second, some of these should get a 429 status code.
-    let mut hit_rate_limit = false;
+    let mut set = tokio::task::JoinSet::new();
 
     for _ in 0..150 {
-        let response = app
-            .clone()
-            .oneshot(
+        let mut app = app.clone();
+        set.spawn(async move {
+            use tower::Service;
+            app.call(
                 Request::builder()
                     .method("POST")
                     .uri("/telemetry")
@@ -303,11 +307,14 @@ async fn test_rate_limiting() {
                     .unwrap(),
             )
             .await
-            .unwrap();
+        });
+    }
 
+    let mut hit_rate_limit = false;
+    while let Some(res) = set.join_next().await {
+        let response = res.unwrap().unwrap();
         if response.status() == StatusCode::TOO_MANY_REQUESTS {
             hit_rate_limit = true;
-            break;
         }
     }
 

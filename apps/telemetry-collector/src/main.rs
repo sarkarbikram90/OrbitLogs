@@ -4,7 +4,7 @@ use std::time::Duration;
 use tracing::{error, info};
 
 use telemetry_collector::{
-    consumer, metrics, models, server, server::handlers::AppState, server::producer::KafkaProducer,
+    consumer, metrics, server, server::handlers::AppState, server::producer::KafkaProducer,
     telemetry,
 };
 
@@ -49,6 +49,7 @@ struct Cli {
 }
 
 #[derive(Subcommand, Debug)]
+#[allow(clippy::enum_variant_names)]
 enum Commands {
     /// Start the Axum HTTP server to ingest telemetry and produce to Kafka
     RunServer,
@@ -99,11 +100,11 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     // DB Connection Pool configuration (configured with fallback retries for self-bootstrapping Compose setups)
-    let mut db_pool = None;
     let run_mode = cli.command.as_ref().unwrap_or(&Commands::RunAll);
 
+    // DB Connection Pool configuration (configured with fallback retries for self-bootstrapping Compose setups)
     // Only connect to DB if we need consumer or health checking
-    match run_mode {
+    let db_pool = match run_mode {
         Commands::RunConsumer | Commands::RunAll | Commands::RunServer => {
             info!("Configuring database connection pool...");
             let mut retries = 5;
@@ -132,9 +133,9 @@ async fn main() -> Result<(), anyhow::Error> {
                     }
                 }
             }
-            db_pool = pool;
+            pool
         }
-    }
+    };
 
     // Run matching commands
     match run_mode {

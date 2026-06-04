@@ -33,7 +33,8 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
 
     let rate_limit_layer = ServiceBuilder::new()
         .layer(HandleErrorLayer::new(handle_rate_limit_error))
-        .buffer(100)
+        .load_shed()
+        .buffer(1)
         .rate_limit(100, Duration::from_secs(1));
 
     let app = Router::new()
