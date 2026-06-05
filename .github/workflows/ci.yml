@@ -59,7 +59,10 @@ jobs:
             echo "Waiting for database (attempt $i)..."
             sleep 1
           done
-          PGPASSWORD=postgrespassword psql -h localhost -U postgres -d spaceops -f deployments/postgres/migrations/01_init.sql
+          for f in deployments/postgres/migrations/*.sql; do
+            echo "Applying migration: $f"
+            PGPASSWORD=postgrespassword psql -h localhost -U postgres -d spaceops -f "$f"
+          done
 
       - name: Check code formatting
         run: cargo fmt --check

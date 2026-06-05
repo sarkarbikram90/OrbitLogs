@@ -12,6 +12,7 @@ COPY apps/telemetry-simulator/Cargo.toml apps/telemetry-simulator/Cargo.toml
 COPY apps/telemetry-collector/Cargo.toml apps/telemetry-collector/Cargo.toml
 COPY apps/mission-health-engine/Cargo.toml apps/mission-health-engine/Cargo.toml
 COPY apps/ground-station-simulator/Cargo.toml apps/ground-station-simulator/Cargo.toml
+COPY apps/mission-replay-engine/Cargo.toml apps/mission-replay-engine/Cargo.toml
 COPY crates/spaceops-models/Cargo.toml crates/spaceops-models/Cargo.toml
 COPY crates/spaceops-packets/Cargo.toml crates/spaceops-packets/Cargo.toml
 
@@ -20,6 +21,7 @@ RUN mkdir -p apps/telemetry-simulator/src && echo "fn main() {}" > apps/telemetr
 RUN mkdir -p apps/telemetry-collector/src && echo "fn main() {}" > apps/telemetry-collector/src/main.rs
 RUN mkdir -p apps/mission-health-engine/src && echo "fn main() {}" > apps/mission-health-engine/src/main.rs
 RUN mkdir -p apps/ground-station-simulator/src && echo "fn main() {}" > apps/ground-station-simulator/src/main.rs
+RUN mkdir -p apps/mission-replay-engine/src && echo "fn main() {}" > apps/mission-replay-engine/src/main.rs
 RUN mkdir -p crates/spaceops-models/src && touch crates/spaceops-models/src/lib.rs
 RUN mkdir -p crates/spaceops-packets/src && touch crates/spaceops-packets/src/lib.rs
 

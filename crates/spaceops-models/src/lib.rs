@@ -1,3 +1,5 @@
+#![allow(clippy::manual_range_contains)]
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

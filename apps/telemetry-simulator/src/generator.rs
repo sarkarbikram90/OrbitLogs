@@ -1,3 +1,5 @@
+#![allow(clippy::manual_clamp, clippy::bool_assert_comparison)]
+
 use chrono::{DateTime, Utc};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;

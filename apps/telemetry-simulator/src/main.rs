@@ -1,3 +1,5 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
+
 use clap::Parser;
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
 use std::net::SocketAddr;

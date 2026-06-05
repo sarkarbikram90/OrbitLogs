@@ -1,3 +1,5 @@
+#![allow(clippy::upper_case_acronyms, clippy::wrong_self_convention, clippy::inherent_to_string, clippy::manual_range_contains)]
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use spaceops_models::TelemetryRecord;

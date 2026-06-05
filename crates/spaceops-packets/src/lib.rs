@@ -202,7 +202,7 @@ impl TelemetryFrame {
 
         // 1. Pack Frame Header (6 bytes)
         let word1 = ((self.frame_version & 0x03) as u16) << 14
-            | ((self.spacecraft_id & 0x03FF) as u16) << 4
+            | (self.spacecraft_id & 0x03FF) << 4
             | ((self.virtual_channel_id & 0x07) as u16) << 1
             | (self.ocf_flag as u16);
 
