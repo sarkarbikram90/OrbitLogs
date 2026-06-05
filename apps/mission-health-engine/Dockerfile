@@ -1,5 +1,5 @@
 # Builder Stage
-FROM rust:1.85-alpine as builder
+FROM rust:alpine as builder
 
 # Install building system requirements
 RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev cmake g++
@@ -38,7 +38,7 @@ RUN touch apps/mission-health-engine/src/main.rs
 RUN cargo build --release -p mission-health-engine
 
 # Runner Stage
-FROM alpine:3.18
+FROM alpine:3.21
 RUN apk add --no-cache ca-certificates libgcc libstdc++ openssl
 
 # Create non-root user for security hardening (UID/GID 10001)
