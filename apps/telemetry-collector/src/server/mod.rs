@@ -41,15 +41,24 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
         .nest(
             "/telemetry",
             Router::new()
-                .route("/", post(handlers::ingest_telemetry).layer(rate_limit_layer))
-                .layer(axum::middleware::from_fn_with_state(state_arc.clone(), auth_middleware)),
+                .route(
+                    "/",
+                    post(handlers::ingest_telemetry).layer(rate_limit_layer),
+                )
+                .layer(axum::middleware::from_fn_with_state(
+                    state_arc.clone(),
+                    auth_middleware,
+                )),
         )
         .route("/ws", get(handlers::ws_handler))
         .route("/health", get(handlers::health_check))
         .route("/readiness", get(handlers::readiness_check))
         .route("/liveness", get(handlers::liveness_check))
         .route("/metrics", get(handlers::metrics_endpoint))
-        .layer(axum::middleware::from_fn_with_state(state_arc.clone(), cors_middleware))
+        .layer(axum::middleware::from_fn_with_state(
+            state_arc.clone(),
+            cors_middleware,
+        ))
         .layer(DefaultBodyLimit::max(10_240)) // 10KB max payload
         .with_state(state_arc);
 
@@ -70,7 +79,8 @@ pub async fn auth_middleware(
     req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> Result<axum::response::Response, std::convert::Infallible> {
-    let mut token_opt = req.headers()
+    let mut token_opt = req
+        .headers()
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
@@ -103,10 +113,9 @@ pub async fn auth_middleware(
                 axum::http::HeaderValue::from_static("application/json"),
             );
             if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
-                response.headers_mut().insert(
-                    axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-                    origin_val,
-                );
+                response
+                    .headers_mut()
+                    .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
             }
             Ok(response)
         }
@@ -126,17 +135,19 @@ pub async fn cors_middleware(
             .status(StatusCode::NO_CONTENT)
             .header("access-control-allow-origin", &allowed_origin)
             .header("access-control-allow-methods", "GET, POST, OPTIONS")
-            .header("access-control-allow-headers", "content-type, x-request-id, authorization")
+            .header(
+                "access-control-allow-headers",
+                "content-type, x-request-id, authorization",
+            )
             .body(axum::body::Body::empty())
             .unwrap();
     }
 
     let mut response = next.run(request).await;
     if let Ok(origin_val) = axum::http::HeaderValue::from_str(&allowed_origin) {
-        response.headers_mut().insert(
-            axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-            origin_val,
-        );
+        response
+            .headers_mut()
+            .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
     }
     response.headers_mut().insert(
         axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,

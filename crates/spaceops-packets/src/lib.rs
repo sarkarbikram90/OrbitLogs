@@ -17,7 +17,14 @@ impl std::fmt::Display for PacketError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PacketError::InvalidLength(s) => write!(f, "Data length too short: {}", s),
-            PacketError::InvalidCrc { expected, calculated } => write!(f, "Invalid CRC-16 checksum: expected {:#06X}, got {:#06X}", expected, calculated),
+            PacketError::InvalidCrc {
+                expected,
+                calculated,
+            } => write!(
+                f,
+                "Invalid CRC-16 checksum: expected {:#06X}, got {:#06X}",
+                expected, calculated
+            ),
             PacketError::UnknownApid(a) => write!(f, "Unknown APID: {}", a),
             PacketError::SubsystemMismatch(s) => write!(f, "Subsystem mismatch: {}", s),
             PacketError::ParserError(s) => write!(f, "Failed to parse field: {}", s),
@@ -40,17 +47,17 @@ pub const APID_FLIGHT_COMPUTER: u16 = 7;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TelemetryPacket {
     // Primary Header (6 bytes)
-    pub packet_version: u8,        // 3 bits
-    pub packet_type: u8,           // 1 bit
-    pub sec_header_flag: bool,     // 1 bit
-    pub apid: u16,                 // 11 bits
-    pub sequence_flags: u8,        // 2 bits
-    pub sequence_count: u16,       // 14 bits
-    pub packet_length: u16,        // 16 bits (Length of user data + sec header + CRC - 1)
+    pub packet_version: u8,    // 3 bits
+    pub packet_type: u8,       // 1 bit
+    pub sec_header_flag: bool, // 1 bit
+    pub apid: u16,             // 11 bits
+    pub sequence_flags: u8,    // 2 bits
+    pub sequence_count: u16,   // 14 bits
+    pub packet_length: u16,    // 16 bits (Length of user data + sec header + CRC - 1)
 
     // Secondary Header (8 bytes)
-    pub timestamp_coarse: u32,     // 32 bits (Seconds since UNIX epoch)
-    pub timestamp_fine: u32,       // 32 bits (Nanoseconds)
+    pub timestamp_coarse: u32, // 32 bits (Seconds since UNIX epoch)
+    pub timestamp_fine: u32,   // 32 bits (Nanoseconds)
 
     // User Data Field (variable length)
     pub user_data: Vec<u8>,
@@ -71,10 +78,10 @@ pub struct TelemetryFrame {
     pub first_header_pointer: u16, // 11 bits (pointer) + 5 bits spare = 16 bits
 
     // Frame Data Field
-    pub data_field: Vec<u8>,       // Serialized TelemetryPacket
+    pub data_field: Vec<u8>, // Serialized TelemetryPacket
 
     // Error Control (2 bytes)
-    pub frame_error_control: u16,  // CRC-16
+    pub frame_error_control: u16, // CRC-16
 }
 
 impl TelemetryPacket {
@@ -86,9 +93,8 @@ impl TelemetryPacket {
             | ((self.packet_type & 0x01) as u16) << 12
             | (self.sec_header_flag as u16) << 11
             | (self.apid & 0x07FF);
-        
-        let word2 = ((self.sequence_flags & 0x03) as u16) << 14
-            | (self.sequence_count & 0x3FFF);
+
+        let word2 = ((self.sequence_flags & 0x03) as u16) << 14 | (self.sequence_count & 0x3FFF);
 
         bytes.extend_from_slice(&word1.to_be_bytes());
         bytes.extend_from_slice(&word2.to_be_bytes());
@@ -112,7 +118,9 @@ impl TelemetryPacket {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PacketError> {
         if bytes.len() < 8 {
-            return Err(PacketError::InvalidLength("Packet too short for minimal header".to_string()));
+            return Err(PacketError::InvalidLength(
+                "Packet too short for minimal header".to_string(),
+            ));
         }
 
         // 1. Unpack Primary Header
@@ -160,7 +168,9 @@ impl TelemetryPacket {
 
         if sec_header_flag {
             if total_expected_len < 16 {
-                return Err(PacketError::InvalidLength("Packet missing secondary header bytes".to_string()));
+                return Err(PacketError::InvalidLength(
+                    "Packet missing secondary header bytes".to_string(),
+                ));
             }
             timestamp_coarse = u32::from_be_bytes([
                 packet_bytes[6],
@@ -223,7 +233,9 @@ impl TelemetryFrame {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PacketError> {
         if bytes.len() < 8 {
-            return Err(PacketError::InvalidLength("Frame too short for header + CRC".to_string()));
+            return Err(PacketError::InvalidLength(
+                "Frame too short for header + CRC".to_string(),
+            ));
         }
 
         // Validate CRC
@@ -264,7 +276,10 @@ impl TelemetryFrame {
 }
 
 /// Serializes a TelemetryRecord to a binary Space Packet inside a Telemetry Frame.
-pub fn encode_record_to_frame(record: &TelemetryRecord, seq_count: u16) -> Result<Vec<u8>, PacketError> {
+pub fn encode_record_to_frame(
+    record: &TelemetryRecord,
+    seq_count: u16,
+) -> Result<Vec<u8>, PacketError> {
     // 1. Map satellite_id to SCID (e.g. "SAT-0001" -> 1)
     let scid = scid_from_satellite_id(&record.satellite_id);
 
@@ -377,7 +392,7 @@ pub fn encode_record_to_frame(record: &TelemetryRecord, seq_count: u16) -> Resul
     let ts = record.timestamp;
     let coarse = ts.timestamp() as u32;
     let fine = ts.timestamp_subsec_nanos();
-    
+
     // Packet length = secondary header size (8) + user data size + CRC size (2) - 1
     let packet_length = (8 + user_data.len() + 2 - 1) as u16;
 
@@ -431,7 +446,8 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     };
 
     // Recover timestamp
-    let ts = Utc.timestamp_opt(packet.timestamp_coarse as i64, packet.timestamp_fine)
+    let ts = Utc
+        .timestamp_opt(packet.timestamp_coarse as i64, packet.timestamp_fine)
         .single()
         .unwrap_or_else(Utc::now);
 
@@ -463,7 +479,9 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     // Unpack User Data
     let ud = &packet.user_data;
     if ud.is_empty() {
-        return Err(PacketError::ParserError("User data field empty".to_string()));
+        return Err(PacketError::ParserError(
+            "User data field empty".to_string(),
+        ));
     }
     let data_apid = ud[0] as u16;
     if data_apid != packet.apid {
@@ -478,29 +496,39 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     match packet.apid {
         APID_POWER => {
             if payload.len() < 24 {
-                return Err(PacketError::ParserError("Power payload too short".to_string()));
+                return Err(PacketError::ParserError(
+                    "Power payload too short".to_string(),
+                ));
             }
             record.battery_voltage = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
             record.battery_current = Some(f64::from_be_bytes(payload[8..16].try_into().unwrap()));
-            record.solar_panel_output = Some(f64::from_be_bytes(payload[16..24].try_into().unwrap()));
+            record.solar_panel_output =
+                Some(f64::from_be_bytes(payload[16..24].try_into().unwrap()));
         }
         APID_THERMAL => {
             if payload.len() < 8 {
-                return Err(PacketError::ParserError("Thermal payload too short".to_string()));
+                return Err(PacketError::ParserError(
+                    "Thermal payload too short".to_string(),
+                ));
             }
             record.temperature = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
         }
         APID_COMMS => {
             if payload.len() < 12 {
-                return Err(PacketError::ParserError("Comms payload too short".to_string()));
+                return Err(PacketError::ParserError(
+                    "Comms payload too short".to_string(),
+                ));
             }
-            record.communication_latency = Some(f32::from_be_bytes(payload[0..4].try_into().unwrap()));
+            record.communication_latency =
+                Some(f32::from_be_bytes(payload[0..4].try_into().unwrap()));
             record.packet_loss = Some(f32::from_be_bytes(payload[4..8].try_into().unwrap()));
             record.signal_strength = Some(f32::from_be_bytes(payload[8..12].try_into().unwrap()));
         }
         APID_PROPULSION => {
             if payload.len() < 20 {
-                return Err(PacketError::ParserError("Propulsion payload too short".to_string()));
+                return Err(PacketError::ParserError(
+                    "Propulsion payload too short".to_string(),
+                ));
             }
             record.velocity = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
             record.altitude = Some(f64::from_be_bytes(payload[8..16].try_into().unwrap()));
@@ -508,7 +536,9 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
         }
         APID_ADCS => {
             if payload.len() < 12 {
-                return Err(PacketError::ParserError("ADCS payload too short".to_string()));
+                return Err(PacketError::ParserError(
+                    "ADCS payload too short".to_string(),
+                ));
             }
             record.orientation_pitch = Some(f32::from_be_bytes(payload[0..4].try_into().unwrap()));
             record.orientation_roll = Some(f32::from_be_bytes(payload[4..8].try_into().unwrap()));
@@ -516,36 +546,46 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
         }
         APID_PAYLOAD => {
             if payload.len() < 9 {
-                return Err(PacketError::ParserError("Payload payload too short".to_string()));
+                return Err(PacketError::ParserError(
+                    "Payload payload too short".to_string(),
+                ));
             }
             record.payload_power_draw = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
             record.payload_active = Some(payload[8] != 0);
         }
         APID_FLIGHT_COMPUTER => {
             if payload.len() < 8 {
-                return Err(PacketError::ParserError("Flight computer payload too short".to_string()));
+                return Err(PacketError::ParserError(
+                    "Flight computer payload too short".to_string(),
+                ));
             }
             record.cpu_usage = Some(f32::from_be_bytes(payload[0..4].try_into().unwrap()));
             record.memory_usage = Some(f32::from_be_bytes(payload[4..8].try_into().unwrap()));
         }
         _ => {
             if payload.len() < 93 {
-                return Err(PacketError::ParserError("Unified payload too short".to_string()));
+                return Err(PacketError::ParserError(
+                    "Unified payload too short".to_string(),
+                ));
             }
             record.battery_voltage = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
             record.battery_current = Some(f64::from_be_bytes(payload[8..16].try_into().unwrap()));
-            record.solar_panel_output = Some(f64::from_be_bytes(payload[16..24].try_into().unwrap()));
+            record.solar_panel_output =
+                Some(f64::from_be_bytes(payload[16..24].try_into().unwrap()));
             record.temperature = Some(f64::from_be_bytes(payload[24..32].try_into().unwrap()));
-            record.communication_latency = Some(f32::from_be_bytes(payload[32..36].try_into().unwrap()));
+            record.communication_latency =
+                Some(f32::from_be_bytes(payload[32..36].try_into().unwrap()));
             record.packet_loss = Some(f32::from_be_bytes(payload[36..40].try_into().unwrap()));
             record.signal_strength = Some(f32::from_be_bytes(payload[40..44].try_into().unwrap()));
             record.velocity = Some(f64::from_be_bytes(payload[44..52].try_into().unwrap()));
             record.altitude = Some(f64::from_be_bytes(payload[52..60].try_into().unwrap()));
             record.fuel_remaining = Some(f32::from_be_bytes(payload[60..64].try_into().unwrap()));
-            record.orientation_pitch = Some(f32::from_be_bytes(payload[64..68].try_into().unwrap()));
+            record.orientation_pitch =
+                Some(f32::from_be_bytes(payload[64..68].try_into().unwrap()));
             record.orientation_roll = Some(f32::from_be_bytes(payload[68..72].try_into().unwrap()));
             record.orientation_yaw = Some(f32::from_be_bytes(payload[72..76].try_into().unwrap()));
-            record.payload_power_draw = Some(f64::from_be_bytes(payload[76..84].try_into().unwrap()));
+            record.payload_power_draw =
+                Some(f64::from_be_bytes(payload[76..84].try_into().unwrap()));
             record.payload_active = Some(payload[84] != 0);
             record.cpu_usage = Some(f32::from_be_bytes(payload[85..89].try_into().unwrap()));
             record.memory_usage = Some(f32::from_be_bytes(payload[89..93].try_into().unwrap()));
@@ -607,9 +647,18 @@ mod tests {
 
         assert_eq!(decoded_rec.satellite_id, rec.satellite_id);
         assert_eq!(decoded_rec.subsystem_id, rec.subsystem_id);
-        assert_eq!(decoded_rec.battery_voltage.unwrap(), rec.battery_voltage.unwrap());
-        assert_eq!(decoded_rec.battery_current.unwrap(), rec.battery_current.unwrap());
-        assert_eq!(decoded_rec.solar_panel_output.unwrap(), rec.solar_panel_output.unwrap());
+        assert_eq!(
+            decoded_rec.battery_voltage.unwrap(),
+            rec.battery_voltage.unwrap()
+        );
+        assert_eq!(
+            decoded_rec.battery_current.unwrap(),
+            rec.battery_current.unwrap()
+        );
+        assert_eq!(
+            decoded_rec.solar_panel_output.unwrap(),
+            rec.solar_panel_output.unwrap()
+        );
         assert_eq!(decoded_rec.timestamp.timestamp(), rec.timestamp.timestamp());
     }
 
@@ -617,7 +666,7 @@ mod tests {
     fn test_corrupt_data_detection() {
         let rec = mock_record();
         let mut encoded_bytes = encode_record_to_frame(&rec, 101).unwrap();
-        
+
         // Corrupt one byte of user data
         let len = encoded_bytes.len();
         encoded_bytes[len - 5] ^= 0x55;

@@ -47,7 +47,11 @@ struct Cli {
     #[arg(long, env = "API_KEY", default_value = "secret-spaceops-key-2026")]
     api_key: String,
 
-    #[arg(long, env = "CORS_ALLOWED_ORIGIN", default_value = "http://localhost:3000")]
+    #[arg(
+        long,
+        env = "CORS_ALLOWED_ORIGIN",
+        default_value = "http://localhost:3000"
+    )]
     cors_allowed_origin: String,
 
     #[arg(long, env = "KAFKA_SECURITY_PROTOCOL")]

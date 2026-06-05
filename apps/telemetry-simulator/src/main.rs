@@ -2,9 +2,9 @@
 
 use clap::Parser;
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::time::sleep;
@@ -15,10 +15,10 @@ mod generator;
 mod scenario;
 
 use config::Config;
-use generator::{SatelliteSimulator, GroundStationState};
+use generator::{GroundStationState, SatelliteSimulator};
 use lazy_static::lazy_static;
-use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::config::ClientConfig;
+use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
 
 fn get_linked_ground_station(satellite_id: &str) -> String {
@@ -30,7 +30,6 @@ fn get_linked_ground_station(satellite_id: &str) -> String {
     }
     "GS-0001".to_string()
 }
-
 
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
@@ -139,7 +138,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let config = Arc::new(config);
 
     // Track ground station states
-    let gs_states: Arc<Mutex<HashMap<String, GroundStationState>>> = Arc::new(Mutex::new(HashMap::new()));
+    let gs_states: Arc<Mutex<HashMap<String, GroundStationState>>> =
+        Arc::new(Mutex::new(HashMap::new()));
     let gs_states_clone = Arc::clone(&gs_states);
     let brokers = config.kafka_brokers.clone();
     let topic = config.health_topic.clone();
@@ -154,7 +154,10 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut client_config = ClientConfig::new();
         client_config
             .set("bootstrap.servers", &brokers)
-            .set("group.id", &format!("telemetry-simulator-gs-group-{}", uuid::Uuid::new_v4()))
+            .set(
+                "group.id",
+                &format!("telemetry-simulator-gs-group-{}", uuid::Uuid::new_v4()),
+            )
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true")
@@ -181,7 +184,10 @@ async fn main() -> Result<(), anyhow::Error> {
         let consumer = match consumer_res {
             Ok(c) => c,
             Err(e) => {
-                error!("Failed to create Kafka consumer for ground station health: {}", e);
+                error!(
+                    "Failed to create Kafka consumer for ground station health: {}",
+                    e
+                );
                 return;
             }
         };
@@ -205,12 +211,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     match serde_json::from_str::<GroundStationState>(payload) {
                         Ok(gs) => {
-                            debug!("Received ground station health update: {} -> {}", gs.station_id, gs.status);
+                            debug!(
+                                "Received ground station health update: {} -> {}",
+                                gs.station_id, gs.status
+                            );
                             let mut map = gs_states_clone.lock().unwrap();
                             map.insert(gs.station_id.clone(), gs);
                         }
                         Err(e) => {
-                            error!("Failed to deserialize GroundStationState: {}. Payload: {}", e, payload);
+                            error!(
+                                "Failed to deserialize GroundStationState: {}. Payload: {}",
+                                e, payload
+                            );
                         }
                     }
                 }
@@ -257,7 +269,11 @@ async fn main() -> Result<(), anyhow::Error> {
         )));
 
         // Assign satellites to mission IDs dynamically
-        let mission_id = if i % 2 == 0 { "MISSION-ALPHA" } else { "MISSION-BETA" };
+        let mission_id = if i % 2 == 0 {
+            "MISSION-ALPHA"
+        } else {
+            "MISSION-BETA"
+        };
 
         let subsystems = vec![
             "Power",
@@ -293,13 +309,20 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     let (telemetry, tick) = {
                         let mut sim = simulator.lock().unwrap();
-                        let rec = sim.next_subsystem_record(&subsystem_name, &mission_id, linked_gs.as_ref());
+                        let rec = sim.next_subsystem_record(
+                            &subsystem_name,
+                            &mission_id,
+                            linked_gs.as_ref(),
+                        );
                         (rec, sim.ticks)
                     };
                     TELEMETRY_GENERATED_TOTAL.inc();
 
                     // Encode telemetry record as binary Space Packet inside a Telemetry Frame
-                    let binary_payload = match spaceops_packets::encode_record_to_frame(&telemetry, tick as u16) {
+                    let binary_payload = match spaceops_packets::encode_record_to_frame(
+                        &telemetry,
+                        tick as u16,
+                    ) {
                         Ok(bytes) => bytes,
                         Err(e) => {
                             error!("Failed to encode telemetry record to space packet frame for satellite {}: {}", telemetry.satellite_id, e);

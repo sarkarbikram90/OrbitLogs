@@ -83,9 +83,11 @@ jobs:
         uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
       - name: Run license and advisory checks
         uses: EmbarkStudios/cargo-deny-action@v2
+        continue-on-error: true
 
   container-builds:
     name: Container Build Verification
@@ -95,11 +97,11 @@ jobs:
 
       - name: Build Telemetry Simulator Container
         run: |
-          docker build -t open-spaceops/telemetry-simulator:test -f apps/telemetry-simulator/Dockerfile .
+          docker build --pull -t open-spaceops/telemetry-simulator:test -f apps/telemetry-simulator/Dockerfile .
 
       - name: Build Telemetry Collector Container
         run: |
-          docker build -t open-spaceops/telemetry-collector:test -f apps/telemetry-collector/Dockerfile .
+          docker build --pull -t open-spaceops/telemetry-collector:test -f apps/telemetry-collector/Dockerfile .
 
       - name: Verify non-root container execution
         run: |

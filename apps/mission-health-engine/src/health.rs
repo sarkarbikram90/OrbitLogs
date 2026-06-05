@@ -1,4 +1,9 @@
-#![allow(clippy::upper_case_acronyms, clippy::wrong_self_convention, clippy::inherent_to_string, clippy::manual_range_contains)]
+#![allow(
+    clippy::upper_case_acronyms,
+    clippy::wrong_self_convention,
+    clippy::inherent_to_string,
+    clippy::manual_range_contains
+)]
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -27,7 +32,6 @@ fn get_linked_ground_station(satellite_id: &str) -> String {
     }
     "GS-0001".to_string()
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthState {
@@ -153,7 +157,12 @@ pub fn assess_satellite_health(
         } else if is_degraded {
             let explanation = if let Some(gs) = gs_state {
                 if gs.status == "OUTAGE" || gs.status == "DEGRADED" {
-                    format!("Communications degraded due to ground station {} {} (Weather: {})", gs.station_id, gs.status.to_lowercase(), gs.weather_state)
+                    format!(
+                        "Communications degraded due to ground station {} {} (Weather: {})",
+                        gs.station_id,
+                        gs.status.to_lowercase(),
+                        gs.weather_state
+                    )
                 } else {
                     format!("Comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
                 }
@@ -170,7 +179,10 @@ pub fn assess_satellite_health(
             SubsystemHealth {
                 state: HealthState::GREEN,
                 score: 100,
-                explanation: format!("Communications normal (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal),
+                explanation: format!(
+                    "Communications normal (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)",
+                    loss, latency, signal
+                ),
             }
         }
     };
@@ -184,19 +196,28 @@ pub fn assess_satellite_health(
             SubsystemHealth {
                 state: HealthState::RED,
                 score: 0,
-                explanation: format!("Critical propulsion/orbital decay (Fuel: {:.1}%, Altitude: {:.1}km)", fuel, alt),
+                explanation: format!(
+                    "Critical propulsion/orbital decay (Fuel: {:.1}%, Altitude: {:.1}km)",
+                    fuel, alt
+                ),
             }
         } else if fuel < 20.0 || alt < 300.0 {
             SubsystemHealth {
                 state: HealthState::YELLOW,
                 score: 50,
-                explanation: format!("Propulsion degraded/low orbit (Fuel: {:.1}%, Altitude: {:.1}km)", fuel, alt),
+                explanation: format!(
+                    "Propulsion degraded/low orbit (Fuel: {:.1}%, Altitude: {:.1}km)",
+                    fuel, alt
+                ),
             }
         } else {
             SubsystemHealth {
                 state: HealthState::GREEN,
                 score: 100,
-                explanation: format!("Propulsion normal (Fuel: {:.1}%, Altitude: {:.1}km)", fuel, alt),
+                explanation: format!(
+                    "Propulsion normal (Fuel: {:.1}%, Altitude: {:.1}km)",
+                    fuel, alt
+                ),
             }
         }
     };
@@ -211,13 +232,19 @@ pub fn assess_satellite_health(
             SubsystemHealth {
                 state: HealthState::RED,
                 score: 0,
-                explanation: format!("Critical attitude drift (Pitch: {:.1}°, Roll: {:.1}°, Yaw: {:.1}°)", p, r, y),
+                explanation: format!(
+                    "Critical attitude drift (Pitch: {:.1}°, Roll: {:.1}°, Yaw: {:.1}°)",
+                    p, r, y
+                ),
             }
         } else if p > 15.0 || r > 15.0 || y > 15.0 {
             SubsystemHealth {
                 state: HealthState::YELLOW,
                 score: 50,
-                explanation: format!("Attitude drift (Pitch: {:.1}°, Roll: {:.1}°, Yaw: {:.1}°)", p, r, y),
+                explanation: format!(
+                    "Attitude drift (Pitch: {:.1}°, Roll: {:.1}°, Yaw: {:.1}°)",
+                    p, r, y
+                ),
             }
         } else {
             SubsystemHealth {
@@ -276,19 +303,28 @@ pub fn assess_satellite_health(
             SubsystemHealth {
                 state: HealthState::RED,
                 score: 0,
-                explanation: format!("Critical flight computer load (CPU: {:.1}%, Mem: {:.1}%)", cpu, mem),
+                explanation: format!(
+                    "Critical flight computer load (CPU: {:.1}%, Mem: {:.1}%)",
+                    cpu, mem
+                ),
             }
         } else if cpu > 80.0 || mem > 80.0 {
             SubsystemHealth {
                 state: HealthState::YELLOW,
                 score: 50,
-                explanation: format!("High flight computer load (CPU: {:.1}%, Mem: {:.1}%)", cpu, mem),
+                explanation: format!(
+                    "High flight computer load (CPU: {:.1}%, Mem: {:.1}%)",
+                    cpu, mem
+                ),
             }
         } else {
             SubsystemHealth {
                 state: HealthState::GREEN,
                 score: 100,
-                explanation: format!("Flight computer operational (CPU: {:.1}%, Mem: {:.1}%)", cpu, mem),
+                explanation: format!(
+                    "Flight computer operational (CPU: {:.1}%, Mem: {:.1}%)",
+                    cpu, mem
+                ),
             }
         }
     };
@@ -417,7 +453,10 @@ mod tests {
 
         assert_eq!(health.overall_state, HealthState::GREEN);
         assert_eq!(health.overall_score, 100);
-        assert_eq!(health.explanation, "All subsystems operating within normal parameters.");
+        assert_eq!(
+            health.explanation,
+            "All subsystems operating within normal parameters."
+        );
     }
 
     #[test]
@@ -443,7 +482,9 @@ mod tests {
         assert_eq!(health.overall_state, HealthState::RED);
         assert_eq!(health.power.state, HealthState::RED);
         assert_eq!(health.overall_score, 85); // (6*100 + 0) / 7 = 85
-        assert!(health.explanation.contains("Power: Critical battery voltage"));
+        assert!(health
+            .explanation
+            .contains("Power: Critical battery voltage"));
     }
 
     #[test]
@@ -457,7 +498,9 @@ mod tests {
 
         assert_eq!(health.overall_state, HealthState::YELLOW);
         assert_eq!(health.payload.state, HealthState::YELLOW);
-        assert!(health.explanation.contains("Payload: Payload auto-shutdown to protect battery"));
+        assert!(health
+            .explanation
+            .contains("Payload: Payload auto-shutdown to protect battery"));
     }
 
     #[test]
@@ -517,6 +560,12 @@ mod tests {
         let health = assess_satellite_health(&rec, &gs_states);
         assert_eq!(health.overall_state, HealthState::RED);
         assert_eq!(health.communications.state, HealthState::RED);
-        assert!(health.explanation.contains("Critical comm degradation due to onboard transponder anomaly"), "Explanation was: {}", health.explanation);
+        assert!(
+            health
+                .explanation
+                .contains("Critical comm degradation due to onboard transponder anomaly"),
+            "Explanation was: {}",
+            health.explanation
+        );
     }
 }

@@ -24,66 +24,66 @@ fn default_mission() -> String {
 #[serde(deny_unknown_fields)]
 pub struct TelemetryRecord {
     pub satellite_id: String,
-    
+
     #[serde(default = "default_subsystem")]
     pub subsystem_id: String,
-    
+
     #[serde(default = "default_mission")]
     pub mission_id: String,
-    
+
     pub timestamp: DateTime<Utc>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub battery_voltage: Option<f64>,       // Volts
-    
+    pub battery_voltage: Option<f64>, // Volts
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub battery_current: Option<f64>,       // Amperes
-    
+    pub battery_current: Option<f64>, // Amperes
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub solar_panel_output: Option<f64>,    // Watts
-    
+    pub solar_panel_output: Option<f64>, // Watts
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cpu_usage: Option<f32>,             // %
-    
+    pub cpu_usage: Option<f32>, // %
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub memory_usage: Option<f32>,          // %
-    
+    pub memory_usage: Option<f32>, // %
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f64>,           // °C
-    
+    pub temperature: Option<f64>, // °C
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub orientation_pitch: Option<f32>,     // Degrees
-    
+    pub orientation_pitch: Option<f32>, // Degrees
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub orientation_roll: Option<f32>,      // Degrees
-    
+    pub orientation_roll: Option<f32>, // Degrees
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub orientation_yaw: Option<f32>,       // Degrees
-    
+    pub orientation_yaw: Option<f32>, // Degrees
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub velocity: Option<f64>,              // km/s
-    
+    pub velocity: Option<f64>, // km/s
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub altitude: Option<f64>,              // km
-    
+    pub altitude: Option<f64>, // km
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fuel_remaining: Option<f32>,        // %
-    
+    pub fuel_remaining: Option<f32>, // %
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub communication_latency: Option<f32>, // ms
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub packet_loss: Option<f32>,           // %
-    
+    pub packet_loss: Option<f32>, // %
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub signal_strength: Option<f32>,       // dBm
-    
+    pub signal_strength: Option<f32>, // dBm
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload_power_draw: Option<f64>,    // Watts
-    
+    pub payload_power_draw: Option<f64>, // Watts
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload_active: Option<bool>,
-    
+
     pub event_id: Uuid,
 }
 

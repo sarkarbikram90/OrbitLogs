@@ -131,7 +131,10 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let cli = Cli::parse();
-    info!("Starting Mission Health Engine with configuration: {:?}", cli);
+    info!(
+        "Starting Mission Health Engine with configuration: {:?}",
+        cli
+    );
 
     // Register Prometheus metrics
     metrics::register_metrics();
@@ -157,7 +160,10 @@ async fn main() -> Result<(), anyhow::Error> {
             }
             Err(e) => {
                 retries -= 1;
-                error!("TimescaleDB connection failed. Retries left: {}. Error: {}", retries, e);
+                error!(
+                    "TimescaleDB connection failed. Retries left: {}. Error: {}",
+                    retries, e
+                );
                 if retries > 0 {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 }
@@ -219,7 +225,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let consumer: StreamConsumer = consumer_config.create()?;
     consumer.subscribe(&[&cli.processed_topic])?;
-    info!("Kafka consumer subscribed to topic '{}'", cli.processed_topic);
+    info!(
+        "Kafka consumer subscribed to topic '{}'",
+        cli.processed_topic
+    );
 
     let state = Arc::new(EngineState {
         db_pool,
@@ -244,7 +253,10 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut bg_config = ClientConfig::new();
         bg_config
             .set("bootstrap.servers", &brokers)
-            .set("group.id", &format!("mission-health-engine-gs-group-{}", uuid::Uuid::new_v4()))
+            .set(
+                "group.id",
+                &format!("mission-health-engine-gs-group-{}", uuid::Uuid::new_v4()),
+            )
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true")
@@ -277,7 +289,10 @@ async fn main() -> Result<(), anyhow::Error> {
         };
 
         if let Err(e) = consumer.subscribe(&[&gs_topic]) {
-            error!("Failed to subscribe to ground station health topic {}: {}", gs_topic, e);
+            error!(
+                "Failed to subscribe to ground station health topic {}: {}",
+                gs_topic, e
+            );
             return;
         }
 
@@ -295,12 +310,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     match serde_json::from_str::<GroundStationState>(payload) {
                         Ok(gs) => {
-                            info!("Engine received ground station update: {} -> {}", gs.station_id, gs.status);
+                            info!(
+                                "Engine received ground station update: {} -> {}",
+                                gs.station_id, gs.status
+                            );
                             let mut map = gs_states_clone.gs_states.lock().unwrap();
                             map.insert(gs.station_id.clone(), gs);
                         }
                         Err(e) => {
-                            error!("Failed to deserialize GroundStationState: {}. Payload: {}", e, payload);
+                            error!(
+                                "Failed to deserialize GroundStationState: {}. Payload: {}",
+                                e, payload
+                            );
                         }
                     }
                 }
@@ -331,7 +352,10 @@ async fn main() -> Result<(), anyhow::Error> {
                 let record: TelemetryRecord = match serde_json::from_str(payload) {
                     Ok(r) => r,
                     Err(e) => {
-                        error!("Failed to deserialize telemetry record: {}. Payload: {}", e, payload);
+                        error!(
+                            "Failed to deserialize telemetry record: {}. Payload: {}",
+                            e, payload
+                        );
                         let _ = consumer.commit_message(&msg, CommitMode::Async);
                         continue;
                     }
@@ -340,7 +364,10 @@ async fn main() -> Result<(), anyhow::Error> {
                 let state_ref = Arc::clone(&state);
                 tokio::spawn(async move {
                     if let Err(e) = process_telemetry_health(&state_ref, &record).await {
-                        error!("Error processing health for satellite {}: {}", record.satellite_id, e);
+                        error!(
+                            "Error processing health for satellite {}: {}",
+                            record.satellite_id, e
+                        );
                     }
                 });
 
@@ -356,7 +383,10 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 }
 
-async fn process_telemetry_health(state: &EngineState, record: &TelemetryRecord) -> Result<(), anyhow::Error> {
+async fn process_telemetry_health(
+    state: &EngineState,
+    record: &TelemetryRecord,
+) -> Result<(), anyhow::Error> {
     // 1. Run health assessment rules
     let gs_states_map = {
         let map = state.gs_states.lock().unwrap();
@@ -373,7 +403,8 @@ async fn process_telemetry_health(state: &EngineState, record: &TelemetryRecord)
 
     // 3. Publish assessment to Kafka mission.health topic
     let payload = serde_json::to_string(&assessment)?;
-    state.kafka_producer
+    state
+        .kafka_producer
         .send(
             FutureRecord::to(&state.health_topic)
                 .key(&assessment.satellite_id)

@@ -42,7 +42,11 @@ struct Cli {
     #[arg(long, env = "API_KEY", default_value = "secret-spaceops-key-2026")]
     api_key: String,
 
-    #[arg(long, env = "CORS_ALLOWED_ORIGIN", default_value = "http://localhost:3000")]
+    #[arg(
+        long,
+        env = "CORS_ALLOWED_ORIGIN",
+        default_value = "http://localhost:3000"
+    )]
     cors_allowed_origin: String,
 }
 
@@ -133,7 +137,10 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let cli = Cli::parse();
-    info!("Starting Mission Replay Engine with configuration: {:?}", cli);
+    info!(
+        "Starting Mission Replay Engine with configuration: {:?}",
+        cli
+    );
 
     // Register Prometheus metrics
     metrics::register_metrics();
@@ -156,7 +163,10 @@ async fn main() -> Result<(), anyhow::Error> {
             }
             Err(e) => {
                 retries -= 1;
-                error!("TimescaleDB connection failed. Retries left: {}. Error: {}", retries, e);
+                error!(
+                    "TimescaleDB connection failed. Retries left: {}. Error: {}",
+                    retries, e
+                );
                 if retries > 0 {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 }
@@ -177,7 +187,10 @@ async fn main() -> Result<(), anyhow::Error> {
         .route("/:id", get(get_replay))
         .route("/:id/control", post(control_replay))
         .route("/:id/stream", get(stream_replay))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), auth_middleware));
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
 
     let app = Router::new()
         .nest("/api/replays", replay_routes)
@@ -186,12 +199,18 @@ async fn main() -> Result<(), anyhow::Error> {
         .route("/api/events", get(list_events))
         .route("/metrics", get(handle_metrics))
         .route("/health", get(health_check))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), cors_middleware))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            cors_middleware,
+        ))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = TcpListener::bind(addr).await?;
-    info!("Mission Replay Engine listening on http://localhost:{}", cli.port);
+    info!(
+        "Mission Replay Engine listening on http://localhost:{}",
+        cli.port
+    );
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
@@ -211,7 +230,11 @@ async fn handle_metrics() -> impl IntoResponse {
     let metric_families = metrics::REGISTRY.gather();
     let mut buffer = Vec::new();
     if let Err(e) = encoder.encode(&metric_families, &mut buffer) {
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to encode metrics: {}", e)).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to encode metrics: {}", e),
+        )
+            .into_response();
     }
 
     axum::response::Response::builder()
@@ -227,12 +250,18 @@ async fn create_replay(
     Json(payload): Json<CreateReplayRequest>,
 ) -> impl IntoResponse {
     if payload.start_time >= payload.end_time {
-        return api_error(StatusCode::BAD_REQUEST, "start_time must be before end_time");
+        return api_error(
+            StatusCode::BAD_REQUEST,
+            "start_time must be before end_time",
+        );
     }
 
     let speed = payload.speed.unwrap_or(1.0);
     if !is_valid_speed(speed) {
-        return api_error(StatusCode::BAD_REQUEST, "Invalid replay speed. Must be 1.0, 5.0, 10.0, 50.0, or 100.0");
+        return api_error(
+            StatusCode::BAD_REQUEST,
+            "Invalid replay speed. Must be 1.0, 5.0, 10.0, 50.0, or 100.0",
+        );
     }
 
     let session_id = uuid::Uuid::new_v4();
@@ -254,16 +283,19 @@ async fn create_replay(
     }
 
     let mut map = state.sessions.lock().await;
-    map.insert(session_id, SessionState {
+    map.insert(
         session_id,
-        satellite_id: payload.satellite_id,
-        start_time: payload.start_time,
-        end_time: payload.end_time,
-        current_position: payload.start_time,
-        speed,
-        status: "PAUSED".to_string(),
-        last_seek_position: None,
-    });
+        SessionState {
+            session_id,
+            satellite_id: payload.satellite_id,
+            start_time: payload.start_time,
+            end_time: payload.end_time,
+            current_position: payload.start_time,
+            speed,
+            status: "PAUSED".to_string(),
+            last_seek_position: None,
+        },
+    );
 
     (StatusCode::CREATED, Json(session)).into_response()
 }
@@ -287,16 +319,19 @@ async fn get_replay(
     match db::get_replay_session(&state.db_pool, session_id).await {
         Ok(Some(session)) => {
             // Restore in memory
-            map.insert(session_id, SessionState {
-                session_id: session.session_id,
-                satellite_id: session.satellite_id.clone(),
-                start_time: session.start_time,
-                end_time: session.end_time,
-                current_position: session.current_position,
-                speed: session.speed,
-                status: session.status.clone(),
-                last_seek_position: None,
-            });
+            map.insert(
+                session_id,
+                SessionState {
+                    session_id: session.session_id,
+                    satellite_id: session.satellite_id.clone(),
+                    start_time: session.start_time,
+                    end_time: session.end_time,
+                    current_position: session.current_position,
+                    speed: session.speed,
+                    status: session.status.clone(),
+                    last_seek_position: None,
+                },
+            );
             (StatusCode::OK, Json(session)).into_response()
         }
         Ok(None) => api_error(StatusCode::NOT_FOUND, "Replay session not found"),
@@ -320,7 +355,10 @@ async fn control_replay(
     let action = payload.action.to_lowercase();
     let valid_actions = ["play", "pause", "stop", "seek", "speed"];
     if !valid_actions.contains(&action.as_str()) {
-        return api_error(StatusCode::BAD_REQUEST, "Invalid action. Must be play, pause, stop, seek, or speed");
+        return api_error(
+            StatusCode::BAD_REQUEST,
+            "Invalid action. Must be play, pause, stop, seek, or speed",
+        );
     }
 
     // Wrap state query and modification inside a separate scope to release lock quickly
@@ -332,19 +370,24 @@ async fn control_replay(
                 // Try reading from DB
                 match db::get_replay_session(&state.db_pool, session_id).await {
                     Ok(Some(s)) => {
-                        map.insert(session_id, SessionState {
-                            session_id: s.session_id,
-                            satellite_id: s.satellite_id.clone(),
-                            start_time: s.start_time,
-                            end_time: s.end_time,
-                            current_position: s.current_position,
-                            speed: s.speed,
-                            status: s.status.clone(),
-                            last_seek_position: None,
-                        });
+                        map.insert(
+                            session_id,
+                            SessionState {
+                                session_id: s.session_id,
+                                satellite_id: s.satellite_id.clone(),
+                                start_time: s.start_time,
+                                end_time: s.end_time,
+                                current_position: s.current_position,
+                                speed: s.speed,
+                                status: s.status.clone(),
+                                last_seek_position: None,
+                            },
+                        );
                         map.get_mut(&session_id).unwrap()
                     }
-                    Ok(None) => return api_error(StatusCode::NOT_FOUND, "Replay session not found"),
+                    Ok(None) => {
+                        return api_error(StatusCode::NOT_FOUND, "Replay session not found")
+                    }
                     Err(e) => {
                         error!("Database error fetching session: {}", e);
                         return api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error");
@@ -368,10 +411,18 @@ async fn control_replay(
             "seek" => {
                 let pos = match payload.position {
                     Some(p) => p,
-                    None => return api_error(StatusCode::BAD_REQUEST, "position is required for seek action"),
+                    None => {
+                        return api_error(
+                            StatusCode::BAD_REQUEST,
+                            "position is required for seek action",
+                        )
+                    }
                 };
                 if pos < session.start_time || pos > session.end_time {
-                    return api_error(StatusCode::BAD_REQUEST, "seek position must be within session start and end times");
+                    return api_error(
+                        StatusCode::BAD_REQUEST,
+                        "seek position must be within session start and end times",
+                    );
                 }
                 session.current_position = pos;
                 session.last_seek_position = Some(pos);
@@ -379,10 +430,18 @@ async fn control_replay(
             "speed" => {
                 let speed = match payload.speed {
                     Some(s) => s,
-                    None => return api_error(StatusCode::BAD_REQUEST, "speed is required for speed action"),
+                    None => {
+                        return api_error(
+                            StatusCode::BAD_REQUEST,
+                            "speed is required for speed action",
+                        )
+                    }
                 };
                 if !is_valid_speed(speed) {
-                    return api_error(StatusCode::BAD_REQUEST, "Invalid speed. Must be 1.0, 5.0, 10.0, 50.0, or 100.0");
+                    return api_error(
+                        StatusCode::BAD_REQUEST,
+                        "Invalid speed. Must be 1.0, 5.0, 10.0, 50.0, or 100.0",
+                    );
                 }
                 session.speed = speed;
             }
@@ -407,7 +466,10 @@ async fn control_replay(
     .await
     {
         error!("Failed to update replay session status in DB: {}", e);
-        return api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error updating state");
+        return api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Database error updating state",
+        );
     }
 
     // Set the metrics gauge
@@ -435,21 +497,27 @@ async fn stream_replay(
         match db::get_replay_session(&state.db_pool, session_id).await {
             Ok(Some(s)) => {
                 let mut map = state.sessions.lock().await;
-                map.insert(session_id, SessionState {
-                    session_id: s.session_id,
-                    satellite_id: s.satellite_id.clone(),
-                    start_time: s.start_time,
-                    end_time: s.end_time,
-                    current_position: s.current_position,
-                    speed: s.speed,
-                    status: s.status.clone(),
-                    last_seek_position: None,
-                });
+                map.insert(
+                    session_id,
+                    SessionState {
+                        session_id: s.session_id,
+                        satellite_id: s.satellite_id.clone(),
+                        start_time: s.start_time,
+                        end_time: s.end_time,
+                        current_position: s.current_position,
+                        speed: s.speed,
+                        status: s.status.clone(),
+                        last_seek_position: None,
+                    },
+                );
             }
             Ok(None) => return Err(api_error(StatusCode::NOT_FOUND, "Replay session not found")),
             Err(e) => {
                 error!("Database error fetching session: {}", e);
-                return Err(api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error"));
+                return Err(api_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Database error",
+                ));
             }
         }
     }
@@ -490,7 +558,10 @@ async fn stream_replay(
                 let session = match map.get_mut(&session_id) {
                     Some(s) => s,
                     None => {
-                        info!("Session {} no longer in memory, exiting stream loop", session_id);
+                        info!(
+                            "Session {} no longer in memory, exiting stream loop",
+                            session_id
+                        );
                         break;
                     }
                 };
@@ -514,7 +585,8 @@ async fn stream_replay(
 
                     let elapsed_replay_secs = elapsed_real.as_secs_f32() * current_speed;
                     let start_query = local_position;
-                    let candidate_end = local_position + chrono::Duration::milliseconds((elapsed_replay_secs * 1000.0) as i64);
+                    let candidate_end = local_position
+                        + chrono::Duration::milliseconds((elapsed_replay_secs * 1000.0) as i64);
 
                     if candidate_end >= end_time {
                         stop_at = Some(end_time);
@@ -560,7 +632,11 @@ async fn stream_replay(
                     updated_at: None,
                 };
                 let state_json = serde_json::to_string(&sse_session).unwrap_or_default();
-                if tx.send(Ok(Event::default().event("state").data(state_json))).await.is_err() {
+                if tx
+                    .send(Ok(Event::default().event("state").data(state_json)))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
 
@@ -582,7 +658,10 @@ async fn stream_replay(
             }
 
             if let Some(stop_pos) = stop_at {
-                info!("Session {} status is STOPPED, exiting stream loop", session_id);
+                info!(
+                    "Session {} status is STOPPED, exiting stream loop",
+                    session_id
+                );
 
                 // Sync to DB
                 let _ = db::update_replay_session(
@@ -607,7 +686,9 @@ async fn stream_replay(
                     updated_at: None,
                 };
                 let state_json = serde_json::to_string(&sse_session).unwrap_or_default();
-                let _ = tx.send(Ok(Event::default().event("state").data(state_json))).await;
+                let _ = tx
+                    .send(Ok(Event::default().event("state").data(state_json)))
+                    .await;
 
                 // Sync active sessions gauge
                 let playing_count = {
@@ -655,7 +736,11 @@ async fn stream_replay(
                     updated_at: None,
                 };
                 let state_json = serde_json::to_string(&sse_session).unwrap_or_default();
-                if tx.send(Ok(Event::default().event("state").data(state_json))).await.is_err() {
+                if tx
+                    .send(Ok(Event::default().event("state").data(state_json)))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
 
@@ -689,7 +774,11 @@ async fn stream_replay(
                     updated_at: None,
                 };
                 let state_json = serde_json::to_string(&sse_session).unwrap_or_default();
-                if tx.send(Ok(Event::default().event("state").data(state_json))).await.is_err() {
+                if tx
+                    .send(Ok(Event::default().event("state").data(state_json)))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -713,12 +802,8 @@ async fn query_and_send_events(
     let health_fut = db::query_satellite_health_range(pool, satellite_id, start, end);
     let gs_health_fut = db::query_ground_station_health_range(pool, start, end);
 
-    let (telemetry, events, health, gs_health) = tokio::try_join!(
-        telemetry_fut,
-        events_fut,
-        health_fut,
-        gs_health_fut
-    )?;
+    let (telemetry, events, health, gs_health) =
+        tokio::try_join!(telemetry_fut, events_fut, health_fut, gs_health_fut)?;
 
     let mut all_data = Vec::new();
 
@@ -756,7 +841,9 @@ async fn query_and_send_events(
             ReplayData::Telemetry(_) => ("telemetry", "telemetry"),
             ReplayData::Event(_) => ("event", "event"),
             ReplayData::SatelliteHealth(_) => ("satellite_health", "satellite_health"),
-            ReplayData::GroundStationHealth(_) => ("ground_station_health", "ground_station_health"),
+            ReplayData::GroundStationHealth(_) => {
+                ("ground_station_health", "ground_station_health")
+            }
         };
 
         let json_data = serde_json::to_string(&item.data)?;
@@ -777,7 +864,10 @@ async fn query_and_send_events(
 async fn list_satellites(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     match db::query_latest_satellites(&state.db_pool).await {
         Ok(health_records) => {
-            let mapped: Vec<db::ReplaySatelliteHealth> = health_records.into_iter().map(db::ReplaySatelliteHealth::from).collect();
+            let mapped: Vec<db::ReplaySatelliteHealth> = health_records
+                .into_iter()
+                .map(db::ReplaySatelliteHealth::from)
+                .collect();
             (StatusCode::OK, Json(mapped)).into_response()
         }
         Err(e) => {
@@ -812,7 +902,8 @@ async fn auth_middleware(
     req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> Result<axum::response::Response, std::convert::Infallible> {
-    let mut token_opt = req.headers()
+    let mut token_opt = req
+        .headers()
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
@@ -845,10 +936,9 @@ async fn auth_middleware(
                 axum::http::HeaderValue::from_static("application/json"),
             );
             if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
-                response.headers_mut().insert(
-                    axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-                    origin_val,
-                );
+                response
+                    .headers_mut()
+                    .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
             }
             Ok(response)
         }
@@ -868,17 +958,19 @@ async fn cors_middleware(
             .status(StatusCode::NO_CONTENT)
             .header("access-control-allow-origin", &allowed_origin)
             .header("access-control-allow-methods", "GET, POST, OPTIONS")
-            .header("access-control-allow-headers", "content-type, x-request-id, authorization")
+            .header(
+                "access-control-allow-headers",
+                "content-type, x-request-id, authorization",
+            )
             .body(axum::body::Body::empty())
             .unwrap();
     }
 
     let mut response = next.run(request).await;
     if let Ok(origin_val) = axum::http::HeaderValue::from_str(&allowed_origin) {
-        response.headers_mut().insert(
-            axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-            origin_val,
-        );
+        response
+            .headers_mut()
+            .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
     }
     response.headers_mut().insert(
         axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
@@ -999,18 +1091,29 @@ mod tests {
 
         let app = Router::new()
             .route("/test", post(|_: Request<Body>| async { StatusCode::OK }))
-            .layer(axum::middleware::from_fn_with_state(state.clone(), auth_middleware))
+            .layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            ))
             .with_state(state);
 
         // Test missing token
-        let response = app.clone()
-            .oneshot(Request::builder().method("POST").uri("/test").body(Body::empty()).unwrap())
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
         // Test invalid token
-        let response = app.clone()
+        let response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
@@ -1024,7 +1127,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
         // Test correct token
-        let response = app.clone()
+        let response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")

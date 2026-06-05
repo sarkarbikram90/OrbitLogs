@@ -3,13 +3,11 @@ use prometheus::{CounterVec, Gauge, Opts, Registry};
 
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
-
     pub static ref ACTIVE_REPLAYS: Gauge = Gauge::new(
         "active_replay_sessions",
         "Number of active replay sessions currently playing"
     )
     .expect("active_replay_sessions metric must be created");
-
     pub static ref REPLAY_EVENTS_STREAMED: CounterVec = CounterVec::new(
         Opts::new(
             "replay_events_streamed_total",
@@ -18,7 +16,6 @@ lazy_static! {
         &["session_id", "data_type"]
     )
     .expect("replay_events_streamed_total metric must be created");
-
     pub static ref REPLAY_CONTROLS: CounterVec = CounterVec::new(
         Opts::new(
             "replay_controls_total",

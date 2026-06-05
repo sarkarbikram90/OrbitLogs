@@ -20,7 +20,10 @@ pub async fn ensure_satellite_exists(pool: &PgPool, satellite_id: &str) -> Resul
     Ok(())
 }
 
-pub async fn get_latest_telemetry(pool: &PgPool, satellite_id: &str) -> Result<Option<TelemetryRecord>, Error> {
+pub async fn get_latest_telemetry(
+    pool: &PgPool,
+    satellite_id: &str,
+) -> Result<Option<TelemetryRecord>, Error> {
     let row = sqlx::query(
         r#"
         SELECT 

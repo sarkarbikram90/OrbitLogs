@@ -3,8 +3,8 @@ use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use sqlx::PgPool;
 use std::collections::HashMap;
-use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
 use crate::consumer::db;
@@ -137,7 +137,10 @@ impl TelemetryConsumer {
                     let merged_record = match self.get_merged_record(&record).await {
                         Ok(merged) => merged,
                         Err(e) => {
-                            error!("Failed to merge telemetry record for satellite {}: {}", record.satellite_id, e);
+                            error!(
+                                "Failed to merge telemetry record for satellite {}: {}",
+                                record.satellite_id, e
+                            );
                             record.clone() // Fallback to raw record
                         }
                     };
@@ -188,7 +191,10 @@ impl TelemetryConsumer {
         }
     }
 
-    async fn get_merged_record(&self, incoming: &TelemetryRecord) -> Result<TelemetryRecord, anyhow::Error> {
+    async fn get_merged_record(
+        &self,
+        incoming: &TelemetryRecord,
+    ) -> Result<TelemetryRecord, anyhow::Error> {
         let sat_id = &incoming.satellite_id;
 
         // 1. Check in-memory cache first
@@ -328,7 +334,11 @@ impl TelemetryConsumer {
         Ok(merged)
     }
 
-    async fn process_record(&self, incoming: &TelemetryRecord, merged: &TelemetryRecord) -> Result<(), anyhow::Error> {
+    async fn process_record(
+        &self,
+        incoming: &TelemetryRecord,
+        merged: &TelemetryRecord,
+    ) -> Result<(), anyhow::Error> {
         let sat_id = &merged.satellite_id;
 
         // Perform anomaly/event detection using updated fields in incoming stream
@@ -391,10 +401,7 @@ impl TelemetryConsumer {
                     sat_id,
                     "ANOMALY_THERMAL_SPIKE",
                     "CRITICAL",
-                    &format!(
-                        "Satellite temperature has spiked to {}°C",
-                        temperature
-                    ),
+                    &format!("Satellite temperature has spiked to {}°C", temperature),
                     details,
                 )
                 .await
@@ -442,10 +449,7 @@ impl TelemetryConsumer {
                     } else {
                         "WARNING"
                     },
-                    &format!(
-                        "Satellite fuel level has dropped to {}%",
-                        fuel_remaining
-                    ),
+                    &format!("Satellite fuel level has dropped to {}%", fuel_remaining),
                     details,
                 )
                 .await

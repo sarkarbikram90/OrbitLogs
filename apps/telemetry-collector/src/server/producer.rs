@@ -128,7 +128,9 @@ impl KafkaProducer {
         payload: &str,
     ) -> Result<(), anyhow::Error> {
         if !self.cb.allow_request() {
-            return Err(anyhow::anyhow!("Circuit breaker is OPEN. Kafka is unreachable."));
+            return Err(anyhow::anyhow!(
+                "Circuit breaker is OPEN. Kafka is unreachable."
+            ));
         }
 
         let record = FutureRecord::to(topic).key(key).payload(payload);

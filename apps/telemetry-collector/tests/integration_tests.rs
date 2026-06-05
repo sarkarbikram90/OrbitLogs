@@ -81,8 +81,14 @@ fn create_test_app() -> Router {
         .nest(
             "/telemetry_authed",
             Router::new()
-                .route("/", post(telemetry_collector::server::handlers::ingest_telemetry))
-                .layer(axum::middleware::from_fn_with_state(state.clone(), telemetry_collector::server::auth_middleware)),
+                .route(
+                    "/",
+                    post(telemetry_collector::server::handlers::ingest_telemetry),
+                )
+                .layer(axum::middleware::from_fn_with_state(
+                    state.clone(),
+                    telemetry_collector::server::auth_middleware,
+                )),
         )
         .route(
             "/health",
@@ -100,7 +106,10 @@ fn create_test_app() -> Router {
             "/metrics",
             get(telemetry_collector::server::handlers::metrics_endpoint),
         )
-        .layer(axum::middleware::from_fn_with_state(state.clone(), telemetry_collector::server::cors_middleware))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            telemetry_collector::server::cors_middleware,
+        ))
         .layer(DefaultBodyLimit::max(10_240))
         .with_state(state)
 }
@@ -522,7 +531,12 @@ async fn test_cors_middleware_allowed_origin() {
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
     assert_eq!(
-        response.headers().get("access-control-allow-origin").unwrap().to_str().unwrap(),
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .unwrap()
+            .to_str()
+            .unwrap(),
         "http://localhost:3000"
     );
 }

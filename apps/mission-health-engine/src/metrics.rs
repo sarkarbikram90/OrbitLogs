@@ -3,13 +3,11 @@ use prometheus::{Gauge, GaugeVec, Opts, Registry};
 
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
-    
     pub static ref FLEET_HEALTH_SCORE: Gauge = Gauge::new(
         "fleet_health_score",
         "Average health score of the entire satellite fleet (0-100)"
     )
     .expect("fleet_health_score metric must be created");
-
     pub static ref SATELLITE_HEALTH_SCORE: GaugeVec = GaugeVec::new(
         Opts::new(
             "satellite_health_score",
@@ -18,7 +16,6 @@ lazy_static! {
         &["satellite_id"]
     )
     .expect("satellite_health_score metric must be created");
-
     pub static ref SUBSYSTEM_HEALTH_SCORE: GaugeVec = GaugeVec::new(
         Opts::new(
             "subsystem_health_score",

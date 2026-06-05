@@ -189,7 +189,10 @@ pub struct DbGroundStationHealth {
     pub explanation: String,
 }
 
-pub async fn create_replay_session(pool: &PgPool, session: &ReplaySession) -> Result<(), sqlx::Error> {
+pub async fn create_replay_session(
+    pool: &PgPool,
+    session: &ReplaySession,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         INSERT INTO replay_sessions (
@@ -212,7 +215,10 @@ pub async fn create_replay_session(pool: &PgPool, session: &ReplaySession) -> Re
     Ok(())
 }
 
-pub async fn get_replay_session(pool: &PgPool, session_id: uuid::Uuid) -> Result<Option<ReplaySession>, sqlx::Error> {
+pub async fn get_replay_session(
+    pool: &PgPool,
+    session_id: uuid::Uuid,
+) -> Result<Option<ReplaySession>, sqlx::Error> {
     sqlx::query_as::<_, ReplaySession>(
         r#"
         SELECT session_id, satellite_id, start_time, end_time, current_position, speed, status, created_at, updated_at
@@ -397,7 +403,9 @@ pub async fn query_latest_satellites(pool: &PgPool) -> Result<Vec<DbSatelliteHea
     .await
 }
 
-pub async fn query_latest_ground_stations(pool: &PgPool) -> Result<Vec<DbGroundStationHealth>, sqlx::Error> {
+pub async fn query_latest_ground_stations(
+    pool: &PgPool,
+) -> Result<Vec<DbGroundStationHealth>, sqlx::Error> {
     sqlx::query_as::<_, DbGroundStationHealth>(
         r#"
         SELECT DISTINCT ON (station_id) timestamp, station_id, station_name, status, antenna_health, weather_state, congestion, latency, bandwidth, explanation

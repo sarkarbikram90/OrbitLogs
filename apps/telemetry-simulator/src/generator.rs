@@ -26,7 +26,6 @@ pub struct GroundStationState {
     pub explanation: String,
 }
 
-
 pub struct SatelliteSimulator {
     pub id: String,
     pub scenario: Scenario,
@@ -253,7 +252,6 @@ impl SatelliteSimulator {
             signal = -130.0;
         }
 
-
         // 6. Flight Computer Subsystem (Resource usage)
         // Side effect: CPU throttling/high-load during ThermalSpike Scenario (temperature >80.0°C)
         let is_throttled = self.temperature > 80.0;
@@ -418,22 +416,28 @@ mod tests {
     fn test_thermal_side_effects() {
         let mut sim =
             SatelliteSimulator::new("SAT-0004".to_string(), Scenario::ThermalSpike, Some(303));
-        
+
         // Advance ticks to trigger high temperature
         for _ in 0..30 {
             let _ = sim.next_subsystem_record("Thermal", "test-mission", None);
         }
-        
+
         // Verify side effect: CPU Throttling
         let rec_cpu = sim.next_subsystem_record("Flight Computer", "test-mission", None);
-        assert!(rec_cpu.cpu_usage.unwrap() > 90.0, "CPU should be throttled (>90%) due to thermal spike");
+        assert!(
+            rec_cpu.cpu_usage.unwrap() > 90.0,
+            "CPU should be throttled (>90%) due to thermal spike"
+        );
     }
 
     #[test]
     fn test_battery_depletion_side_effects() {
-        let mut sim =
-            SatelliteSimulator::new("SAT-0005".to_string(), Scenario::BatteryDegradation, Some(404));
-        
+        let mut sim = SatelliteSimulator::new(
+            "SAT-0005".to_string(),
+            Scenario::BatteryDegradation,
+            Some(404),
+        );
+
         // Advance ticks to drain battery
         for _ in 0..20 {
             let _ = sim.next_subsystem_record("Power", "test-mission", None);
@@ -441,8 +445,16 @@ mod tests {
 
         // Verify side effect: Payload shutdown
         let rec_payload = sim.next_subsystem_record("Payload", "test-mission", None);
-        assert_eq!(rec_payload.payload_active.unwrap(), false, "Payload should shut down on low battery");
-        assert_eq!(rec_payload.payload_power_draw.unwrap(), 0.0, "Payload power draw should be 0 on low battery");
+        assert_eq!(
+            rec_payload.payload_active.unwrap(),
+            false,
+            "Payload should shut down on low battery"
+        );
+        assert_eq!(
+            rec_payload.payload_power_draw.unwrap(),
+            0.0,
+            "Payload power draw should be 0 on low battery"
+        );
     }
 
     #[test]
@@ -493,10 +505,12 @@ mod tests {
         // Reset sim/ticks to keep random values aligned
         let mut sim2 = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
         let rec = sim2.next_subsystem_record("Communications", "test-mission", Some(&gs));
-        
+
         assert_eq!(rec.packet_loss.unwrap(), (normal_loss + 15.0).min(100.0));
-        assert_eq!(rec.signal_strength.unwrap(), (normal_signal - 20.0).max(-130.0));
+        assert_eq!(
+            rec.signal_strength.unwrap(),
+            (normal_signal - 20.0).max(-130.0)
+        );
         assert_eq!(rec.communication_latency.unwrap(), normal_latency + 150.0);
     }
-
 }

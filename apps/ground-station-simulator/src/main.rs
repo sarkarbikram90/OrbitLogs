@@ -1,5 +1,6 @@
 use clap::Parser;
-use prometheus::{Encoder, TextEncoder, GaugeVec, Opts, Registry};
+use lazy_static::lazy_static;
+use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
 use rdkafka::config::ClientConfig;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use sqlx::postgres::PgPoolOptions;
@@ -7,11 +8,10 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tracing::{error, info};
-use lazy_static::lazy_static;
 
 mod db;
 
-use db::{GroundStationHealth, insert_ground_station_health};
+use db::{insert_ground_station_health, GroundStationHealth};
 
 #[derive(Parser, Debug, Clone)]
 #[command(name = "Open SpaceOps - Ground Station Simulator")]
@@ -54,7 +54,6 @@ struct Cli {
 
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
-
     pub static ref GS_STATUS: GaugeVec = GaugeVec::new(
         Opts::new(
             "ground_station_status",
@@ -63,7 +62,6 @@ lazy_static! {
         &["station_id"]
     )
     .expect("ground_station_status metric must be created");
-
     pub static ref GS_ANTENNA_HEALTH: GaugeVec = GaugeVec::new(
         Opts::new(
             "ground_station_antenna_health",
@@ -72,7 +70,6 @@ lazy_static! {
         &["station_id"]
     )
     .expect("ground_station_antenna_health metric must be created");
-
     pub static ref GS_LATENCY: GaugeVec = GaugeVec::new(
         Opts::new(
             "ground_station_latency",
@@ -81,7 +78,6 @@ lazy_static! {
         &["station_id"]
     )
     .expect("ground_station_latency metric must be created");
-
     pub static ref GS_BANDWIDTH: GaugeVec = GaugeVec::new(
         Opts::new(
             "ground_station_bandwidth",
@@ -94,7 +90,9 @@ lazy_static! {
 
 fn register_metrics() {
     REGISTRY.register(Box::new(GS_STATUS.clone())).unwrap();
-    REGISTRY.register(Box::new(GS_ANTENNA_HEALTH.clone())).unwrap();
+    REGISTRY
+        .register(Box::new(GS_ANTENNA_HEALTH.clone()))
+        .unwrap();
     REGISTRY.register(Box::new(GS_LATENCY.clone())).unwrap();
     REGISTRY.register(Box::new(GS_BANDWIDTH.clone())).unwrap();
 }
@@ -155,7 +153,10 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let cli = Cli::parse();
-    info!("Starting Ground Station Simulator with configuration: {:?}", cli);
+    info!(
+        "Starting Ground Station Simulator with configuration: {:?}",
+        cli
+    );
 
     // Register Prometheus metrics
     register_metrics();
@@ -181,7 +182,10 @@ async fn main() -> Result<(), anyhow::Error> {
             }
             Err(e) => {
                 retries -= 1;
-                error!("TimescaleDB connection failed. Retries left: {}. Error: {}", retries, e);
+                error!(
+                    "TimescaleDB connection failed. Retries left: {}. Error: {}",
+                    retries, e
+                );
                 if retries > 0 {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 }
@@ -219,7 +223,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     loop {
         ticks += 1;
-        
+
         // Define the 4 ground stations with base parameters
         let mut gs_svalbard = GroundStationHealth {
             timestamp: chrono::Utc::now(),
@@ -283,14 +287,17 @@ async fn main() -> Result<(), anyhow::Error> {
             gs_svalbard.weather_state = "SevereStorm".to_string();
             gs_svalbard.latency = 280.0;
             gs_svalbard.bandwidth = 200.0;
-            gs_svalbard.explanation = "Severe storm in Svalbard sector causing major link attenuation.".to_string();
+            gs_svalbard.explanation =
+                "Severe storm in Svalbard sector causing major link attenuation.".to_string();
         } else if (20..30).contains(&cycle) {
             // Scenario 2: Reflector motor failure at Troll (GS-0002) - OUTAGE
             gs_troll.status = "OUTAGE".to_string();
             gs_troll.antenna_health = 12.5;
             gs_troll.latency = 2500.0;
             gs_troll.bandwidth = 0.0;
-            gs_troll.explanation = "Troll ground antenna structural alignment motor lockup. Downlink offline.".to_string();
+            gs_troll.explanation =
+                "Troll ground antenna structural alignment motor lockup. Downlink offline."
+                    .to_string();
         } else if (30..40).contains(&cycle) {
             // Scenario 3: Network congestion at Kiruna (GS-0004)
             gs_kiruna.status = "DEGRADED".to_string();
@@ -312,19 +319,24 @@ async fn main() -> Result<(), anyhow::Error> {
         for gs in stations {
             // 1. Write status to TimescaleDB
             if let Err(e) = insert_ground_station_health(&db_pool, &gs).await {
-                error!("Failed to save ground station health to DB for {}: {}", gs.station_id, e);
+                error!(
+                    "Failed to save ground station health to DB for {}: {}",
+                    gs.station_id, e
+                );
             }
 
             // 2. Publish health payload to Kafka topic groundstation.health
             let payload = serde_json::to_string(&gs).unwrap();
             let key = gs.station_id.clone();
-            
-            let res = producer.send(
-                FutureRecord::to(&cli.health_topic)
-                    .key(&key)
-                    .payload(&payload),
-                Duration::from_secs(5)
-            ).await;
+
+            let res = producer
+                .send(
+                    FutureRecord::to(&cli.health_topic)
+                        .key(&key)
+                        .payload(&payload),
+                    Duration::from_secs(5),
+                )
+                .await;
 
             if let Err((e, _)) = res {
                 error!("Failed to publish ground station health to Kafka: {}", e);
@@ -337,10 +349,18 @@ async fn main() -> Result<(), anyhow::Error> {
                 "OUTAGE" => 0.0,
                 _ => 0.0,
             };
-            GS_STATUS.with_label_values(&[&gs.station_id]).set(status_val);
-            GS_ANTENNA_HEALTH.with_label_values(&[&gs.station_id]).set(gs.antenna_health as f64);
-            GS_LATENCY.with_label_values(&[&gs.station_id]).set(gs.latency as f64);
-            GS_BANDWIDTH.with_label_values(&[&gs.station_id]).set(gs.bandwidth as f64);
+            GS_STATUS
+                .with_label_values(&[&gs.station_id])
+                .set(status_val);
+            GS_ANTENNA_HEALTH
+                .with_label_values(&[&gs.station_id])
+                .set(gs.antenna_health as f64);
+            GS_LATENCY
+                .with_label_values(&[&gs.station_id])
+                .set(gs.latency as f64);
+            GS_BANDWIDTH
+                .with_label_values(&[&gs.station_id])
+                .set(gs.bandwidth as f64);
         }
 
         tokio::time::sleep(Duration::from_secs(cli.frequency_sec)).await;

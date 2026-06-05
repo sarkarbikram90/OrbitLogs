@@ -1,6 +1,6 @@
-use sqlx::{Error, PgPool};
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::{Error, PgPool};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroundStationHealth {
