@@ -383,3 +383,41 @@ pub async fn query_ground_station_health_range(
     .fetch_all(pool)
     .await
 }
+
+pub async fn query_latest_satellites(pool: &PgPool) -> Result<Vec<DbSatelliteHealth>, sqlx::Error> {
+    sqlx::query_as::<_, DbSatelliteHealth>(
+        r#"
+        SELECT DISTINCT ON (satellite_id) timestamp, satellite_id, mission_id, overall_state, overall_score, power_state, thermal_state, comm_state,
+               propulsion_state, adcs_state, payload_state, fc_state, explanation
+        FROM satellite_health
+        ORDER BY satellite_id, timestamp DESC
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn query_latest_ground_stations(pool: &PgPool) -> Result<Vec<DbGroundStationHealth>, sqlx::Error> {
+    sqlx::query_as::<_, DbGroundStationHealth>(
+        r#"
+        SELECT DISTINCT ON (station_id) timestamp, station_id, station_name, status, antenna_health, weather_state, congestion, latency, bandwidth, explanation
+        FROM ground_station_health
+        ORDER BY station_id, timestamp DESC
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn query_recent_events(pool: &PgPool) -> Result<Vec<DbEvent>, sqlx::Error> {
+    sqlx::query_as::<_, DbEvent>(
+        r#"
+        SELECT timestamp, satellite_id, event_type, severity, message, details
+        FROM events
+        ORDER BY timestamp DESC
+        LIMIT 50
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+}

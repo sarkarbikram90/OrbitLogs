@@ -21,6 +21,7 @@ pub struct AppState {
     pub raw_topic: String,
     pub invalid_topic: String,
     pub db_pool: Option<sqlx::PgPool>,
+    pub broadcast_tx: tokio::sync::broadcast::Sender<String>,
 }
 
 #[derive(Serialize)]
@@ -171,6 +172,7 @@ pub async fn ingest_telemetry(
         .await
     {
         Ok(_) => {
+            let _ = state.broadcast_tx.send(serialized_payload.clone());
             KAFKA_PUBLISH_LATENCY.observe(publish_start.elapsed().as_secs_f64());
             PROCESSING_LATENCY.observe(start_time.elapsed().as_secs_f64());
 
@@ -335,4 +337,35 @@ pub async fn metrics_endpoint() -> impl IntoResponse {
         response,
     )
         .into_response()
+}
+
+pub async fn ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state))
+}
+
+async fn handle_socket(mut socket: axum::extract::ws::WebSocket, state: Arc<AppState>) {
+    let mut rx = state.broadcast_tx.subscribe();
+
+    loop {
+        tokio::select! {
+            // Receive from broadcast channel
+            Ok(msg_str) = rx.recv() => {
+                if socket.send(axum::extract::ws::Message::Text(msg_str)).await.is_err() {
+                    break; // Client disconnected
+                }
+            }
+            // Read from socket (to detect disconnections or pings)
+            res = socket.recv() => {
+                match res {
+                    Some(Ok(axum::extract::ws::Message::Close(_))) | Some(Err(_)) | None => {
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
 }

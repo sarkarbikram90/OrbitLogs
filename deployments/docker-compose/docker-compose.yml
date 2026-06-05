@@ -95,7 +95,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-admin}
     ports:
-      - "3000:3000"
+      - "3005:3000"
     depends_on:
       - prometheus
       - timescaledb
@@ -200,8 +200,19 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgrespassword}@timescaledb:5432/${POSTGRES_DB:-spaceops}
       - PORT=8084
     depends_on:
-      timescaledb:
-        condition: service_healthy
+      - timescaledb
+    restart: unless-stopped
+
+  mission-control-ui:
+    build:
+      context: ../../
+      dockerfile: apps/mission-control-ui/Dockerfile
+    container_name: spaceops-mission-control-ui
+    ports:
+      - "3000:3000"
+    depends_on:
+      - telemetry-collector
+      - mission-replay-engine
     restart: unless-stopped
 
 

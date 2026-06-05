@@ -35,11 +35,14 @@ fn create_test_app() -> Router {
     let kafka_producer = telemetry_collector::server::producer::KafkaProducer::new("localhost:9092")
         .expect("failed to create mock kafka producer for test");
 
+    let (broadcast_tx, _) = tokio::sync::broadcast::channel(100);
+
     let state = Arc::new(AppState {
         kafka_producer,
         raw_topic: "telemetry.raw".to_string(),
         invalid_topic: "telemetry.invalid".to_string(),
         db_pool: None,
+        broadcast_tx,
     });
 
     let rate_limit_layer = ServiceBuilder::new()

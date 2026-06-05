@@ -137,6 +137,8 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     };
 
+    let (broadcast_tx, _) = tokio::sync::broadcast::channel::<String>(1000);
+
     // Run matching commands
     match run_mode {
         Commands::RunServer => {
@@ -145,6 +147,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 raw_topic: cli.raw_topic,
                 invalid_topic: cli.invalid_topic,
                 db_pool,
+                broadcast_tx,
             };
             server::start_server(cli.http_port, app_state).await?;
         }
@@ -174,6 +177,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 raw_topic: cli.raw_topic.clone(),
                 invalid_topic: cli.invalid_topic.clone(),
                 db_pool,
+                broadcast_tx,
             };
 
             // Consumer Setup

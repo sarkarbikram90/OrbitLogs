@@ -42,10 +42,12 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
             "/telemetry",
             post(handlers::ingest_telemetry).layer(rate_limit_layer),
         )
+        .route("/ws", get(handlers::ws_handler))
         .route("/health", get(handlers::health_check))
         .route("/readiness", get(handlers::readiness_check))
         .route("/liveness", get(handlers::liveness_check))
         .route("/metrics", get(handlers::metrics_endpoint))
+        .layer(axum::middleware::from_fn(cors_middleware))
         .layer(DefaultBodyLimit::max(10_240)) // 10KB max payload
         .with_state(state_arc);
 
@@ -59,6 +61,37 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
 
     info!("HTTP Ingestion Server shut down gracefully.");
     Ok(())
+}
+
+async fn cors_middleware(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let method = request.method().clone();
+    if method == axum::http::Method::OPTIONS {
+        return axum::response::Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .header("access-control-allow-origin", "*")
+            .header("access-control-allow-methods", "GET, POST, OPTIONS")
+            .header("access-control-allow-headers", "content-type, x-request-id")
+            .body(axum::body::Body::empty())
+            .unwrap();
+    }
+
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        axum::http::HeaderValue::from_static("*"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
+        axum::http::HeaderValue::from_static("GET, POST, OPTIONS"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
+        axum::http::HeaderValue::from_static("content-type, x-request-id"),
+    );
+    response
 }
 
 async fn shutdown_signal() {

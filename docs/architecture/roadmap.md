@@ -25,9 +25,9 @@ This roadmap outlines the multi-phase evolution of the Open SpaceOps Mission Ope
 
 - `[x]` **Phase 5: Mission Replay Engine** (Completed)
   - [x] Store historical telemetry and support playback speed control (1x to 100x)
-- `[ ]` **Phase 6: Mission Control User Interface** (Planned)
-  - [ ] Build React/TypeScript dashboard with WebSocket streaming and Three.js visualization
-- `[ ]` **Phase 7: Orbital Visualization** (Planned)
-  - [ ] Implement 3D Earth tracking for 1000+ satellites
+- `[x]` **Phase 6: Mission Control User Interface** (Completed)
+  - [x] Build React/TypeScript dashboard with WebSocket streaming and Three.js visualization
+- `[x]` **Phase 7: Orbital Visualization** (Completed)
+  - [x] Implement 3D Earth tracking with orbits, ground stations, and communication link beams
 - `[ ]` **Phase 8: AI Incident Commander** (Planned)
   - [ ] Incorporate LLM agent support for incident correlation, root cause analysis, and remediation guidance

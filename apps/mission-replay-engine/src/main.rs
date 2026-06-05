@@ -165,8 +165,12 @@ async fn main() -> Result<(), anyhow::Error> {
         .route("/api/replays/:id", get(get_replay))
         .route("/api/replays/:id/control", post(control_replay))
         .route("/api/replays/:id/stream", get(stream_replay))
+        .route("/api/satellites", get(list_satellites))
+        .route("/api/ground-stations", get(list_ground_stations))
+        .route("/api/events", get(list_events))
         .route("/metrics", get(handle_metrics))
         .route("/health", get(health_check))
+        .layer(axum::middleware::from_fn(cors_middleware))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
@@ -752,6 +756,70 @@ async fn query_and_send_events(
     }
 
     Ok(())
+}
+
+async fn list_satellites(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    match db::query_latest_satellites(&state.db_pool).await {
+        Ok(health_records) => {
+            let mapped: Vec<db::ReplaySatelliteHealth> = health_records.into_iter().map(db::ReplaySatelliteHealth::from).collect();
+            (StatusCode::OK, Json(mapped)).into_response()
+        }
+        Err(e) => {
+            error!("Failed to query latest satellite health: {}", e);
+            api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database query failure")
+        }
+    }
+}
+
+async fn list_ground_stations(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    match db::query_latest_ground_stations(&state.db_pool).await {
+        Ok(gs_records) => (StatusCode::OK, Json(gs_records)).into_response(),
+        Err(e) => {
+            error!("Failed to query latest ground station health: {}", e);
+            api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database query failure")
+        }
+    }
+}
+
+async fn list_events(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    match db::query_recent_events(&state.db_pool).await {
+        Ok(event_records) => (StatusCode::OK, Json(event_records)).into_response(),
+        Err(e) => {
+            error!("Failed to query recent events: {}", e);
+            api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database query failure")
+        }
+    }
+}
+
+async fn cors_middleware(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let method = request.method().clone();
+    if method == axum::http::Method::OPTIONS {
+        return axum::response::Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .header("access-control-allow-origin", "*")
+            .header("access-control-allow-methods", "GET, POST, OPTIONS")
+            .header("access-control-allow-headers", "content-type, x-request-id")
+            .body(axum::body::Body::empty())
+            .unwrap();
+    }
+
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        axum::http::HeaderValue::from_static("*"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
+        axum::http::HeaderValue::from_static("GET, POST, OPTIONS"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
+        axum::http::HeaderValue::from_static("content-type, x-request-id"),
+    );
+    response
 }
 
 async fn shutdown_signal() {
