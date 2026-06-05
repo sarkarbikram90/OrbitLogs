@@ -1,0 +1,25 @@
+[package]
+name = "mission-replay-engine"
+version = "1.0.0"
+edition = "2021"
+description = "Historical telemetry and events replay engine for the Open SpaceOps platform"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { version = "0.7", features = ["macros"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+dotenvy = { workspace = true }
+spaceops-models = { workspace = true }
+spaceops-packets = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+prometheus = { workspace = true }
+uuid = { workspace = true }
+lazy_static = "1.4"
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures-util = "0.3"

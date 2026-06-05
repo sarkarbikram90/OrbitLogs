@@ -23,8 +23,8 @@ This roadmap outlines the multi-phase evolution of the Open SpaceOps Mission Ope
 - `[x]` **Phase 4: Telemetry Packet Layer** (Completed)
   - [x] Design binary serialization (CCSDS-inspired packet/frame layout)
 
-- `[ ]` **Phase 5: Mission Replay Engine** (Planned)
-  - [ ] Store historical telemetry and support playback speed control (1x to 100x)
+- `[x]` **Phase 5: Mission Replay Engine** (Completed)
+  - [x] Store historical telemetry and support playback speed control (1x to 100x)
 - `[ ]` **Phase 6: Mission Control User Interface** (Planned)
   - [ ] Build React/TypeScript dashboard with WebSocket streaming and Three.js visualization
 - `[ ]` **Phase 7: Orbital Visualization** (Planned)

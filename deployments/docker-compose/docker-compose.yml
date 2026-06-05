@@ -188,6 +188,22 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  mission-replay-engine:
+    build:
+      context: ../../
+      dockerfile: apps/mission-replay-engine/Dockerfile
+    container_name: spaceops-replay-engine
+    ports:
+      - "8084:8084"
+    environment:
+      - RUST_LOG=info,mission_replay_engine=debug
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgrespassword}@timescaledb:5432/${POSTGRES_DB:-spaceops}
+      - PORT=8084
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
 
 volumes:
   timescaledb_data:

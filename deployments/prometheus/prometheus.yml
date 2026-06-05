@@ -26,4 +26,6 @@ scrape_configs:
     static_configs:
       - targets: ["ground-station-simulator:8083"]
 
-
+  - job_name: "mission-replay-engine"
+    static_configs:
+      - targets: ["mission-replay-engine:8084"]

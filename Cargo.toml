@@ -5,6 +5,7 @@ members = [
     "apps/telemetry-collector",
     "apps/mission-health-engine",
     "apps/ground-station-simulator",
+    "apps/mission-replay-engine",
     "crates/spaceops-models",
     "crates/spaceops-packets",
 ]
