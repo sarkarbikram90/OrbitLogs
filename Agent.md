@@ -657,6 +657,9 @@ A senior engineer from:
 * Datadog
 * Cloudflare
 * Google
+* Netflix
+* Amazon
+* Apple
 
 should be able to review the repository and immediately understand:
 

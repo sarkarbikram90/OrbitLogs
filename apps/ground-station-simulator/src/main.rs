@@ -35,6 +35,21 @@ struct Cli {
 
     #[arg(long, env = "SIM_FREQUENCY_SEC", default_value = "2")]
     frequency_sec: u64,
+
+    #[arg(long, env = "KAFKA_SECURITY_PROTOCOL")]
+    kafka_security_protocol: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_MECHANISM")]
+    kafka_sasl_mechanism: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_USERNAME")]
+    kafka_sasl_username: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_PASSWORD")]
+    kafka_sasl_password: Option<String>,
+
+    #[arg(long, env = "KAFKA_SSL_CA_LOCATION")]
+    kafka_ssl_ca_location: Option<String>,
 }
 
 lazy_static! {
@@ -176,10 +191,28 @@ async fn main() -> Result<(), anyhow::Error> {
     let db_pool = db_pool.ok_or_else(|| anyhow::anyhow!("Failed to connect to database"))?;
 
     // Init Kafka Producer
-    let producer: FutureProducer = ClientConfig::new()
+    let mut config = ClientConfig::new();
+    config
         .set("bootstrap.servers", &cli.kafka_brokers)
-        .set("message.timeout.ms", "5000")
-        .create()?;
+        .set("message.timeout.ms", "5000");
+
+    if let Some(ref proto) = cli.kafka_security_protocol {
+        config.set("security.protocol", proto);
+    }
+    if let Some(ref mech) = cli.kafka_sasl_mechanism {
+        config.set("sasl.mechanism", mech);
+    }
+    if let Some(ref user) = cli.kafka_sasl_username {
+        config.set("sasl.username", user);
+    }
+    if let Some(ref pass) = cli.kafka_sasl_password {
+        config.set("sasl.password", pass);
+    }
+    if let Some(ref ca) = cli.kafka_ssl_ca_location {
+        config.set("ssl.ca.location", ca);
+    }
+
+    let producer: FutureProducer = config.create()?;
     info!("Kafka producer successfully initialized.");
 
     let mut ticks: u64 = 0;

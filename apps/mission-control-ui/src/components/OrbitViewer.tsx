@@ -22,12 +22,30 @@ function latLonToVector(lat: number, lon: number, radius: number): THREE.Vector3
 
 export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStations, selectedSatId }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  
+  // Track props in refs so the animation loop can access their latest values without re-triggering useEffect
+  const satellitesRef = useRef<Satellite[]>(satellites);
+  const groundStationsRef = useRef<GroundStation[]>(groundStations);
+  const selectedSatIdRef = useRef<string | null>(selectedSatId);
+
+  useEffect(() => {
+    satellitesRef.current = satellites;
+  }, [satellites]);
+
+  useEffect(() => {
+    groundStationsRef.current = groundStations;
+  }, [groundStations]);
+
+  useEffect(() => {
+    selectedSatIdRef.current = selectedSatId;
+  }, [selectedSatId]);
 
   useEffect(() => {
     if (!mountRef.current) return;
 
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
+    const container = mountRef.current;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
 
     // 1. Scene setup
     const scene = new THREE.Scene();
@@ -41,7 +59,7 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
-    mountRef.current.appendChild(renderer.domElement);
+    container.appendChild(renderer.domElement);
 
     // 4. Earth creation (Sleek dark wireframe with a translucent core)
     const earthRadius = 2.0;
@@ -92,15 +110,7 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
       const pos = latLonToVector(gs.lat, gs.lon, earthRadius);
       const gsGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
       
-      // Look up live status
-      const liveGs = groundStations.find(g => g.station_id === gs.id);
-      const status = liveGs ? liveGs.status : 'ONLINE';
-      
-      let color = 0x10b981; // GREEN
-      if (status === 'DEGRADED') color = 0xf59e0b; // YELLOW
-      else if (status === 'OUTAGE') color = 0xef4444; // RED
-
-      const gsMat = new THREE.MeshBasicMaterial({ color });
+      const gsMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
       const mesh = new THREE.Mesh(gsGeo, gsMat);
       mesh.position.copy(pos);
       // Orient Box to face outwards
@@ -110,7 +120,6 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
     });
 
     // 6. Satellites orbits mapping
-    // Create 10 satellites orbits with slightly offset inclinations and radii
     const satData = Array.from({ length: 10 }).map((_, idx) => {
       const id = `SAT-${String(idx + 1).padStart(4, '0')}`;
       const radius = 3.2 + (idx * 0.12);
@@ -133,25 +142,18 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
         orbitPoints.push(new THREE.Vector3(x, y, z));
       }
       const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints);
-      const isSelected = selectedSatId === sat.id;
+      
       const orbitMat = new THREE.LineBasicMaterial({
-        color: isSelected ? 0x0ea5e9 : 0x1e293b,
+        color: 0x1e293b,
         transparent: true,
-        opacity: isSelected ? 0.8 : 0.3
+        opacity: 0.3
       });
       const orbit = new THREE.Line(orbitGeo, orbitMat);
       scene.add(orbit);
 
       // Create Satellite mesh
-      const satGeo = new THREE.SphereGeometry(isSelected ? 0.08 : 0.05, 8, 8);
-      
-      const liveSat = satellites.find(s => s.id === sat.id);
-      const state = liveSat ? liveSat.state : 'GREEN';
-      let color = 0x10b981; // GREEN
-      if (state === 'YELLOW') color = 0xf59e0b; // YELLOW
-      else if (state === 'RED') color = 0xef4444; // RED
-
-      const satMat = new THREE.MeshBasicMaterial({ color });
+      const satGeo = new THREE.SphereGeometry(0.05, 8, 8);
+      const satMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
       const mesh = new THREE.Mesh(satGeo, satMat);
       scene.add(mesh);
 
@@ -161,11 +163,11 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
         new THREE.Vector3(0,0,0)
       ]);
       const beamMat = new THREE.LineDashedMaterial({
-        color: state === 'RED' ? 0xef4444 : 0x0ea5e9,
+        color: 0x0ea5e9,
         dashSize: 0.1,
         gapSize: 0.1,
         transparent: true,
-        opacity: isSelected ? 0.8 : 0.2
+        opacity: 0.2
       });
       const line = new THREE.Line(beamGeo, beamMat);
       scene.add(line);
@@ -174,7 +176,7 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
     });
 
     // 7. Animation tick loop
-    let clock = new THREE.Clock();
+    const clock = new THREE.Clock();
     let animationId: number;
 
     const animate = () => {
@@ -184,6 +186,22 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
       // Rotate Earth grid slowly
       earthGrid.rotation.y = elapsed * 0.05;
       earthCore.rotation.y = elapsed * 0.05;
+
+      const currentSatellites = satellitesRef.current;
+      const currentGroundStations = groundStationsRef.current;
+      const currentSelectedSatId = selectedSatIdRef.current;
+
+      // Update Ground Station status colors from ref
+      gsLocations.forEach((gs, idx) => {
+        const liveGs = currentGroundStations.find(g => g.station_id === gs.id);
+        const status = liveGs ? liveGs.status : 'ONLINE';
+        
+        let color = 0x10b981; // GREEN
+        if (status === 'DEGRADED') color = 0xf59e0b; // YELLOW
+        else if (status === 'OUTAGE') color = 0xef4444; // RED
+
+        (gsMeshes[idx].mesh.material as THREE.MeshBasicMaterial).color.setHex(color);
+      });
 
       // Update Satellites positions & Signal Beam connections
       satData.forEach((sat, idx) => {
@@ -195,19 +213,23 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
         const y = sat.radius * Math.sin(angle) * Math.cos(sat.inclination);
         const z = sat.radius * Math.sin(angle) * Math.sin(sat.inclination);
         
-        // Rotate satellite position around Earth Y axis (matching Earth rotation factor if needed, or keeping orbital inertial)
         const satPos = new THREE.Vector3(x, y, z);
         satMesh.mesh.position.copy(satPos);
 
-        // Update colors based on live inputs
-        const liveSat = satellites.find(s => s.id === sat.id);
+        // Update colors based on live inputs from ref
+        const liveSat = currentSatellites.find(s => s.id === sat.id);
         const state = liveSat ? liveSat.state : 'GREEN';
         let color = 0x10b981; // GREEN
         if (state === 'YELLOW') color = 0xf59e0b; // YELLOW
         else if (state === 'RED') color = 0xef4444; // RED
         (satMesh.mesh.material as THREE.MeshBasicMaterial).color.setHex(color);
 
-        const isSelected = selectedSatId === sat.id;
+        const isSelected = currentSelectedSatId === sat.id;
+        
+        // Scale selected satellite slightly
+        const targetScale = isSelected ? 1.6 : 1.0;
+        satMesh.mesh.scale.set(targetScale, targetScale, targetScale);
+
         (satMesh.orbit.material as THREE.LineBasicMaterial).color.setHex(isSelected ? 0x0ea5e9 : 0x1e293b);
         (satMesh.orbit.material as THREE.LineBasicMaterial).opacity = isSelected ? 0.8 : 0.2;
 
@@ -216,7 +238,6 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
         if (gsLoc) {
           // Calculate current rotated position of ground station point
           const originalGsPos = latLonToVector(gsLoc.lat, gsLoc.lon, earthRadius);
-          // Gs rotates with the earthGrid
           const rotatedGsPos = originalGsPos.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), earthGrid.rotation.y);
           
           // Set line geometry points
@@ -224,8 +245,8 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
           satMesh.line.geometry.setFromPoints(points);
           satMesh.line.computeLineDistances(); // Required for dashed lines
 
-          // Modulate beam color/dash/opacity based on connection
-          const liveGs = groundStations.find(g => g.station_id === sat.linkedGsId);
+          // Modulate beam color/dash/opacity based on connection from ref
+          const liveGs = currentGroundStations.find(g => g.station_id === sat.linkedGsId);
           const gsStatus = liveGs ? liveGs.status : 'ONLINE';
           
           let beamColor = 0x0ea5e9; // BLUE normal beam
@@ -253,9 +274,8 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
 
     // 8. Resize handler
     const handleResize = () => {
-      if (!mountRef.current) return;
-      const w = mountRef.current.clientWidth;
-      const h = mountRef.current.clientHeight;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
@@ -267,12 +287,31 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationId);
-      if (mountRef.current && renderer.domElement) {
-        mountRef.current.removeChild(renderer.domElement);
+      if (container && renderer.domElement) {
+        container.removeChild(renderer.domElement);
       }
+      
+      // Traverse scene and clean up Three.js resources
+      scene.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.geometry.dispose();
+          if (Array.isArray(object.material)) {
+            object.material.forEach((mat) => mat.dispose());
+          } else {
+            object.material.dispose();
+          }
+        } else if (object instanceof THREE.Line) {
+          object.geometry.dispose();
+          if (Array.isArray(object.material)) {
+            object.material.forEach((mat) => mat.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+      });
       renderer.dispose();
     };
-  }, [satellites, groundStations, selectedSatId]);
+  }, []); // Re-run effect only on mount / unmount
 
   return (
     <div className="glass-panel" style={{ height: '100%', position: 'relative' }}>

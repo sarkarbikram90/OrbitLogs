@@ -3,7 +3,7 @@ use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use sqlx::PgPool;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
@@ -20,6 +20,11 @@ pub struct ConsumerConfig {
     pub raw_topic: String,
     pub processed_topic: String,
     pub invalid_topic: String,
+    pub security_protocol: Option<String>,
+    pub sasl_mechanism: Option<String>,
+    pub sasl_username: Option<String>,
+    pub sasl_password: Option<String>,
+    pub ssl_ca_location: Option<String>,
 }
 
 pub struct TelemetryConsumer {
@@ -40,14 +45,32 @@ impl TelemetryConsumer {
     }
 
     pub async fn start(&self) -> Result<(), anyhow::Error> {
-        let consumer: StreamConsumer = ClientConfig::new()
+        let mut client_config = ClientConfig::new();
+        client_config
             .set("bootstrap.servers", &self.config.brokers)
             .set("group.id", &self.config.group_id)
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
-            .set("auto.offset.reset", "earliest")
-            .create()?;
+            .set("auto.offset.reset", "earliest");
+
+        if let Some(ref proto) = self.config.security_protocol {
+            client_config.set("security.protocol", proto);
+        }
+        if let Some(ref mech) = self.config.sasl_mechanism {
+            client_config.set("sasl.mechanism", mech);
+        }
+        if let Some(ref user) = self.config.sasl_username {
+            client_config.set("sasl.username", user);
+        }
+        if let Some(ref pass) = self.config.sasl_password {
+            client_config.set("sasl.password", pass);
+        }
+        if let Some(ref ca) = self.config.ssl_ca_location {
+            client_config.set("ssl.ca.location", ca);
+        }
+
+        let consumer: StreamConsumer = client_config.create()?;
 
         consumer.subscribe(&[&self.config.raw_topic])?;
         info!(
@@ -170,7 +193,7 @@ impl TelemetryConsumer {
 
         // 1. Check in-memory cache first
         let cached_opt = {
-            let cache = self.cache.lock().unwrap();
+            let cache = self.cache.lock().await;
             cache.get(sat_id).cloned()
         };
 
@@ -298,7 +321,7 @@ impl TelemetryConsumer {
 
         // 5. Save back to cache
         {
-            let mut cache = self.cache.lock().unwrap();
+            let mut cache = self.cache.lock().await;
             cache.insert(sat_id.clone(), merged.clone());
         }
 

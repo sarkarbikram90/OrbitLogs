@@ -32,8 +32,15 @@ fn create_test_app() -> Router {
     // Register metrics (idempotent in tests due to lazy_static)
     let _ = std::panic::catch_unwind(metrics::register_metrics);
 
-    let kafka_producer = telemetry_collector::server::producer::KafkaProducer::new("localhost:9092")
-        .expect("failed to create mock kafka producer for test");
+    let kafka_producer = telemetry_collector::server::producer::KafkaProducer::new(
+        "localhost:9092",
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .expect("failed to create mock kafka producer for test");
 
     let (broadcast_tx, _) = tokio::sync::broadcast::channel(100);
 
@@ -43,6 +50,8 @@ fn create_test_app() -> Router {
         invalid_topic: "telemetry.invalid".to_string(),
         db_pool: None,
         broadcast_tx,
+        api_key: "secret-spaceops-key-2026".to_string(),
+        cors_allowed_origin: "http://localhost:3000".to_string(),
     });
 
     let rate_limit_layer = ServiceBuilder::new()
@@ -69,6 +78,12 @@ fn create_test_app() -> Router {
             "/telemetry_real",
             post(telemetry_collector::server::handlers::ingest_telemetry),
         )
+        .nest(
+            "/telemetry_authed",
+            Router::new()
+                .route("/", post(telemetry_collector::server::handlers::ingest_telemetry))
+                .layer(axum::middleware::from_fn_with_state(state.clone(), telemetry_collector::server::auth_middleware)),
+        )
         .route(
             "/health",
             get(telemetry_collector::server::handlers::health_check),
@@ -85,6 +100,7 @@ fn create_test_app() -> Router {
             "/metrics",
             get(telemetry_collector::server::handlers::metrics_endpoint),
         )
+        .layer(axum::middleware::from_fn_with_state(state.clone(), telemetry_collector::server::cors_middleware))
         .layer(DefaultBodyLimit::max(10_240))
         .with_state(state)
 }
@@ -405,4 +421,108 @@ async fn test_real_handler_binary_valid() {
     // and return 503 (SERVICE_UNAVAILABLE). But this proves that the request passed parsing,
     // decoding, and validation successfully!
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn test_auth_middleware_rejected_missing() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/telemetry_authed")
+                .header("Content-Type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_auth_middleware_rejected_invalid() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/telemetry_authed")
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer invalid-key-12345")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_auth_middleware_accepted_header() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/telemetry_authed")
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer secret-spaceops-key-2026")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // With correct auth, it proceeds to the inner handler which parses the empty JSON,
+    // fails parsing with a 400 Bad Request (since empty JSON is invalid TelemetryRecord).
+    // This proves that it bypassed the auth middleware!
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_auth_middleware_accepted_query_param() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/telemetry_authed?token=secret-spaceops-key-2026")
+                .header("Content-Type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_cors_middleware_allowed_origin() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/telemetry_real")
+                .header("Origin", "http://localhost:3000")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert_eq!(
+        response.headers().get("access-control-allow-origin").unwrap().to_str().unwrap(),
+        "http://localhost:3000"
+    );
 }

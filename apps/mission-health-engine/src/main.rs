@@ -48,6 +48,21 @@ struct Cli {
 
     #[arg(long, env = "METRICS_PORT", default_value = "8082")]
     metrics_port: u16,
+
+    #[arg(long, env = "KAFKA_SECURITY_PROTOCOL")]
+    kafka_security_protocol: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_MECHANISM")]
+    kafka_sasl_mechanism: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_USERNAME")]
+    kafka_sasl_username: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_PASSWORD")]
+    kafka_sasl_password: Option<String>,
+
+    #[arg(long, env = "KAFKA_SSL_CA_LOCATION")]
+    kafka_ssl_ca_location: Option<String>,
 }
 
 struct EngineState {
@@ -150,21 +165,57 @@ async fn main() -> Result<(), anyhow::Error> {
     let db_pool = db_pool.ok_or_else(|| anyhow::anyhow!("Failed to connect to database"))?;
 
     // Init Kafka Producer
-    let producer: FutureProducer = ClientConfig::new()
+    let mut producer_config = ClientConfig::new();
+    producer_config
         .set("bootstrap.servers", &cli.kafka_brokers)
-        .set("message.timeout.ms", "5000")
-        .create()?;
+        .set("message.timeout.ms", "5000");
+
+    if let Some(ref proto) = cli.kafka_security_protocol {
+        producer_config.set("security.protocol", proto);
+    }
+    if let Some(ref mech) = cli.kafka_sasl_mechanism {
+        producer_config.set("sasl.mechanism", mech);
+    }
+    if let Some(ref user) = cli.kafka_sasl_username {
+        producer_config.set("sasl.username", user);
+    }
+    if let Some(ref pass) = cli.kafka_sasl_password {
+        producer_config.set("sasl.password", pass);
+    }
+    if let Some(ref ca) = cli.kafka_ssl_ca_location {
+        producer_config.set("ssl.ca.location", ca);
+    }
+
+    let producer: FutureProducer = producer_config.create()?;
     info!("Kafka producer successfully initialized.");
 
     // Init Kafka Consumer
-    let consumer: StreamConsumer = ClientConfig::new()
+    let mut consumer_config = ClientConfig::new();
+    consumer_config
         .set("bootstrap.servers", &cli.kafka_brokers)
         .set("group.id", &cli.group_id)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "6000")
         .set("enable.auto.commit", "false")
-        .set("auto.offset.reset", "latest")
-        .create()?;
+        .set("auto.offset.reset", "latest");
+
+    if let Some(ref proto) = cli.kafka_security_protocol {
+        consumer_config.set("security.protocol", proto);
+    }
+    if let Some(ref mech) = cli.kafka_sasl_mechanism {
+        consumer_config.set("sasl.mechanism", mech);
+    }
+    if let Some(ref user) = cli.kafka_sasl_username {
+        consumer_config.set("sasl.username", user);
+    }
+    if let Some(ref pass) = cli.kafka_sasl_password {
+        consumer_config.set("sasl.password", pass);
+    }
+    if let Some(ref ca) = cli.kafka_ssl_ca_location {
+        consumer_config.set("ssl.ca.location", ca);
+    }
+
+    let consumer: StreamConsumer = consumer_config.create()?;
     consumer.subscribe(&[&cli.processed_topic])?;
     info!("Kafka consumer subscribed to topic '{}'", cli.processed_topic);
 
@@ -180,17 +231,40 @@ async fn main() -> Result<(), anyhow::Error> {
     let gs_states_clone = Arc::clone(&state);
     let brokers = cli.kafka_brokers.clone();
     let gs_topic = cli.gs_health_topic.clone();
+    let security_protocol = cli.kafka_security_protocol.clone();
+    let sasl_mechanism = cli.kafka_sasl_mechanism.clone();
+    let sasl_username = cli.kafka_sasl_username.clone();
+    let sasl_password = cli.kafka_sasl_password.clone();
+    let ssl_ca_location = cli.kafka_ssl_ca_location.clone();
 
     tokio::spawn(async move {
         info!("Starting ground station health consumer for mission-health-engine...");
-        let consumer_res: Result<StreamConsumer, _> = ClientConfig::new()
+        let mut bg_config = ClientConfig::new();
+        bg_config
             .set("bootstrap.servers", &brokers)
             .set("group.id", &format!("mission-health-engine-gs-group-{}", uuid::Uuid::new_v4()))
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true")
-            .set("auto.offset.reset", "latest")
-            .create();
+            .set("auto.offset.reset", "latest");
+
+        if let Some(ref proto) = security_protocol {
+            bg_config.set("security.protocol", proto);
+        }
+        if let Some(ref mech) = sasl_mechanism {
+            bg_config.set("sasl.mechanism", mech);
+        }
+        if let Some(ref user) = sasl_username {
+            bg_config.set("sasl.username", user);
+        }
+        if let Some(ref pass) = sasl_password {
+            bg_config.set("sasl.password", pass);
+        }
+        if let Some(ref ca) = ssl_ca_location {
+            bg_config.set("ssl.ca.location", ca);
+        }
+
+        let consumer_res: Result<StreamConsumer, _> = bg_config.create();
 
         let consumer = match consumer_res {
             Ok(c) => c,

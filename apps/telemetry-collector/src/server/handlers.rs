@@ -22,6 +22,8 @@ pub struct AppState {
     pub invalid_topic: String,
     pub db_pool: Option<sqlx::PgPool>,
     pub broadcast_tx: tokio::sync::broadcast::Sender<String>,
+    pub api_key: String,
+    pub cors_allowed_origin: String,
 }
 
 #[derive(Serialize)]

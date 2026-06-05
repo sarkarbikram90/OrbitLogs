@@ -44,6 +44,27 @@ struct Cli {
     #[arg(long, env = "GROUP_ID", default_value = "telemetry-consumer-group")]
     group_id: String,
 
+    #[arg(long, env = "API_KEY", default_value = "secret-spaceops-key-2026")]
+    api_key: String,
+
+    #[arg(long, env = "CORS_ALLOWED_ORIGIN", default_value = "http://localhost:3000")]
+    cors_allowed_origin: String,
+
+    #[arg(long, env = "KAFKA_SECURITY_PROTOCOL")]
+    kafka_security_protocol: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_MECHANISM")]
+    kafka_sasl_mechanism: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_USERNAME")]
+    kafka_sasl_username: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_PASSWORD")]
+    kafka_sasl_password: Option<String>,
+
+    #[arg(long, env = "KAFKA_SSL_CA_LOCATION")]
+    kafka_ssl_ca_location: Option<String>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -85,7 +106,14 @@ async fn main() -> Result<(), anyhow::Error> {
     metrics::register_metrics();
 
     // Init Kafka Producer (used by both Server to queue and Consumer to route to DLQ)
-    let kafka_producer = match KafkaProducer::new(&cli.kafka_brokers) {
+    let kafka_producer = match KafkaProducer::new(
+        &cli.kafka_brokers,
+        cli.kafka_security_protocol.as_deref(),
+        cli.kafka_sasl_mechanism.as_deref(),
+        cli.kafka_sasl_username.as_deref(),
+        cli.kafka_sasl_password.as_deref(),
+        cli.kafka_ssl_ca_location.as_deref(),
+    ) {
         Ok(p) => {
             info!(
                 "Kafka Producer successfully initialized for brokers: {}",
@@ -148,6 +176,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 invalid_topic: cli.invalid_topic,
                 db_pool,
                 broadcast_tx,
+                api_key: cli.api_key,
+                cors_allowed_origin: cli.cors_allowed_origin,
             };
             server::start_server(cli.http_port, app_state).await?;
         }
@@ -161,6 +191,11 @@ async fn main() -> Result<(), anyhow::Error> {
                 raw_topic: cli.raw_topic,
                 processed_topic: cli.processed_topic,
                 invalid_topic: cli.invalid_topic,
+                security_protocol: cli.kafka_security_protocol,
+                sasl_mechanism: cli.kafka_sasl_mechanism,
+                sasl_username: cli.kafka_sasl_username,
+                sasl_password: cli.kafka_sasl_password,
+                ssl_ca_location: cli.kafka_ssl_ca_location,
             };
             consumer::start_consumer(consumer_config, pool, kafka_producer).await?;
         }
@@ -178,6 +213,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 invalid_topic: cli.invalid_topic.clone(),
                 db_pool,
                 broadcast_tx,
+                api_key: cli.api_key.clone(),
+                cors_allowed_origin: cli.cors_allowed_origin.clone(),
             };
 
             // Consumer Setup
@@ -187,6 +224,11 @@ async fn main() -> Result<(), anyhow::Error> {
                 raw_topic: cli.raw_topic,
                 processed_topic: cli.processed_topic,
                 invalid_topic: cli.invalid_topic,
+                security_protocol: cli.kafka_security_protocol,
+                sasl_mechanism: cli.kafka_sasl_mechanism,
+                sasl_username: cli.kafka_sasl_username,
+                sasl_password: cli.kafka_sasl_password,
+                ssl_ca_location: cli.kafka_ssl_ca_location,
             };
 
             // Spawn both in concurrent tasks

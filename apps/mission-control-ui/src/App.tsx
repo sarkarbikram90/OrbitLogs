@@ -5,9 +5,10 @@ import { SatelliteDetail } from './components/SatelliteDetail';
 import { GroundStationStatus } from './components/GroundStationStatus';
 import { ReplayControls } from './components/ReplayControls';
 import { IncidentPanel } from './components/IncidentPanel';
-import type { Satellite, GroundStation, EventLog, ReplaySession } from './types';
+import type { Satellite, GroundStation, EventLog, ReplaySession, SatelliteHealth, TelemetryRecord } from './types';
 
 const BACKEND_REPLAY_URL = 'http://localhost:8084';
+const API_KEY = import.meta.env.VITE_API_KEY || 'secret-spaceops-key-2026';
 
 export default function App() {
   const [mode, setMode] = useState<'LIVE' | 'REPLAY'>('LIVE');
@@ -29,8 +30,8 @@ export default function App() {
   const [events, setEvents] = useState<EventLog[]>([]);
 
   // Telemetry details for selected satellite
-  const [telemetry, setTelemetry] = useState<any>(null);
-  const [health, setHealth] = useState<any>(null);
+  const [telemetry, setTelemetry] = useState<TelemetryRecord | null>(null);
+  const [health, setHealth] = useState<SatelliteHealth | null>(null);
 
   // Active Replay session
   const [replaySession, setReplaySession] = useState<ReplaySession | null>(null);
@@ -88,9 +89,9 @@ export default function App() {
           if (satsData.length > 0) {
             setSatellites(prev =>
               prev.map(s => {
-                const updated = satsData.find((d: any) => d.satellite_id === s.id);
+                const updated = satsData.find((d: SatelliteHealth) => d.satellite_id === s.id);
                 return updated
-                  ? { id: s.id, state: updated.overall_state, score: updated.overall_score }
+                  ? { id: s.id, state: updated.overall_state as 'GREEN' | 'YELLOW' | 'RED', score: updated.overall_score }
                   : s;
               })
             );
@@ -169,13 +170,16 @@ export default function App() {
       try {
         const satsResp = await fetch(`${BACKEND_REPLAY_URL}/api/satellites`);
         if (satsResp.ok) {
-          const satsData = await satsResp.json();
-          const target = satsData.find((d: any) => d.satellite_id === selectedSatId);
+          const satsData: SatelliteHealth[] = await satsResp.json();
+          const target = satsData.find((d: SatelliteHealth) => d.satellite_id === selectedSatId);
           if (target) {
             setHealth(target);
           } else {
             // Default healthy
             setHealth({
+              timestamp: new Date().toISOString(),
+              satellite_id: selectedSatId || 'UNKNOWN',
+              mission_id: 'NOMINAL',
               overall_state: 'GREEN',
               overall_score: 100,
               explanation: 'All subsystems operating within normal parameters.',
@@ -202,19 +206,20 @@ export default function App() {
 
   // --- 2. REPLAY MODE OPERATIONS ---
 
+  const sessionId = replaySession?.session_id;
+
   // Connect to SSE stream when a replay session is active
   useEffect(() => {
-    if (mode !== 'REPLAY' || !replaySession) return;
+    if (mode !== 'REPLAY' || !sessionId) return;
 
     if (sseRef.current) {
       sseRef.current.close();
     }
 
-    const session_id = replaySession.session_id;
-    console.log(`Connecting to Replay SSE stream for session ${session_id}...`);
-    const sse = new EventSource(`${BACKEND_REPLAY_URL}/api/replays/${session_id}/stream`);
+    console.log(`Connecting to Replay SSE stream for session ${sessionId}...`);
+    const sse = new EventSource(`${BACKEND_REPLAY_URL}/api/replays/${sessionId}/stream?token=${encodeURIComponent(API_KEY)}`);
 
-    sse.addEventListener('state', (e: any) => {
+    sse.addEventListener('state', (e: MessageEvent) => {
       try {
         const sessionState = JSON.parse(e.data);
         setReplaySession(sessionState);
@@ -223,7 +228,7 @@ export default function App() {
       }
     });
 
-    sse.addEventListener('telemetry', (e: any) => {
+    sse.addEventListener('telemetry', (e: MessageEvent) => {
       try {
         const rec = JSON.parse(e.data);
         if (rec.satellite_id === selectedSatId) {
@@ -234,7 +239,7 @@ export default function App() {
       }
     });
 
-    sse.addEventListener('satellite_health', (e: any) => {
+    sse.addEventListener('satellite_health', (e: MessageEvent) => {
       try {
         const hRec = JSON.parse(e.data);
         
@@ -242,7 +247,7 @@ export default function App() {
         setSatellites(prev =>
           prev.map(s => 
             s.id === hRec.satellite_id 
-              ? { id: s.id, state: hRec.overall_state, score: hRec.overall_score }
+              ? { id: s.id, state: hRec.overall_state as 'GREEN' | 'YELLOW' | 'RED', score: hRec.overall_score }
               : s
           )
         );
@@ -256,7 +261,7 @@ export default function App() {
       }
     });
 
-    sse.addEventListener('ground_station_health', (e: any) => {
+    sse.addEventListener('ground_station_health', (e: MessageEvent) => {
       try {
         const gsRec = JSON.parse(e.data);
         setGroundStations(prev => {
@@ -274,7 +279,7 @@ export default function App() {
       }
     });
 
-    sse.addEventListener('event', (e: any) => {
+    sse.addEventListener('event', (e: MessageEvent) => {
       try {
         const evRec = JSON.parse(e.data);
         setEvents(prev => [evRec, ...prev].slice(0, 100)); // Cap at 100 elements
@@ -293,7 +298,7 @@ export default function App() {
       sse.close();
       sseRef.current = null;
     };
-  }, [mode, replaySession?.session_id, selectedSatId]);
+  }, [mode, sessionId, selectedSatId]);
 
   // Create Replay Session
   const handleCreateSession = async (
@@ -305,7 +310,10 @@ export default function App() {
     try {
       const resp = await fetch(`${BACKEND_REPLAY_URL}/api/replays`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        },
         body: JSON.stringify({
           satellite_id: satId,
           start_time: start,
@@ -338,7 +346,10 @@ export default function App() {
         `${BACKEND_REPLAY_URL}/api/replays/${replaySession.session_id}/control`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${API_KEY}`
+          },
           body: JSON.stringify({ action, position, speed }),
         }
       );

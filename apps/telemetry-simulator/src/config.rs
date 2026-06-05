@@ -36,6 +36,24 @@ pub struct Config {
 
     #[arg(long, env = "HEALTH_TOPIC", default_value = "groundstation.health")]
     pub health_topic: String,
+
+    #[arg(long, env = "API_KEY", default_value = "secret-spaceops-key-2026")]
+    pub api_key: String,
+
+    #[arg(long, env = "KAFKA_SECURITY_PROTOCOL")]
+    pub kafka_security_protocol: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_MECHANISM")]
+    pub kafka_sasl_mechanism: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_USERNAME")]
+    pub kafka_sasl_username: Option<String>,
+
+    #[arg(long, env = "KAFKA_SASL_PASSWORD")]
+    pub kafka_sasl_password: Option<String>,
+
+    #[arg(long, env = "KAFKA_SSL_CA_LOCATION")]
+    pub kafka_ssl_ca_location: Option<String>,
 }
 
 impl Config {

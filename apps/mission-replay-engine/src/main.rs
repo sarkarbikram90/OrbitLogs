@@ -36,6 +36,12 @@ struct Cli {
 
     #[arg(long, env = "PORT", default_value = "8084")]
     port: u16,
+
+    #[arg(long, env = "API_KEY", default_value = "secret-spaceops-key-2026")]
+    api_key: String,
+
+    #[arg(long, env = "CORS_ALLOWED_ORIGIN", default_value = "http://localhost:3000")]
+    cors_allowed_origin: String,
 }
 
 struct SessionState {
@@ -68,6 +74,8 @@ impl From<&SessionState> for db::ReplaySession {
 struct AppState {
     db_pool: sqlx::PgPool,
     sessions: tokio::sync::Mutex<HashMap<uuid::Uuid, SessionState>>,
+    api_key: String,
+    cors_allowed_origin: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -158,19 +166,25 @@ async fn main() -> Result<(), anyhow::Error> {
     let state = Arc::new(AppState {
         db_pool,
         sessions: tokio::sync::Mutex::new(HashMap::new()),
+        api_key: cli.api_key,
+        cors_allowed_origin: cli.cors_allowed_origin,
     });
 
+    let replay_routes = Router::new()
+        .route("/", post(create_replay))
+        .route("/:id", get(get_replay))
+        .route("/:id/control", post(control_replay))
+        .route("/:id/stream", get(stream_replay))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), auth_middleware));
+
     let app = Router::new()
-        .route("/api/replays", post(create_replay))
-        .route("/api/replays/:id", get(get_replay))
-        .route("/api/replays/:id/control", post(control_replay))
-        .route("/api/replays/:id/stream", get(stream_replay))
+        .nest("/api/replays", replay_routes)
         .route("/api/satellites", get(list_satellites))
         .route("/api/ground-stations", get(list_ground_stations))
         .route("/api/events", get(list_events))
         .route("/metrics", get(handle_metrics))
         .route("/health", get(health_check))
-        .layer(axum::middleware::from_fn(cors_middleware))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), cors_middleware))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
@@ -791,33 +805,86 @@ async fn list_events(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     }
 }
 
+async fn auth_middleware(
+    State(state): State<Arc<AppState>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, std::convert::Infallible> {
+    let mut token_opt = req.headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|s| s.to_string());
+
+    if token_opt.is_none() {
+        if let Some(query) = req.uri().query() {
+            for pair in query.split('&') {
+                let mut parts = pair.splitn(2, '=');
+                if let (Some("token"), Some(val)) = (parts.next(), parts.next()) {
+                    token_opt = Some(val.to_string());
+                    break;
+                }
+            }
+        }
+    }
+
+    match token_opt {
+        Some(ref t) if t == &state.api_key => Ok(next.run(req).await),
+        _ => {
+            let body = serde_json::json!({
+                "error": "Unauthorized",
+                "details": vec!["Missing or invalid authorization token"]
+            })
+            .to_string();
+            let mut response = axum::response::Response::new(axum::body::Body::from(body));
+            *response.status_mut() = StatusCode::UNAUTHORIZED;
+            response.headers_mut().insert(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/json"),
+            );
+            if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
+                response.headers_mut().insert(
+                    axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                    origin_val,
+                );
+            }
+            Ok(response)
+        }
+    }
+}
+
 async fn cors_middleware(
+    State(state): State<Arc<AppState>>,
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
     let method = request.method().clone();
+    let allowed_origin = state.cors_allowed_origin.clone();
+
     if method == axum::http::Method::OPTIONS {
         return axum::response::Response::builder()
             .status(StatusCode::NO_CONTENT)
-            .header("access-control-allow-origin", "*")
+            .header("access-control-allow-origin", &allowed_origin)
             .header("access-control-allow-methods", "GET, POST, OPTIONS")
-            .header("access-control-allow-headers", "content-type, x-request-id")
+            .header("access-control-allow-headers", "content-type, x-request-id, authorization")
             .body(axum::body::Body::empty())
             .unwrap();
     }
 
     let mut response = next.run(request).await;
-    response.headers_mut().insert(
-        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        axum::http::HeaderValue::from_static("*"),
-    );
+    if let Ok(origin_val) = axum::http::HeaderValue::from_str(&allowed_origin) {
+        response.headers_mut().insert(
+            axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+            origin_val,
+        );
+    }
     response.headers_mut().insert(
         axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
         axum::http::HeaderValue::from_static("GET, POST, OPTIONS"),
     );
     response.headers_mut().insert(
         axum::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
-        axum::http::HeaderValue::from_static("content-type, x-request-id"),
+        axum::http::HeaderValue::from_static("content-type, x-request-id, authorization"),
     );
     response
 }
@@ -913,5 +980,59 @@ mod tests {
         assert_eq!(mapped.thermal.state, "YELLOW");
         assert_eq!(mapped.thermal.score, 50);
         assert_eq!(mapped.explanation, "Thermal system elevated");
+    }
+
+    #[tokio::test]
+    async fn test_auth_middleware() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::util::ServiceExt;
+
+        let state = Arc::new(AppState {
+            db_pool: sqlx::PgPool::connect_lazy("postgres://localhost/test").unwrap(),
+            sessions: tokio::sync::Mutex::new(HashMap::new()),
+            api_key: "secret-key".to_string(),
+            cors_allowed_origin: "http://localhost:3000".to_string(),
+        });
+
+        let app = Router::new()
+            .route("/test", post(|_: Request<Body>| async { StatusCode::OK }))
+            .layer(axum::middleware::from_fn_with_state(state.clone(), auth_middleware))
+            .with_state(state);
+
+        // Test missing token
+        let response = app.clone()
+            .oneshot(Request::builder().method("POST").uri("/test").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        // Test invalid token
+        let response = app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/test")
+                    .header("Authorization", "Bearer bad-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        // Test correct token
+        let response = app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/test")
+                    .header("Authorization", "Bearer secret-key")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

@@ -141,17 +141,40 @@ async fn main() -> Result<(), anyhow::Error> {
     let gs_states_clone = Arc::clone(&gs_states);
     let brokers = config.kafka_brokers.clone();
     let topic = config.health_topic.clone();
+    let security_protocol = config.kafka_security_protocol.clone();
+    let sasl_mechanism = config.kafka_sasl_mechanism.clone();
+    let sasl_username = config.kafka_sasl_username.clone();
+    let sasl_password = config.kafka_sasl_password.clone();
+    let ssl_ca_location = config.kafka_ssl_ca_location.clone();
 
     tokio::spawn(async move {
         info!("Starting background groundstation.health consumer...");
-        let consumer_res: Result<StreamConsumer, _> = ClientConfig::new()
+        let mut client_config = ClientConfig::new();
+        client_config
             .set("bootstrap.servers", &brokers)
             .set("group.id", &format!("telemetry-simulator-gs-group-{}", uuid::Uuid::new_v4()))
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true")
-            .set("auto.offset.reset", "latest")
-            .create();
+            .set("auto.offset.reset", "latest");
+
+        if let Some(ref proto) = security_protocol {
+            client_config.set("security.protocol", proto);
+        }
+        if let Some(ref mech) = sasl_mechanism {
+            client_config.set("sasl.mechanism", mech);
+        }
+        if let Some(ref user) = sasl_username {
+            client_config.set("sasl.username", user);
+        }
+        if let Some(ref pass) = sasl_password {
+            client_config.set("sasl.password", pass);
+        }
+        if let Some(ref ca) = ssl_ca_location {
+            client_config.set("ssl.ca.location", ca);
+        }
+
+        let consumer_res: Result<StreamConsumer, _> = client_config.create();
 
         let consumer = match consumer_res {
             Ok(c) => c,
@@ -286,6 +309,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     let client_ref = Arc::clone(&client);
                     let sat_id = telemetry.satellite_id.clone();
                     let sub_name = subsystem_name.clone();
+                    let api_key = config.api_key.clone();
 
                     tokio::spawn(async move {
                         debug!(
@@ -295,6 +319,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         let res = client_ref
                             .post(&url)
                             .header("Content-Type", "application/octet-stream")
+                            .header("Authorization", format!("Bearer {}", api_key))
                             .body(binary_payload)
                             .send()
                             .await;

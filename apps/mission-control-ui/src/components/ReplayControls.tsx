@@ -22,10 +22,8 @@ export const ReplayControls: React.FC<ReplayControlsProps> = ({
   const [targetSat, setTargetSat] = useState<string>('ALL');
   
   // Set defaults: start_time = 1 hour ago, end_time = now
-  const defaultStart = new Date(Date.now() - 3600000).toISOString().slice(0, 16);
-  const defaultEnd = new Date().toISOString().slice(0, 16);
-  const [startTime, setStartTime] = useState(defaultStart);
-  const [endTime, setEndTime] = useState(defaultEnd);
+  const [startTime, setStartTime] = useState(() => new Date(Date.now() - 3600000).toISOString().slice(0, 16));
+  const [endTime, setEndTime] = useState(() => new Date().toISOString().slice(0, 16));
   const initialSpeed = 1.0;
 
   const handleCreate = (e: React.FormEvent) => {
