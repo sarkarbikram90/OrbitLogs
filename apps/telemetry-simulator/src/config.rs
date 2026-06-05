@@ -30,6 +30,12 @@ pub struct Config {
 
     #[arg(long, env = "METRICS_PORT", default_value = "8081")]
     pub metrics_port: u16,
+
+    #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
+    pub kafka_brokers: String,
+
+    #[arg(long, env = "HEALTH_TOPIC", default_value = "groundstation.health")]
+    pub health_topic: String,
 }
 
 impl Config {

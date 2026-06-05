@@ -22,3 +22,8 @@ scrape_configs:
     static_configs:
       - targets: ["mission-health-engine:8082"]
 
+  - job_name: "ground-station-simulator"
+    static_configs:
+      - targets: ["ground-station-simulator:8083"]
+
+

@@ -16,9 +16,10 @@ This roadmap outlines the multi-phase evolution of the Open SpaceOps Mission Ope
   - [x] Convert raw telemetry streams to health statuses (Green/Yellow/Red)
   - [x] Publish results to `mission.health` topic
   - [x] Create Grafana status dashboards
-- `[ ]` **Phase 3: Ground Station Simulator** (Planned)
-  - [ ] Model ground station networks (weather, signal strength, latency, outages)
-  - [ ] Integrate link budget factors with the telemetry streams
+- `[x]` **Phase 3: Ground Station Simulator** (Completed)
+  - [x] Model ground station networks (weather, signal strength, latency, outages)
+  - [x] Integrate link budget factors with the telemetry streams
+
 - `[ ]` **Phase 4: Telemetry Packet Layer** (Planned)
   - [ ] Design binary serialization (CCSDS-inspired packet/frame layout)
 - `[ ]` **Phase 5: Mission Replay Engine** (Planned)

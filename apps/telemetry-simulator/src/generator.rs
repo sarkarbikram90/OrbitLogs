@@ -1,6 +1,7 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uuid::Uuid;
 
@@ -8,6 +9,21 @@ use crate::scenario::Scenario;
 
 // TelemetryRecord is imported from the shared domain crate
 pub use spaceops_models::TelemetryRecord;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroundStationState {
+    pub timestamp: DateTime<Utc>,
+    pub station_id: String,
+    pub station_name: String,
+    pub status: String,
+    pub antenna_health: f32,
+    pub weather_state: String,
+    pub congestion: f32,
+    pub latency: f32,
+    pub bandwidth: f32,
+    pub explanation: String,
+}
+
 
 pub struct SatelliteSimulator {
     pub id: String,
@@ -62,10 +78,15 @@ impl SatelliteSimulator {
     #[allow(dead_code)]
     pub fn next_record(&mut self) -> TelemetryRecord {
         // Legacy support wrapper: generates a unified record representing "all" subsystems
-        self.next_subsystem_record("all", "unknown")
+        self.next_subsystem_record("all", "unknown", None)
     }
 
-    pub fn next_subsystem_record(&mut self, subsystem: &str, mission_id: &str) -> TelemetryRecord {
+    pub fn next_subsystem_record(
+        &mut self,
+        subsystem: &str,
+        mission_id: &str,
+        gs_state: Option<&GroundStationState>,
+    ) -> TelemetryRecord {
         self.ticks += 1;
 
         // Base fluctuations
@@ -199,6 +220,37 @@ impl SatelliteSimulator {
                 signal = -130.0;
             }
         }
+
+        // Ground station modulation
+        if let Some(gs) = gs_state {
+            if gs.status == "OUTAGE" {
+                latency = 3000.0;
+                loss = 100.0;
+                signal = -125.0;
+            } else if gs.status == "DEGRADED" {
+                if gs.weather_state == "SevereStorm" || gs.weather_state == "HeavySnow" {
+                    loss += 15.0;
+                    signal -= 20.0;
+                    latency += 150.0;
+                } else {
+                    loss += 10.0;
+                    signal -= 10.0;
+                    latency += 100.0;
+                }
+            }
+        }
+
+        // Ensure values are physically clamped/within bounds
+        if loss > 100.0 {
+            loss = 100.0;
+        }
+        if loss < 0.0 {
+            loss = 0.0;
+        }
+        if signal < -130.0 {
+            signal = -130.0;
+        }
+
 
         // 6. Flight Computer Subsystem (Resource usage)
         // Side effect: CPU throttling/high-load during ThermalSpike Scenario (temperature >80.0°C)
@@ -341,11 +393,11 @@ mod tests {
     fn test_thermal_spike_scenario() {
         let mut sim =
             SatelliteSimulator::new("SAT-0002".to_string(), Scenario::ThermalSpike, Some(101));
-        let base_rec = sim.next_subsystem_record("Thermal", "test-mission");
+        let base_rec = sim.next_subsystem_record("Thermal", "test-mission", None);
 
         let mut prev_temp = base_rec.temperature.unwrap();
         for _ in 0..5 {
-            let rec = sim.next_subsystem_record("Thermal", "test-mission");
+            let rec = sim.next_subsystem_record("Thermal", "test-mission", None);
             let temp = rec.temperature.unwrap();
             assert!(temp > prev_temp || temp >= 129.0);
             prev_temp = temp;
@@ -356,7 +408,7 @@ mod tests {
     fn test_fuel_leakage_scenario() {
         let mut sim =
             SatelliteSimulator::new("SAT-0003".to_string(), Scenario::FuelLeakage, Some(202));
-        let rec = sim.next_subsystem_record("Propulsion", "test-mission");
+        let rec = sim.next_subsystem_record("Propulsion", "test-mission", None);
         assert!(rec.fuel_remaining.unwrap() < 95.0);
     }
 
@@ -367,11 +419,11 @@ mod tests {
         
         // Advance ticks to trigger high temperature
         for _ in 0..30 {
-            let _ = sim.next_subsystem_record("Thermal", "test-mission");
+            let _ = sim.next_subsystem_record("Thermal", "test-mission", None);
         }
         
         // Verify side effect: CPU Throttling
-        let rec_cpu = sim.next_subsystem_record("Flight Computer", "test-mission");
+        let rec_cpu = sim.next_subsystem_record("Flight Computer", "test-mission", None);
         assert!(rec_cpu.cpu_usage.unwrap() > 90.0, "CPU should be throttled (>90%) due to thermal spike");
     }
 
@@ -382,12 +434,67 @@ mod tests {
         
         // Advance ticks to drain battery
         for _ in 0..20 {
-            let _ = sim.next_subsystem_record("Power", "test-mission");
+            let _ = sim.next_subsystem_record("Power", "test-mission", None);
         }
 
         // Verify side effect: Payload shutdown
-        let rec_payload = sim.next_subsystem_record("Payload", "test-mission");
+        let rec_payload = sim.next_subsystem_record("Payload", "test-mission", None);
         assert_eq!(rec_payload.payload_active.unwrap(), false, "Payload should shut down on low battery");
         assert_eq!(rec_payload.payload_power_draw.unwrap(), 0.0, "Payload power draw should be 0 on low battery");
     }
+
+    #[test]
+    fn test_ground_station_outage_modulation() {
+        let mut sim = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
+        let gs = GroundStationState {
+            timestamp: Utc::now(),
+            station_id: "GS-0001".to_string(),
+            station_name: "Svalbard".to_string(),
+            status: "OUTAGE".to_string(),
+            antenna_health: 100.0,
+            weather_state: "Clear".to_string(),
+            congestion: 0.0,
+            latency: 42.0,
+            bandwidth: 1000.0,
+            explanation: "Outage".to_string(),
+        };
+
+        let rec = sim.next_subsystem_record("Communications", "test-mission", Some(&gs));
+        assert_eq!(rec.packet_loss.unwrap(), 100.0);
+        assert_eq!(rec.communication_latency.unwrap(), 3000.0);
+        assert_eq!(rec.signal_strength.unwrap(), -125.0);
+    }
+
+    #[test]
+    fn test_ground_station_degraded_weather_modulation() {
+        let mut sim = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
+        // Get normal record first to establish baseline
+        let normal_rec = sim.next_subsystem_record("Communications", "test-mission", None);
+        let normal_loss = normal_rec.packet_loss.unwrap();
+        let normal_signal = normal_rec.signal_strength.unwrap();
+        let normal_latency = normal_rec.communication_latency.unwrap();
+
+        // Now with Degraded Weather
+        let gs = GroundStationState {
+            timestamp: Utc::now(),
+            station_id: "GS-0001".to_string(),
+            station_name: "Svalbard".to_string(),
+            status: "DEGRADED".to_string(),
+            antenna_health: 100.0,
+            weather_state: "SevereStorm".to_string(),
+            congestion: 0.0,
+            latency: 42.0,
+            bandwidth: 1000.0,
+            explanation: "Severe Storm".to_string(),
+        };
+
+        // Reset sim/ticks to keep random values aligned
+        let mut sim2 = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
+        let rec = sim2.next_subsystem_record("Communications", "test-mission", Some(&gs));
+        
+        assert_eq!(rec.packet_loss.unwrap(), (normal_loss + 15.0).min(100.0));
+        assert_eq!(rec.signal_strength.unwrap(), (normal_signal - 20.0).max(-130.0));
+        assert_eq!(rec.communication_latency.unwrap(), normal_latency + 150.0);
+    }
+
 }

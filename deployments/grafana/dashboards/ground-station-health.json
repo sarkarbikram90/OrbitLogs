@@ -1,0 +1,183 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 6,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "Ground Station Status Overview",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT ON (station_id) station_id as \"Station ID\", station_name as \"Location\", status as \"Status\", weather_state as \"Weather\", congestion as \"Congestion %\", latency as \"Latency (ms)\", bandwidth as \"Bandwidth (Mbps)\", explanation as \"Details\" FROM ground_station_health ORDER BY station_id, timestamp DESC;"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "id": 2,
+      "title": "Ground Station Latency Over Time",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS time, latency as \"Latency\", station_id as metric FROM ground_station_health WHERE $__timeFilter(timestamp) ORDER BY timestamp ASC;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth"
+          },
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "id": 3,
+      "title": "Available Downlink Bandwidth Over Time",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS time, bandwidth as \"Bandwidth\", station_id as metric FROM ground_station_health WHERE $__timeFilter(timestamp) ORDER BY timestamp ASC;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth"
+          },
+          "unit": "Mbit/s"
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 4,
+      "title": "Antenna Alignment & Hardware Health",
+      "type": "bargauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT ON (station_id) station_id as metric, antenna_health as value FROM ground_station_health ORDER BY station_id, timestamp DESC;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 75
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "lcd"
+      }
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["spaceops", "groundstation", "health"],
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "title": "Open SpaceOps - Ground Station Health",
+  "version": 1
+}

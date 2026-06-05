@@ -135,8 +135,13 @@ services:
       - SIM_FLEET_SIZE=10
       - SIM_FREQUENCY_MS=1000
       - METRICS_PORT=8081
+      - KAFKA_BROKERS=kafka:29092
+      - HEALTH_TOPIC=groundstation.health
     depends_on:
-      - telemetry-collector
+      kafka:
+        condition: service_healthy
+      telemetry-collector:
+        condition: service_started
     restart: unless-stopped
 
   mission-health-engine:
@@ -152,8 +157,30 @@ services:
       - KAFKA_BROKERS=kafka:29092
       - PROCESSED_TOPIC=telemetry.processed
       - HEALTH_TOPIC=mission.health
+      - GS_HEALTH_TOPIC=groundstation.health
       - GROUP_ID=mission-health-group
       - METRICS_PORT=8082
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ground-station-simulator:
+    build:
+      context: ../../
+      dockerfile: apps/ground-station-simulator/Dockerfile
+    container_name: spaceops-ground-station-simulator
+    ports:
+      - "8083:8083"
+    environment:
+      - RUST_LOG=info,ground_station_simulator=debug
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgrespassword}@timescaledb:5432/${POSTGRES_DB:-spaceops}
+      - KAFKA_BROKERS=kafka:29092
+      - HEALTH_TOPIC=groundstation.health
+      - METRICS_PORT=8083
+      - SIM_FREQUENCY_SEC=2
     depends_on:
       timescaledb:
         condition: service_healthy

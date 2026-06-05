@@ -2,6 +2,31 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use spaceops_models::TelemetryRecord;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroundStationState {
+    pub timestamp: DateTime<Utc>,
+    pub station_id: String,
+    pub station_name: String,
+    pub status: String,
+    pub antenna_health: f32,
+    pub weather_state: String,
+    pub congestion: f32,
+    pub latency: f32,
+    pub bandwidth: f32,
+    pub explanation: String,
+}
+
+fn get_linked_ground_station(satellite_id: &str) -> String {
+    if let Some(num_str) = satellite_id.strip_prefix("SAT-") {
+        if let Ok(num) = num_str.parse::<usize>() {
+            let gs_num = ((num - 1) % 4) + 1;
+            return format!("GS-{:04}", gs_num);
+        }
+    }
+    "GS-0001".to_string()
+}
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthState {
     GREEN,
@@ -43,7 +68,10 @@ pub struct SatelliteHealthAssessment {
     pub explanation: String,
 }
 
-pub fn assess_satellite_health(record: &TelemetryRecord) -> SatelliteHealthAssessment {
+pub fn assess_satellite_health(
+    record: &TelemetryRecord,
+    gs_states: &std::collections::HashMap<String, GroundStationState>,
+) -> SatelliteHealthAssessment {
     // 1. Assess Power Subsystem
     let power = {
         let v = record.battery_voltage.unwrap_or(13.8);
@@ -98,17 +126,43 @@ pub fn assess_satellite_health(record: &TelemetryRecord) -> SatelliteHealthAsses
         let latency = record.communication_latency.unwrap_or(45.0);
         let signal = record.signal_strength.unwrap_or(-70.0);
 
-        if loss > 15.0 || latency > 2000.0 || signal < -110.0 {
+        let linked_gs_id = get_linked_ground_station(&record.satellite_id);
+        let gs_state = gs_states.get(&linked_gs_id);
+
+        let is_degraded = loss > 5.0 || latency > 800.0 || signal < -95.0;
+        let is_critical = loss > 15.0 || latency > 2000.0 || signal < -110.0;
+
+        if is_critical {
+            let explanation = if let Some(gs) = gs_state {
+                if gs.status == "OUTAGE" || gs.status == "DEGRADED" {
+                    format!("Critical communications degradation due to ground station {} {} (Weather: {})", gs.station_id, gs.status.to_lowercase(), gs.weather_state)
+                } else {
+                    format!("Critical comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
+                }
+            } else {
+                format!("Critical comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
+            };
+
             SubsystemHealth {
                 state: HealthState::RED,
                 score: 0,
-                explanation: format!("Critical comm degradation (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal),
+                explanation,
             }
-        } else if loss > 5.0 || latency > 800.0 || signal < -95.0 {
+        } else if is_degraded {
+            let explanation = if let Some(gs) = gs_state {
+                if gs.status == "OUTAGE" || gs.status == "DEGRADED" {
+                    format!("Communications degraded due to ground station {} {} (Weather: {})", gs.station_id, gs.status.to_lowercase(), gs.weather_state)
+                } else {
+                    format!("Comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
+                }
+            } else {
+                format!("Comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
+            };
+
             SubsystemHealth {
                 state: HealthState::YELLOW,
                 score: 50,
-                explanation: format!("Comm degradation (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal),
+                explanation,
             }
         } else {
             SubsystemHealth {
@@ -356,7 +410,8 @@ mod tests {
     #[test]
     fn test_nominal_health_assessment() {
         let rec = mock_nominal_record();
-        let health = assess_satellite_health(&rec);
+        let gs_states = std::collections::HashMap::new();
+        let health = assess_satellite_health(&rec, &gs_states);
 
         assert_eq!(health.overall_state, HealthState::GREEN);
         assert_eq!(health.overall_score, 100);
@@ -367,7 +422,8 @@ mod tests {
     fn test_thermal_yellow_health() {
         let mut rec = mock_nominal_record();
         rec.temperature = Some(65.0); // Yellow range (>60)
-        let health = assess_satellite_health(&rec);
+        let gs_states = std::collections::HashMap::new();
+        let health = assess_satellite_health(&rec, &gs_states);
 
         assert_eq!(health.overall_state, HealthState::YELLOW);
         assert_eq!(health.thermal.state, HealthState::YELLOW);
@@ -379,7 +435,8 @@ mod tests {
     fn test_power_critical_red_health() {
         let mut rec = mock_nominal_record();
         rec.battery_voltage = Some(9.5); // Red range (<10)
-        let health = assess_satellite_health(&rec);
+        let gs_states = std::collections::HashMap::new();
+        let health = assess_satellite_health(&rec, &gs_states);
 
         assert_eq!(health.overall_state, HealthState::RED);
         assert_eq!(health.power.state, HealthState::RED);
@@ -393,11 +450,71 @@ mod tests {
         rec.battery_voltage = Some(11.2); // Low battery, payload shutdown active
         rec.payload_active = Some(false);
         rec.payload_power_draw = Some(0.0);
-        
-        let health = assess_satellite_health(&rec);
+        let gs_states = std::collections::HashMap::new();
+        let health = assess_satellite_health(&rec, &gs_states);
 
         assert_eq!(health.overall_state, HealthState::YELLOW);
         assert_eq!(health.payload.state, HealthState::YELLOW);
         assert!(health.explanation.contains("Payload: Payload auto-shutdown to protect battery"));
+    }
+
+    #[test]
+    fn test_comms_degraded_due_to_ground_station_outage() {
+        let mut rec = mock_nominal_record();
+        rec.packet_loss = Some(20.0);
+        rec.communication_latency = Some(2500.0);
+        rec.signal_strength = Some(-115.0);
+
+        let mut gs_states = std::collections::HashMap::new();
+        gs_states.insert(
+            "GS-0001".to_string(),
+            GroundStationState {
+                timestamp: Utc::now(),
+                station_id: "GS-0001".to_string(),
+                station_name: "Svalbard".to_string(),
+                status: "OUTAGE".to_string(),
+                antenna_health: 12.5,
+                weather_state: "Clear".to_string(),
+                congestion: 0.0,
+                latency: 2500.0,
+                bandwidth: 0.0,
+                explanation: "Antenna alignment failure".to_string(),
+            },
+        );
+
+        let health = assess_satellite_health(&rec, &gs_states);
+        assert_eq!(health.overall_state, HealthState::RED);
+        assert_eq!(health.communications.state, HealthState::RED);
+        assert!(health.explanation.contains("Critical communications degradation due to ground station GS-0001 outage (Weather: Clear)"), "Explanation was: {}", health.explanation);
+    }
+
+    #[test]
+    fn test_comms_degraded_onboard_transponder_anomaly() {
+        let mut rec = mock_nominal_record();
+        rec.packet_loss = Some(20.0);
+        rec.communication_latency = Some(2500.0);
+        rec.signal_strength = Some(-115.0);
+
+        let mut gs_states = std::collections::HashMap::new();
+        gs_states.insert(
+            "GS-0001".to_string(),
+            GroundStationState {
+                timestamp: Utc::now(),
+                station_id: "GS-0001".to_string(),
+                station_name: "Svalbard".to_string(),
+                status: "ONLINE".to_string(),
+                antenna_health: 100.0,
+                weather_state: "Clear".to_string(),
+                congestion: 0.0,
+                latency: 42.0,
+                bandwidth: 1000.0,
+                explanation: "All operational".to_string(),
+            },
+        );
+
+        let health = assess_satellite_health(&rec, &gs_states);
+        assert_eq!(health.overall_state, HealthState::RED);
+        assert_eq!(health.communications.state, HealthState::RED);
+        assert!(health.explanation.contains("Critical comm degradation due to onboard transponder anomaly"), "Explanation was: {}", health.explanation);
     }
 }

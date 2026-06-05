@@ -17,7 +17,7 @@ mod db;
 mod health;
 mod metrics;
 
-use health::assess_satellite_health;
+use health::{assess_satellite_health, GroundStationState};
 use spaceops_models::TelemetryRecord;
 
 #[derive(Parser, Debug, Clone)]
@@ -40,6 +40,9 @@ struct Cli {
     #[arg(long, env = "HEALTH_TOPIC", default_value = "mission.health")]
     health_topic: String,
 
+    #[arg(long, env = "GS_HEALTH_TOPIC", default_value = "groundstation.health")]
+    gs_health_topic: String,
+
     #[arg(long, env = "GROUP_ID", default_value = "mission-health-group")]
     group_id: String,
 
@@ -52,6 +55,7 @@ struct EngineState {
     kafka_producer: FutureProducer,
     health_topic: String,
     satellite_scores: Mutex<HashMap<String, i32>>,
+    gs_states: Mutex<HashMap<String, GroundStationState>>,
 }
 
 async fn start_metrics_server(port: u16) {
@@ -169,6 +173,67 @@ async fn main() -> Result<(), anyhow::Error> {
         kafka_producer: producer,
         health_topic: cli.health_topic,
         satellite_scores: Mutex::new(HashMap::new()),
+        gs_states: Mutex::new(HashMap::new()),
+    });
+
+    // Spawn background consumer for ground station health
+    let gs_states_clone = Arc::clone(&state);
+    let brokers = cli.kafka_brokers.clone();
+    let gs_topic = cli.gs_health_topic.clone();
+
+    tokio::spawn(async move {
+        info!("Starting ground station health consumer for mission-health-engine...");
+        let consumer_res: Result<StreamConsumer, _> = ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .set("group.id", &format!("mission-health-engine-gs-group-{}", uuid::Uuid::new_v4()))
+            .set("enable.partition.eof", "false")
+            .set("session.timeout.ms", "6000")
+            .set("enable.auto.commit", "true")
+            .set("auto.offset.reset", "latest")
+            .create();
+
+        let consumer = match consumer_res {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to create ground station health consumer: {}", e);
+                return;
+            }
+        };
+
+        if let Err(e) = consumer.subscribe(&[&gs_topic]) {
+            error!("Failed to subscribe to ground station health topic {}: {}", gs_topic, e);
+            return;
+        }
+
+        loop {
+            match consumer.recv().await {
+                Ok(msg) => {
+                    let payload = match msg.payload_view::<str>() {
+                        Some(Ok(s)) => s,
+                        Some(Err(e)) => {
+                            error!("Failed to parse ground station payload: {}", e);
+                            continue;
+                        }
+                        None => continue,
+                    };
+
+                    match serde_json::from_str::<GroundStationState>(payload) {
+                        Ok(gs) => {
+                            info!("Engine received ground station update: {} -> {}", gs.station_id, gs.status);
+                            let mut map = gs_states_clone.gs_states.lock().unwrap();
+                            map.insert(gs.station_id.clone(), gs);
+                        }
+                        Err(e) => {
+                            error!("Failed to deserialize GroundStationState: {}. Payload: {}", e, payload);
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error in ground station consumer: {}", e);
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+            }
+        }
     });
 
     loop {
@@ -217,7 +282,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
 async fn process_telemetry_health(state: &EngineState, record: &TelemetryRecord) -> Result<(), anyhow::Error> {
     // 1. Run health assessment rules
-    let assessment = assess_satellite_health(record);
+    let gs_states_map = {
+        let map = state.gs_states.lock().unwrap();
+        map.clone()
+    };
+    let assessment = assess_satellite_health(record, &gs_states_map);
     info!(
         "Satellite {} overall health: {:?} (Score: {})",
         assessment.satellite_id, assessment.overall_state, assessment.overall_score
