@@ -1,0 +1,164 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 5,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "Fleet Health Index",
+      "type": "gauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(avg(overall_score), 100) as value FROM (SELECT DISTINCT ON (satellite_id) overall_score FROM satellite_health ORDER BY satellite_id, timestamp DESC) t;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 5,
+        "w": 18,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "title": "Satellite Health Status Overview",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT ON (satellite_id) satellite_id as \"Satellite ID\", overall_state as \"Overall Status\", power_state as \"Power\", thermal_state as \"Thermal\", comm_state as \"Comms\", propulsion_state as \"Propulsion\", adcs_state as \"ADCS\", payload_state as \"Payload\", fc_state as \"Flight Comp\" FROM satellite_health ORDER BY satellite_id, timestamp DESC;"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "id": 3,
+      "title": "Satellite Health Scores Over Time",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS time, overall_score as \"Health Score\", satellite_id as metric FROM satellite_health WHERE $__timeFilter(timestamp) ORDER BY timestamp ASC;"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "id": 4,
+      "title": "Active Mission Incidents Log (Explainable Status)",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp as \"Time\", satellite_id as \"Satellite\", overall_state as \"Severity\", explanation as \"Incident Description\" FROM satellite_health WHERE overall_state != 'GREEN' AND $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 100;"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["spaceops", "satellite", "health"],
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "title": "Open SpaceOps - Fleet & Mission Health",
+  "version": 1
+}

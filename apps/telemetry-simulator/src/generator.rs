@@ -59,6 +59,7 @@ impl SatelliteSimulator {
         self.scenario = scenario;
     }
 
+    #[allow(dead_code)]
     pub fn next_record(&mut self) -> TelemetryRecord {
         // Legacy support wrapper: generates a unified record representing "all" subsystems
         self.next_subsystem_record("all", "unknown")

@@ -1,0 +1,23 @@
+[package]
+name = "mission-health-engine"
+version = "1.0.0"
+edition = "2021"
+description = "Analyzes processed spacecraft telemetry and assesses mission health status"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true }
+rdkafka = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+dotenvy = { workspace = true }
+spaceops-models = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+prometheus = { workspace = true }
+uuid = { workspace = true }
+lazy_static = "1.4"
+

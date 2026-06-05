@@ -12,10 +12,10 @@ This roadmap outlines the multi-phase evolution of the Open SpaceOps Mission Ope
   - [x] Implement stateful merging & caching in collector
   - [x] Add unit and integration tests
   - [x] Generate sequence & ER diagrams
-- `[ ]` **Phase 2: Mission Health Engine** (Planned)
-  - [ ] Convert raw telemetry streams to health statuses (Green/Yellow/Red)
-  - [ ] Publish results to `mission.health` topic
-  - [ ] Create Grafana status dashboards
+- `[x]` **Phase 2: Mission Health Engine** (Completed)
+  - [x] Convert raw telemetry streams to health statuses (Green/Yellow/Red)
+  - [x] Publish results to `mission.health` topic
+  - [x] Create Grafana status dashboards
 - `[ ]` **Phase 3: Ground Station Simulator** (Planned)
   - [ ] Model ground station networks (weather, signal strength, latency, outages)
   - [ ] Integrate link budget factors with the telemetry streams

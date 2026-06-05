@@ -17,3 +17,8 @@ scrape_configs:
   - job_name: "telemetry-simulator"
     static_configs:
       - targets: ["telemetry-simulator:8081"]
+
+  - job_name: "mission-health-engine"
+    static_configs:
+      - targets: ["mission-health-engine:8082"]
+

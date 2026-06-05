@@ -1376,6 +1376,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "mission-health-engine"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "lazy_static",
+ "prometheus",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "spaceops-models",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"

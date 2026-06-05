@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "apps/telemetry-simulator",
     "apps/telemetry-collector",
+    "apps/mission-health-engine",
     "crates/spaceops-models",
 ]
 

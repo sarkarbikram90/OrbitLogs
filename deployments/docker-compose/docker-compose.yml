@@ -139,5 +139,28 @@ services:
       - telemetry-collector
     restart: unless-stopped
 
+  mission-health-engine:
+    build:
+      context: ../../
+      dockerfile: apps/mission-health-engine/Dockerfile
+    container_name: spaceops-health-engine
+    ports:
+      - "8082:8082"
+    environment:
+      - RUST_LOG=info,mission_health_engine=debug
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgrespassword}@timescaledb:5432/${POSTGRES_DB:-spaceops}
+      - KAFKA_BROKERS=kafka:29092
+      - PROCESSED_TOPIC=telemetry.processed
+      - HEALTH_TOPIC=mission.health
+      - GROUP_ID=mission-health-group
+      - METRICS_PORT=8082
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+
 volumes:
   timescaledb_data:
