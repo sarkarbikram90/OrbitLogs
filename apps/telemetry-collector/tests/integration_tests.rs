@@ -63,6 +63,10 @@ fn create_test_app() -> Router {
             post(mock_ingest_telemetry).layer(rate_limit_layer),
         )
         .route(
+            "/telemetry_real",
+            post(telemetry_collector::server::handlers::ingest_telemetry),
+        )
+        .route(
             "/health",
             get(telemetry_collector::server::handlers::health_check),
         )
@@ -330,4 +334,72 @@ async fn test_rate_limiting() {
         hit_rate_limit,
         "Expected at least one request to be rate limited (429)"
     );
+}
+
+#[tokio::test]
+async fn test_real_handler_binary_invalid_crc() {
+    let app = create_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/telemetry_real")
+                .header("Content-Type", "application/octet-stream")
+                .body(Body::from(vec![0x00; 10]))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_real_handler_binary_valid() {
+    let app = create_test_app();
+
+    let rec = TelemetryRecord {
+        satellite_id: "SAT-0001".to_string(),
+        subsystem_id: "power".to_string(),
+        mission_id: "unknown".to_string(),
+        timestamp: Utc::now(),
+        battery_voltage: Some(13.8),
+        battery_current: Some(2.1),
+        solar_panel_output: Some(110.0),
+        cpu_usage: None,
+        memory_usage: None,
+        temperature: None,
+        orientation_pitch: None,
+        orientation_roll: None,
+        orientation_yaw: None,
+        velocity: None,
+        altitude: None,
+        fuel_remaining: None,
+        communication_latency: None,
+        packet_loss: None,
+        signal_strength: None,
+        payload_power_draw: None,
+        payload_active: None,
+        event_id: Uuid::new_v4(),
+    };
+
+    let binary_data = spaceops_packets::encode_record_to_frame(&rec, 1).unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/telemetry_real")
+                .header("Content-Type", "application/octet-stream")
+                .body(Body::from(binary_data))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // The handler will try to publish to Kafka. Since Kafka is not running, it will fail to publish
+    // and return 503 (SERVICE_UNAVAILABLE). But this proves that the request passed parsing,
+    // decoding, and validation successfully!
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 }

@@ -1,0 +1,11 @@
+[package]
+name = "spaceops-packets"
+version = "1.0.0"
+edition = "2021"
+description = "Binary space packet and frame serialization layer inspired by CCSDS standards"
+
+[dependencies]
+serde = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+spaceops-models = { workspace = true }

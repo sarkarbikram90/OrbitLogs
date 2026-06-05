@@ -20,5 +20,6 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 dotenvy = { workspace = true }
 spaceops-models = { workspace = true }
+spaceops-packets = { workspace = true }
 rdkafka = { workspace = true }
 

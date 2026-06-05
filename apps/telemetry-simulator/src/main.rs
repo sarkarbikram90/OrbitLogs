@@ -266,14 +266,22 @@ async fn main() -> Result<(), anyhow::Error> {
                         map.get(&gs_id).cloned()
                     };
 
-                    let telemetry = {
+                    let (telemetry, tick) = {
                         let mut sim = simulator.lock().unwrap();
-                        sim.next_subsystem_record(&subsystem_name, &mission_id, linked_gs.as_ref())
+                        let rec = sim.next_subsystem_record(&subsystem_name, &mission_id, linked_gs.as_ref());
+                        (rec, sim.ticks)
                     };
                     TELEMETRY_GENERATED_TOTAL.inc();
 
-                    // Post JSON payload to the collector
-                    let payload = serde_json::to_string(&telemetry).unwrap();
+                    // Encode telemetry record as binary Space Packet inside a Telemetry Frame
+                    let binary_payload = match spaceops_packets::encode_record_to_frame(&telemetry, tick as u16) {
+                        Ok(bytes) => bytes,
+                        Err(e) => {
+                            error!("Failed to encode telemetry record to space packet frame for satellite {}: {}", telemetry.satellite_id, e);
+                            continue;
+                        }
+                    };
+
                     let url = config.collector_url.clone();
                     let client_ref = Arc::clone(&client);
                     let sat_id = telemetry.satellite_id.clone();
@@ -281,13 +289,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     tokio::spawn(async move {
                         debug!(
-                            "Posting telemetry for satellite {} subsystem {}: {}",
-                            sat_id, sub_name, payload
+                            "Posting binary telemetry frame for satellite {} subsystem {}",
+                            sat_id, sub_name
                         );
                         let res = client_ref
                             .post(&url)
-                            .header("Content-Type", "application/json")
-                            .body(payload)
+                            .header("Content-Type", "application/octet-stream")
+                            .body(binary_payload)
                             .send()
                             .await;
 

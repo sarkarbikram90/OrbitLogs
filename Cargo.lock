@@ -2314,6 +2314,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "spaceops-packets"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "spaceops-models",
+ "uuid",
+]
+
+[[package]]
 name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2660,6 +2670,7 @@ dependencies = [
  "serde",
  "serde_json",
  "spaceops-models",
+ "spaceops-packets",
  "sqlx",
  "tokio",
  "tower 0.5.3",
@@ -2686,6 +2697,7 @@ dependencies = [
  "serde",
  "serde_json",
  "spaceops-models",
+ "spaceops-packets",
  "tokio",
  "tracing",
  "tracing-subscriber",

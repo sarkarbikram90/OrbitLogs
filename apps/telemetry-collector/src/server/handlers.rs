@@ -46,15 +46,55 @@ fn extract_request_id(headers: &HeaderMap) -> String {
         .unwrap_or_else(|| Uuid::new_v4().to_string())
 }
 
-#[instrument(skip(state, payload, headers))]
+#[instrument(skip(state, headers, body_bytes))]
 pub async fn ingest_telemetry(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(payload): Json<TelemetryRecord>,
+    body_bytes: axum::body::Bytes,
 ) -> impl IntoResponse {
     let start_time = Instant::now();
-    let sat_id = payload.satellite_id.clone();
     let request_id = extract_request_id(&headers);
+
+    let content_type = headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/json");
+
+    let payload = if content_type.starts_with("application/octet-stream") {
+        match spaceops_packets::decode_frame_to_record(&body_bytes) {
+            Ok(rec) => rec,
+            Err(e) => {
+                warn!(
+                    request_id = %request_id,
+                    "Failed to decode binary frame: {}", e
+                );
+                let err_resp = ErrorResponse {
+                    error: "Invalid binary payload".to_string(),
+                    details: vec![e.to_string()],
+                    request_id: request_id.clone(),
+                };
+                return (StatusCode::BAD_REQUEST, Json(err_resp)).into_response();
+            }
+        }
+    } else {
+        match serde_json::from_slice::<TelemetryRecord>(&body_bytes) {
+            Ok(rec) => rec,
+            Err(e) => {
+                warn!(
+                    request_id = %request_id,
+                    "Failed to parse JSON telemetry: {}", e
+                );
+                let err_resp = ErrorResponse {
+                    error: "Invalid JSON payload".to_string(),
+                    details: vec![e.to_string()],
+                    request_id: request_id.clone(),
+                };
+                return (StatusCode::BAD_REQUEST, Json(err_resp)).into_response();
+            }
+        }
+    };
+
+    let sat_id = payload.satellite_id.clone();
 
     // Check validation constraints
     if let Err(validation_errors) = payload.validate() {
@@ -106,7 +146,7 @@ pub async fn ingest_telemetry(
         .with_label_values(&[&sat_id, "valid"])
         .inc();
 
-    // Serialise telemetry payload
+    // Serialise telemetry payload for Kafka
     let serialized_payload = match serde_json::to_string(&payload) {
         Ok(s) => s,
         Err(e) => {

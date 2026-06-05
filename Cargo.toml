@@ -6,6 +6,7 @@ members = [
     "apps/mission-health-engine",
     "apps/ground-station-simulator",
     "crates/spaceops-models",
+    "crates/spaceops-packets",
 ]
 
 [workspace.dependencies]
@@ -29,6 +30,7 @@ tracing-opentelemetry = "0.22"
 anyhow = "1.0"
 dotenvy = "0.15"
 spaceops-models = { path = "crates/spaceops-models" }
+spaceops-packets = { path = "crates/spaceops-packets" }
 
 # Optimize profiles for production build speed vs runtime execution speed
 [profile.release]
