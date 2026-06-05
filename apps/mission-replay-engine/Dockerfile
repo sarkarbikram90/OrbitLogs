@@ -1,5 +1,5 @@
 # Builder Stage
-FROM rust:1.82-alpine as builder
+FROM rust:1.85-alpine as builder
 
 # Install build dependencies
 RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev cmake g++
@@ -7,7 +7,7 @@ RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev cmake g++
 WORKDIR /usr/src/open-spaceops
 
 # Copy workspace configurations
-COPY Cargo.toml ./
+COPY Cargo.toml Cargo.lock ./
 COPY apps/telemetry-simulator/Cargo.toml apps/telemetry-simulator/Cargo.toml
 COPY apps/telemetry-collector/Cargo.toml apps/telemetry-collector/Cargo.toml
 COPY apps/mission-health-engine/Cargo.toml apps/mission-health-engine/Cargo.toml
