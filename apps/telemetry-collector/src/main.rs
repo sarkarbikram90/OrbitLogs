@@ -44,7 +44,7 @@ struct Cli {
     #[arg(long, env = "GROUP_ID", default_value = "telemetry-consumer-group")]
     group_id: String,
 
-    #[arg(long, env = "API_KEY", default_value = "secret-spaceops-key-2026")]
+    #[arg(long, env = "API_KEY")]
     api_key: String,
 
     #[arg(
@@ -84,19 +84,7 @@ enum Commands {
     RunAll,
 }
 
-fn load_secret(env_var: &str) -> Option<String> {
-    if let Ok(val) = std::env::var(env_var) {
-        if !val.trim().is_empty() {
-            return Some(val.trim().to_string());
-        }
-    }
-    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
-        if let Ok(content) = std::fs::read_to_string(file_path) {
-            return Some(content.trim().to_string());
-        }
-    }
-    None
-}
+use spaceops_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

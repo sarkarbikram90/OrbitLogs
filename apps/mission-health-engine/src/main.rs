@@ -10,9 +10,10 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::net::TcpListener;
+use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 mod db;
@@ -76,8 +77,23 @@ struct EngineState {
 }
 
 async fn start_metrics_server(port: u16) {
+    use axum::{routing::get, Router};
+
+    let app = Router::new().route("/metrics", get(|| async {
+        let encoder = TextEncoder::new();
+        let metric_families = metrics::REGISTRY.gather();
+        let mut buffer = Vec::new();
+        encoder.encode(&metric_families, &mut buffer).unwrap();
+        
+        axum::response::Response::builder()
+            .status(axum::http::StatusCode::OK)
+            .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
+            .body(axum::body::Body::from(buffer))
+            .unwrap()
+    }));
+
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    let listener = match TcpListener::bind(addr).await {
+    let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
             error!("Failed to bind metrics server to port {}: {}", port, e);
@@ -88,51 +104,12 @@ async fn start_metrics_server(port: u16) {
         "Mission Health Engine metrics server running on http://localhost:{}/metrics",
         port
     );
-
-    loop {
-        match listener.accept().await {
-            Ok((mut socket, _)) => {
-                tokio::spawn(async move {
-                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-                    let mut buffer = [0; 1024];
-                    let _ = socket.read(&mut buffer).await;
-
-                    let encoder = TextEncoder::new();
-                    let metric_families = metrics::REGISTRY.gather();
-                    let mut buffer = Vec::new();
-                    encoder.encode(&metric_families, &mut buffer).unwrap();
-
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                        encoder.format_type(),
-                        buffer.len()
-                    );
-
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    let _ = socket.write_all(&buffer).await;
-                    let _ = socket.flush().await;
-                });
-            }
-            Err(e) => {
-                error!("Error accepting connection in metrics server: {}", e);
-            }
-        }
+    if let Err(e) = axum::serve(listener, app).await {
+        error!("Metrics server error: {}", e);
     }
 }
 
-fn load_secret(env_var: &str) -> Option<String> {
-    if let Ok(val) = std::env::var(env_var) {
-        if !val.trim().is_empty() {
-            return Some(val.trim().to_string());
-        }
-    }
-    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
-        if let Ok(content) = std::fs::read_to_string(file_path) {
-            return Some(content.trim().to_string());
-        }
-    }
-    None
-}
+use spaceops_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -259,8 +236,17 @@ async fn main() -> Result<(), anyhow::Error> {
         gs_states: Mutex::new(HashMap::new()),
     });
 
+    let cancel_token = CancellationToken::new();
+    let cancel_token_trigger = cancel_token.clone();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.ok();
+        info!("Shutdown signal received. Cancelling consumer tasks...");
+        cancel_token_trigger.cancel();
+    });
+
     // Spawn background consumer for ground station health
     let gs_states_clone = Arc::clone(&state);
+    let cancel_token_gs = cancel_token.clone();
     let brokers = cli.kafka_brokers.clone();
     let gs_topic = cli.gs_health_topic.clone();
     let security_protocol = cli.kafka_security_protocol.clone();
@@ -318,90 +304,106 @@ async fn main() -> Result<(), anyhow::Error> {
         }
 
         loop {
-            match consumer.recv().await {
-                Ok(msg) => {
-                    let payload = match msg.payload_view::<str>() {
-                        Some(Ok(s)) => s,
-                        Some(Err(e)) => {
-                            error!("Failed to parse ground station payload: {}", e);
-                            continue;
-                        }
-                        None => continue,
-                    };
+            tokio::select! {
+                _ = cancel_token_gs.cancelled() => {
+                    info!("Ground station health consumer shutting down...");
+                    break;
+                }
+                msg_res = consumer.recv() => {
+                    match msg_res {
+                        Ok(msg) => {
+                            let payload = match msg.payload_view::<str>() {
+                                Some(Ok(s)) => s,
+                                Some(Err(e)) => {
+                                    error!("Failed to parse ground station payload: {}", e);
+                                    continue;
+                                }
+                                None => continue,
+                            };
 
-                    match serde_json::from_str::<GroundStationState>(payload) {
-                        Ok(gs) => {
-                            info!(
-                                "Engine received ground station update: {} -> {}",
-                                gs.station_id, gs.status
-                            );
-                            let mut map = gs_states_clone.gs_states.lock().unwrap();
-                            map.insert(gs.station_id.clone(), gs);
+                            match serde_json::from_str::<GroundStationState>(payload) {
+                                Ok(gs) => {
+                                    info!(
+                                        "Engine received ground station update: {} -> {}",
+                                        gs.station_id, gs.status
+                                    );
+                                    let mut map = gs_states_clone.gs_states.lock().await;
+                                    map.insert(gs.station_id.clone(), gs);
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "Failed to deserialize GroundStationState: {}. Payload: {}",
+                                        e, payload
+                                    );
+                                }
+                            }
                         }
                         Err(e) => {
-                            error!(
-                                "Failed to deserialize GroundStationState: {}. Payload: {}",
-                                e, payload
-                            );
+                            error!("Error in ground station consumer: {}", e);
+                            tokio::time::sleep(Duration::from_millis(500)).await;
                         }
                     }
-                }
-                Err(e) => {
-                    error!("Error in ground station consumer: {}", e);
-                    tokio::time::sleep(Duration::from_millis(500)).await;
                 }
             }
         }
     });
 
     loop {
-        match consumer.recv().await {
-            Ok(msg) => {
-                let payload = match msg.payload_view::<str>() {
-                    Some(Ok(s)) => s,
-                    Some(Err(e)) => {
-                        error!("Failed to parse Kafka payload as string: {}", e);
-                        let _ = consumer.commit_message(&msg, CommitMode::Async);
-                        continue;
-                    }
-                    None => {
-                        let _ = consumer.commit_message(&msg, CommitMode::Async);
-                        continue;
-                    }
-                };
-
-                let record: TelemetryRecord = match serde_json::from_str(payload) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        error!(
-                            "Failed to deserialize telemetry record: {}. Payload: {}",
-                            e, payload
-                        );
-                        let _ = consumer.commit_message(&msg, CommitMode::Async);
-                        continue;
-                    }
-                };
-
-                let state_ref = Arc::clone(&state);
-                tokio::spawn(async move {
-                    if let Err(e) = process_telemetry_health(&state_ref, &record).await {
-                        error!(
-                            "Error processing health for satellite {}: {}",
-                            record.satellite_id, e
-                        );
-                    }
-                });
-
-                if let Err(e) = consumer.commit_message(&msg, CommitMode::Async) {
-                    error!("Failed to commit consumer offset: {}", e);
-                }
+        tokio::select! {
+            _ = cancel_token.cancelled() => {
+                info!("Main consumer loop shutting down...");
+                break;
             }
-            Err(e) => {
-                error!("Error receiving from Kafka: {}", e);
-                tokio::time::sleep(Duration::from_millis(500)).await;
+            msg_res = consumer.recv() => {
+                match msg_res {
+                    Ok(msg) => {
+                        let payload = match msg.payload_view::<str>() {
+                            Some(Ok(s)) => s,
+                            Some(Err(e)) => {
+                                error!("Failed to parse Kafka payload as string: {}", e);
+                                let _ = consumer.commit_message(&msg, CommitMode::Async);
+                                continue;
+                            }
+                            None => {
+                                let _ = consumer.commit_message(&msg, CommitMode::Async);
+                                continue;
+                            }
+                        };
+
+                        let record: TelemetryRecord = match serde_json::from_str(payload) {
+                            Ok(r) => r,
+                            Err(e) => {
+                                error!(
+                                    "Failed to deserialize telemetry record: {}. Payload: {}",
+                                    e, payload
+                                );
+                                let _ = consumer.commit_message(&msg, CommitMode::Async);
+                                continue;
+                            }
+                        };
+
+                        if let Err(e) = process_telemetry_health(&state, &record).await {
+                            error!(
+                                "Error processing health for satellite {}: {}",
+                                record.satellite_id, e
+                            );
+                        }
+
+                        if let Err(e) = consumer.commit_message(&msg, CommitMode::Async) {
+                            error!("Failed to commit consumer offset: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Error receiving from Kafka: {}", e);
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                    }
+                }
             }
         }
     }
+
+    info!("Mission Health Engine shutdown complete.");
+    Ok(())
 }
 
 async fn process_telemetry_health(
@@ -410,7 +412,7 @@ async fn process_telemetry_health(
 ) -> Result<(), anyhow::Error> {
     // 1. Run health assessment rules
     let gs_states_map = {
-        let map = state.gs_states.lock().unwrap();
+        let map = state.gs_states.lock().await;
         map.clone()
     };
     let assessment = assess_satellite_health(record, &gs_states_map);
@@ -465,7 +467,7 @@ async fn process_telemetry_health(
 
     // Update fleet health average score
     let avg_fleet = {
-        let mut scores = state.satellite_scores.lock().unwrap();
+        let mut scores = state.satellite_scores.lock().await;
         scores.insert(assessment.satellite_id.clone(), assessment.overall_score);
         let total: i32 = scores.values().sum();
         total as f64 / scores.len() as f64

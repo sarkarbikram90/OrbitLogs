@@ -1,20 +1,6 @@
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use sqlx::{Error, PgPool};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroundStationHealth {
-    pub timestamp: DateTime<Utc>,
-    pub station_id: String,
-    pub station_name: String,
-    pub status: String,
-    pub antenna_health: f32,
-    pub weather_state: String,
-    pub congestion: f32,
-    pub latency: f32,
-    pub bandwidth: f32,
-    pub explanation: String,
-}
+pub use spaceops_models::GroundStationHealth;
 
 pub async fn insert_ground_station_health(
     pool: &PgPool,

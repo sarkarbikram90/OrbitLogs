@@ -37,7 +37,7 @@ pub struct Config {
     #[arg(long, env = "HEALTH_TOPIC", default_value = "groundstation.health")]
     pub health_topic: String,
 
-    #[arg(long, env = "API_KEY", default_value = "secret-spaceops-key-2026")]
+    #[arg(long, env = "API_KEY")]
     pub api_key: String,
 
     #[arg(long, env = "KAFKA_SECURITY_PROTOCOL")]

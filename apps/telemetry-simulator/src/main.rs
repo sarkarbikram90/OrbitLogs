@@ -4,9 +4,9 @@ use clap::Parser;
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -63,8 +63,23 @@ fn register_metrics() {
 }
 
 async fn start_metrics_server(port: u16) {
+    use axum::{routing::get, Router};
+
+    let app = Router::new().route("/metrics", get(|| async {
+        let encoder = TextEncoder::new();
+        let metric_families = REGISTRY.gather();
+        let mut buffer = Vec::new();
+        encoder.encode(&metric_families, &mut buffer).unwrap();
+        
+        axum::response::Response::builder()
+            .status(axum::http::StatusCode::OK)
+            .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
+            .body(axum::body::Body::from(buffer))
+            .unwrap()
+    }));
+
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    let listener = match TcpListener::bind(addr).await {
+    let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
             error!("Failed to bind metrics server to port {}: {}", port, e);
@@ -75,51 +90,12 @@ async fn start_metrics_server(port: u16) {
         "Simulator metrics server running on http://localhost:{}/metrics",
         port
     );
-
-    loop {
-        match listener.accept().await {
-            Ok((mut socket, _)) => {
-                tokio::spawn(async move {
-                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-                    let mut buffer = [0; 1024];
-                    let _ = socket.read(&mut buffer).await;
-
-                    let encoder = TextEncoder::new();
-                    let metric_families = REGISTRY.gather();
-                    let mut buffer = Vec::new();
-                    encoder.encode(&metric_families, &mut buffer).unwrap();
-
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                        encoder.format_type(),
-                        buffer.len()
-                    );
-
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    let _ = socket.write_all(&buffer).await;
-                    let _ = socket.flush().await;
-                });
-            }
-            Err(e) => {
-                error!("Error accepting connection in metrics server: {}", e);
-            }
-        }
+    if let Err(e) = axum::serve(listener, app).await {
+        error!("Metrics server error: {}", e);
     }
 }
 
-fn load_secret(env_var: &str) -> Option<String> {
-    if let Ok(val) = std::env::var(env_var) {
-        if !val.trim().is_empty() {
-            return Some(val.trim().to_string());
-        }
-    }
-    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
-        if let Ok(content) = std::fs::read_to_string(file_path) {
-            return Some(content.trim().to_string());
-        }
-    }
-    None
-}
+use spaceops_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -170,7 +146,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let sasl_password = config.kafka_sasl_password.clone();
     let ssl_ca_location = config.kafka_ssl_ca_location.clone();
 
-    tokio::spawn(async move {
+    let consumer_handle = tokio::spawn(async move {
         info!("Starting background groundstation.health consumer...");
         let mut client_config = ClientConfig::new();
         client_config
@@ -236,7 +212,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                 "Received ground station health update: {} -> {}",
                                 gs.station_id, gs.status
                             );
-                            let mut map = gs_states_clone.lock().unwrap();
+                            let mut map = gs_states_clone.lock().await;
                             map.insert(gs.station_id.clone(), gs);
                         }
                         Err(e) => {
@@ -283,7 +259,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let client = Arc::clone(&client);
         let config = Arc::clone(&config);
 
-        let simulator = Arc::new(std::sync::Mutex::new(SatelliteSimulator::new(
+        let simulator = Arc::new(Mutex::new(SatelliteSimulator::new(
             satellite_id.clone(),
             sat_scenario,
             seed,
@@ -324,12 +300,12 @@ async fn main() -> Result<(), anyhow::Error> {
                 loop {
                     let linked_gs = {
                         let gs_id = get_linked_ground_station(&satellite_id);
-                        let map = gs_states_sub.lock().unwrap();
+                        let map = gs_states_sub.lock().await;
                         map.get(&gs_id).cloned()
                     };
 
                     let (telemetry, tick) = {
-                        let mut sim = simulator.lock().unwrap();
+                        let mut sim = simulator.lock().await;
                         let rec = sim.next_subsystem_record(
                             &subsystem_name,
                             &mission_id,
@@ -405,10 +381,18 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    // Wait for all simulator routines (runs infinitely)
-    for handle in handles {
-        let _ = handle.await;
+    // Wait for shutdown signal
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Shutdown signal received. Shutting down simulator...");
+        }
     }
+
+    consumer_handle.abort();
+    for handle in handles {
+        handle.abort();
+    }
+    info!("Simulator exited cleanly.");
 
     Ok(())
 }

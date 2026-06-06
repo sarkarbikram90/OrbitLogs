@@ -37,11 +37,53 @@ pub struct ConsumerConfig {
     pub ssl_ca_location: Option<String>,
 }
 
+struct LruCache {
+    map: HashMap<String, TelemetryRecord>,
+    order: std::collections::VecDeque<String>,
+    capacity: usize,
+}
+
+impl LruCache {
+    fn new(capacity: usize) -> Self {
+        Self {
+            map: HashMap::new(),
+            order: std::collections::VecDeque::new(),
+            capacity,
+        }
+    }
+
+    fn get(&mut self, key: &str) -> Option<&TelemetryRecord> {
+        if self.map.contains_key(key) {
+            if let Some(pos) = self.order.iter().position(|k| k == key) {
+                self.order.remove(pos);
+            }
+            self.order.push_back(key.to_string());
+            self.map.get(key)
+        } else {
+            None
+        }
+    }
+
+    fn insert(&mut self, key: String, value: TelemetryRecord) {
+        if self.map.contains_key(&key) {
+            if let Some(pos) = self.order.iter().position(|k| *k == key) {
+                self.order.remove(pos);
+            }
+        } else if self.map.len() >= self.capacity {
+            if let Some(oldest) = self.order.pop_front() {
+                self.map.remove(&oldest);
+            }
+        }
+        self.order.push_back(key.clone());
+        self.map.insert(key, value);
+    }
+}
+
 pub struct TelemetryConsumer {
     config: ConsumerConfig,
     db_pool: PgPool,
     kafka_producer: KafkaProducer,
-    cache: Mutex<HashMap<String, TelemetryRecord>>,
+    cache: Mutex<LruCache>,
 }
 
 impl TelemetryConsumer {
@@ -50,7 +92,7 @@ impl TelemetryConsumer {
             config,
             db_pool,
             kafka_producer,
-            cache: Mutex::new(HashMap::new()),
+            cache: Mutex::new(LruCache::new(10000)),
         }
     }
 
@@ -210,7 +252,7 @@ impl TelemetryConsumer {
 
         // 1. Check in-memory cache first
         let cached_opt = {
-            let cache = self.cache.lock().await;
+            let mut cache = self.cache.lock().await;
             cache.get(sat_id).cloned()
         };
 

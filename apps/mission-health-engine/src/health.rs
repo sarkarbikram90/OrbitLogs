@@ -9,19 +9,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use spaceops_models::TelemetryRecord;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroundStationState {
-    pub timestamp: DateTime<Utc>,
-    pub station_id: String,
-    pub station_name: String,
-    pub status: String,
-    pub antenna_health: f32,
-    pub weather_state: String,
-    pub congestion: f32,
-    pub latency: f32,
-    pub bandwidth: f32,
-    pub explanation: String,
-}
+pub use spaceops_models::GroundStationHealth as GroundStationState;
 
 fn get_linked_ground_station(satellite_id: &str) -> String {
     if let Some(num_str) = satellite_id.strip_prefix("SAT-") {

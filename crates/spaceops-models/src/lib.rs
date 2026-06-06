@@ -185,6 +185,34 @@ impl TelemetryRecord {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroundStationHealth {
+    pub timestamp: DateTime<Utc>,
+    pub station_id: String,
+    pub station_name: String,
+    pub status: String,
+    pub antenna_health: f32,
+    pub weather_state: String,
+    pub congestion: f32,
+    pub latency: f32,
+    pub bandwidth: f32,
+    pub explanation: String,
+}
+
+pub fn load_secret(env_var: &str) -> Option<String> {
+    if let Ok(val) = std::env::var(env_var) {
+        if !val.trim().is_empty() {
+            return Some(val.trim().to_string());
+        }
+    }
+    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
+        if let Ok(content) = std::fs::read_to_string(file_path) {
+            return Some(content.trim().to_string());
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

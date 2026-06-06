@@ -51,6 +51,9 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Note: For production setups, replication factors should be set to at least 3
+      # (with KAFKA_TRANSACTION_STATE_LOG_MIN_ISR set to 2) to ensure high availability and prevent data loss.
+      # They are set to 1 here because this is a single-broker development setup.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -67,6 +70,29 @@ services:
           cpus: '0.50'
           memory: 512M
     restart: unless-stopped
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: spaceops-kafka-init
+    depends_on:
+      - kafka
+    # Creates topics with 3 partitions and a replication factor of 1 (dev setup).
+    # In production, replication factor must be at least 3 for fault tolerance.
+    entrypoint: [ "bash", "-c", "
+      echo 'Waiting for Kafka to be ready...';
+      cub kafka-ready -b kafka:29092 1 30 && \\
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.raw && \\
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.processed && \\
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.invalid && \\
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic mission.health && \\
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic groundstation.health && \\
+      echo 'Kafka topics created successfully!';" ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 128M
+
 
   # --- TRACING (Jaeger) ---
   jaeger:

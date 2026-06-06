@@ -6,7 +6,6 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use std::time::Duration;
-use tokio::net::TcpListener;
 use tracing::{error, info};
 
 mod db;
@@ -98,8 +97,23 @@ fn register_metrics() {
 }
 
 async fn start_metrics_server(port: u16) {
+    use axum::{routing::get, Router};
+
+    let app = Router::new().route("/metrics", get(|| async {
+        let encoder = TextEncoder::new();
+        let metric_families = REGISTRY.gather();
+        let mut buffer = Vec::new();
+        encoder.encode(&metric_families, &mut buffer).unwrap();
+        
+        axum::response::Response::builder()
+            .status(axum::http::StatusCode::OK)
+            .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
+            .body(axum::body::Body::from(buffer))
+            .unwrap()
+    }));
+
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    let listener = match TcpListener::bind(addr).await {
+    let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
             error!("Failed to bind metrics server to port {}: {}", port, e);
@@ -110,51 +124,12 @@ async fn start_metrics_server(port: u16) {
         "Ground Station Simulator metrics server running on http://localhost:{}/metrics",
         port
     );
-
-    loop {
-        match listener.accept().await {
-            Ok((mut socket, _)) => {
-                tokio::spawn(async move {
-                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-                    let mut buffer = [0; 1024];
-                    let _ = socket.read(&mut buffer).await;
-
-                    let encoder = TextEncoder::new();
-                    let metric_families = REGISTRY.gather();
-                    let mut buffer = Vec::new();
-                    encoder.encode(&metric_families, &mut buffer).unwrap();
-
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                        encoder.format_type(),
-                        buffer.len()
-                    );
-
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    let _ = socket.write_all(&buffer).await;
-                    let _ = socket.flush().await;
-                });
-            }
-            Err(e) => {
-                error!("Error accepting connection in metrics server: {}", e);
-            }
-        }
+    if let Err(e) = axum::serve(listener, app).await {
+        error!("Metrics server error: {}", e);
     }
 }
 
-fn load_secret(env_var: &str) -> Option<String> {
-    if let Ok(val) = std::env::var(env_var) {
-        if !val.trim().is_empty() {
-            return Some(val.trim().to_string());
-        }
-    }
-    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
-        if let Ok(content) = std::fs::read_to_string(file_path) {
-            return Some(content.trim().to_string());
-        }
-    }
-    None
-}
+use spaceops_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -384,6 +359,15 @@ async fn main() -> Result<(), anyhow::Error> {
                 .set(gs.bandwidth as f64);
         }
 
-        tokio::time::sleep(Duration::from_secs(cli.frequency_sec)).await;
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                info!("Shutdown signal received. Shutting down ground station simulator...");
+                break;
+            }
+            _ = tokio::time::sleep(Duration::from_secs(cli.frequency_sec)) => {}
+        }
     }
+
+    info!("Ground station simulator exited cleanly.");
+    Ok(())
 }

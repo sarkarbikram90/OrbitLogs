@@ -12,7 +12,6 @@ use clap::Parser;
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -39,7 +38,7 @@ struct Cli {
     #[arg(long, env = "PORT", default_value = "8084")]
     port: u16,
 
-    #[arg(long, env = "API_KEY", default_value = "secret-spaceops-key-2026")]
+    #[arg(long, env = "API_KEY")]
     api_key: String,
 
     #[arg(
@@ -56,6 +55,7 @@ struct AppState {
     db_pool: sqlx::PgPool,
     api_key: String,
     cors_allowed_origin: String,
+    sessions: dashmap::DashMap<uuid::Uuid, db::ReplaySession>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -100,19 +100,7 @@ fn is_valid_speed(speed: f32) -> bool {
     allowed.iter().any(|&s| (s - speed).abs() < f32::EPSILON)
 }
 
-fn load_secret(env_var: &str) -> Option<String> {
-    if let Ok(val) = std::env::var(env_var) {
-        if !val.trim().is_empty() {
-            return Some(val.trim().to_string());
-        }
-    }
-    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
-        if let Ok(content) = std::fs::read_to_string(file_path) {
-            return Some(content.trim().to_string());
-        }
-    }
-    None
-}
+use spaceops_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -174,6 +162,7 @@ async fn main() -> Result<(), anyhow::Error> {
         db_pool,
         api_key: cli.api_key,
         cors_allowed_origin: cli.cors_allowed_origin,
+        sessions: dashmap::DashMap::new(),
     });
 
     let replay_routes = Router::new()
@@ -276,7 +265,7 @@ async fn create_replay(
         return api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database failure");
     }
 
-
+    state.sessions.insert(session_id, session.clone());
 
     (StatusCode::CREATED, Json(session)).into_response()
 }
@@ -400,6 +389,8 @@ async fn control_replay(
         );
     }
 
+    state.sessions.insert(session.session_id, session.clone());
+
     // Query active playing count from DB
     let playing_count: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'")
         .fetch_one(&state.db_pool)
@@ -427,16 +418,25 @@ async fn stream_replay(
         Err(_) => return Err(api_error(StatusCode::BAD_REQUEST, "Invalid session ID")),
     };
 
-    // Verify session exists in DB
-    let session = match db::get_replay_session(&state.db_pool, session_id).await {
-        Ok(Some(s)) => s,
-        Ok(None) => return Err(api_error(StatusCode::NOT_FOUND, "Replay session not found")),
-        Err(e) => {
-            error!("Database error fetching session: {}", e);
-            return Err(api_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Database error",
-            ));
+    // Verify session exists in DB or cache
+    let session = {
+        if let Some(s) = state.sessions.get(&session_id) {
+            s.clone()
+        } else {
+            match db::get_replay_session(&state.db_pool, session_id).await {
+                Ok(Some(s)) => {
+                    state.sessions.insert(session_id, s.clone());
+                    s
+                }
+                Ok(None) => return Err(api_error(StatusCode::NOT_FOUND, "Replay session not found")),
+                Err(e) => {
+                    error!("Database error fetching session: {}", e);
+                    return Err(api_error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Database error",
+                    ));
+                }
+            }
         }
     };
 
@@ -460,16 +460,24 @@ async fn stream_replay(
         loop {
             tokio::time::sleep(tick_duration).await;
 
-            // Fetch latest session status from DB
-            let current_session = match db::get_replay_session(&state_clone.db_pool, session_id).await {
-                Ok(Some(s)) => s,
-                Ok(None) => {
-                    info!("Session {} not found in DB, exiting stream loop", session_id);
-                    break;
-                }
-                Err(e) => {
-                    error!("Database error fetching session {} state: {}", session_id, e);
-                    continue;
+            // Fetch latest session status from Cache (hot path)
+            let current_session = match state_clone.sessions.get(&session_id) {
+                Some(s) => s.clone(),
+                None => {
+                    match db::get_replay_session(&state_clone.db_pool, session_id).await {
+                        Ok(Some(s)) => {
+                            state_clone.sessions.insert(session_id, s.clone());
+                            s
+                        }
+                        Ok(None) => {
+                            info!("Session {} not found in DB or cache, exiting stream loop", session_id);
+                            break;
+                        }
+                        Err(e) => {
+                            error!("Database error fetching session {} state: {}", session_id, e);
+                            continue;
+                        }
+                    }
                 }
             };
 
@@ -584,6 +592,10 @@ async fn stream_replay(
                     current_speed,
                 )
                 .await;
+                if let Some(mut s) = state_clone.sessions.get_mut(&session_id) {
+                    s.current_position = stop_pos;
+                    s.status = "STOPPED".to_string();
+                }
 
                 let sse_session = db::ReplaySession {
                     session_id,
@@ -601,13 +613,10 @@ async fn stream_replay(
                     .send(Ok(Event::default().event("state").data(state_json)))
                     .await;
 
-                let playing_count: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'")
+                let playing_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'")
                     .fetch_one(&state_clone.db_pool)
                     .await
-                {
-                    Ok(c) => c,
-                    Err(_) => 0,
-                };
+                    .unwrap_or_default();
                 metrics::ACTIVE_REPLAYS.set(playing_count as f64);
 
                 if local_position < stop_pos {
@@ -633,6 +642,9 @@ async fn stream_replay(
                     current_speed,
                 )
                 .await;
+                if let Some(mut s) = state_clone.sessions.get_mut(&session_id) {
+                    s.current_position = end_query;
+                }
 
                 let sse_session = db::ReplaySession {
                     session_id,
@@ -921,7 +933,6 @@ async fn shutdown_signal() {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use uuid::Uuid;
 
     #[test]
     fn test_speed_validation() {
@@ -974,6 +985,7 @@ mod tests {
             db_pool: sqlx::PgPool::connect_lazy("postgres://localhost/test").unwrap(),
             api_key: "secret-key".to_string(),
             cors_allowed_origin: "http://localhost:3000".to_string(),
+            sessions: dashmap::DashMap::new(),
         });
 
         let app = Router::new()

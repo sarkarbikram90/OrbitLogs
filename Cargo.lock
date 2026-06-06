@@ -493,6 +493,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "5.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -788,6 +801,7 @@ name = "ground-station-simulator"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "axum 0.7.9",
  "chrono",
  "clap",
  "dotenvy",
@@ -797,6 +811,7 @@ dependencies = [
  "rdkafka",
  "serde",
  "serde_json",
+ "spaceops-models",
  "sqlx",
  "tokio",
  "tracing",
@@ -1430,6 +1445,7 @@ name = "mission-health-engine"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "axum 0.7.9",
  "chrono",
  "clap",
  "dotenvy",
@@ -1441,6 +1457,7 @@ dependencies = [
  "spaceops-models",
  "sqlx",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -1454,6 +1471,7 @@ dependencies = [
  "axum 0.7.9",
  "chrono",
  "clap",
+ "dashmap",
  "dotenvy",
  "futures-util",
  "lazy_static",
@@ -2816,6 +2834,7 @@ name = "telemetry-simulator"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "axum 0.7.9",
  "chrono",
  "clap",
  "dotenvy",

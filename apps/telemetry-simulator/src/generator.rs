@@ -1,9 +1,8 @@
 #![allow(clippy::manual_clamp, clippy::bool_assert_comparison)]
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uuid::Uuid;
 
@@ -12,19 +11,7 @@ use crate::scenario::Scenario;
 // TelemetryRecord is imported from the shared domain crate
 pub use spaceops_models::TelemetryRecord;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroundStationState {
-    pub timestamp: DateTime<Utc>,
-    pub station_id: String,
-    pub station_name: String,
-    pub status: String,
-    pub antenna_health: f32,
-    pub weather_state: String,
-    pub congestion: f32,
-    pub latency: f32,
-    pub bandwidth: f32,
-    pub explanation: String,
-}
+pub use spaceops_models::GroundStationHealth as GroundStationState;
 
 pub struct SatelliteSimulator {
     pub id: String,
