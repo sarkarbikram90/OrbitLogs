@@ -8,8 +8,8 @@ macro_rules! merge_opt_fields {
     };
 }
 
-use rdkafka::config::ClientConfig;
-use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
+use rdkafka::client::ClientContext;
+use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, StreamConsumer};
 use rdkafka::message::Message;
 use sqlx::PgPool;
 use std::collections::HashMap;
@@ -23,6 +23,30 @@ use crate::metrics::{
 };
 use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;
+
+struct MetricsContext;
+
+impl ClientContext for MetricsContext {
+    fn stats_raw(&self, statistics: &[u8]) {
+        if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
+            if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
+                for (topic_name, topic_val) in topics {
+                    if let Some(partitions) = topic_val.get("partitions").and_then(|p| p.as_object()) {
+                        for (partition_id, partition_val) in partitions {
+                            if let Some(lag) = partition_val.get("consumer_lag").and_then(|l| l.as_i64()) {
+                                crate::metrics::KAFKA_CONSUMER_LAG
+                                    .with_label_values(&[topic_name, partition_id])
+                                    .set(lag as f64);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl ConsumerContext for MetricsContext {}
 
 pub struct ConsumerConfig {
     pub brokers: String,
@@ -84,6 +108,7 @@ pub struct TelemetryConsumer {
     db_pool: PgPool,
     kafka_producer: KafkaProducer,
     cache: Mutex<LruCache>,
+    anomaly_cooldowns: Mutex<HashMap<(String, String), Instant>>,
 }
 
 impl TelemetryConsumer {
@@ -93,36 +118,29 @@ impl TelemetryConsumer {
             db_pool,
             kafka_producer,
             cache: Mutex::new(LruCache::new(10000)),
+            anomaly_cooldowns: Mutex::new(HashMap::new()),
         }
     }
 
     pub async fn start(&self) -> Result<(), anyhow::Error> {
-        let mut client_config = ClientConfig::new();
+        let mut client_config = spaceops_models::kafka::KafkaConfigBuilder::new(self.config.brokers.clone())
+            .with_security(
+                self.config.security_protocol.clone(),
+                self.config.sasl_mechanism.clone(),
+                self.config.sasl_username.clone(),
+                self.config.sasl_password.clone(),
+                self.config.ssl_ca_location.clone(),
+            )
+            .build();
         client_config
-            .set("bootstrap.servers", &self.config.brokers)
             .set("group.id", &self.config.group_id)
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
-            .set("auto.offset.reset", "earliest");
+            .set("auto.offset.reset", "earliest")
+            .set("statistics.interval.ms", "1000");
 
-        if let Some(ref proto) = self.config.security_protocol {
-            client_config.set("security.protocol", proto);
-        }
-        if let Some(ref mech) = self.config.sasl_mechanism {
-            client_config.set("sasl.mechanism", mech);
-        }
-        if let Some(ref user) = self.config.sasl_username {
-            client_config.set("sasl.username", user);
-        }
-        if let Some(ref pass) = self.config.sasl_password {
-            client_config.set("sasl.password", pass);
-        }
-        if let Some(ref ca) = self.config.ssl_ca_location {
-            client_config.set("ssl.ca.location", ca);
-        }
-
-        let consumer: StreamConsumer = client_config.create()?;
+        let consumer: StreamConsumer<MetricsContext> = client_config.create_with_context(MetricsContext)?;
 
         consumer.subscribe(&[&self.config.raw_topic])?;
         info!(
@@ -410,27 +428,42 @@ impl TelemetryConsumer {
         Ok(())
     }
 
+    async fn should_alert(&self, satellite_id: &str, anomaly_type: &str) -> bool {
+        let mut cooldowns = self.anomaly_cooldowns.lock().await;
+        let now = Instant::now();
+        let key = (satellite_id.to_string(), anomaly_type.to_string());
+        if let Some(&last_alert) = cooldowns.get(&key) {
+            if now.duration_since(last_alert) < Duration::from_secs(60) {
+                return false;
+            }
+        }
+        cooldowns.insert(key, now);
+        true
+    }
+
     async fn detect_anomalies(&self, incoming: &TelemetryRecord, merged: &TelemetryRecord) {
         let sat_id = &incoming.satellite_id;
 
         // 1. Thermal Spike anomaly detection - only check if temperature is updated
         if let Some(temperature) = incoming.temperature {
             if temperature > 85.0 {
-                let details = serde_json::json!({
-                    "temperature": temperature,
-                    "limit": 85.0
-                });
-                if let Err(e) = db::insert_event(
-                    &self.db_pool,
-                    sat_id,
-                    "ANOMALY_THERMAL_SPIKE",
-                    "CRITICAL",
-                    &format!("Satellite temperature has spiked to {}°C", temperature),
-                    details,
-                )
-                .await
-                {
-                    error!("Failed to log thermal spike anomaly for {}: {}", sat_id, e);
+                if self.should_alert(sat_id, "ANOMALY_THERMAL_SPIKE").await {
+                    let details = serde_json::json!({
+                        "temperature": temperature,
+                        "limit": 85.0
+                    });
+                    if let Err(e) = db::insert_event(
+                        &self.db_pool,
+                        sat_id,
+                        "ANOMALY_THERMAL_SPIKE",
+                        "CRITICAL",
+                        &format!("Satellite temperature has spiked to {}°C", temperature),
+                        details,
+                    )
+                    .await
+                    {
+                        error!("Failed to log thermal spike anomaly for {}: {}", sat_id, e);
+                    }
                 }
             }
         }
@@ -438,21 +471,23 @@ impl TelemetryConsumer {
         // 2. Battery Degradation anomaly detection - only check if battery_voltage is updated
         if let Some(battery_voltage) = incoming.battery_voltage {
             if battery_voltage < 11.0 {
-                let details = serde_json::json!({
-                    "battery_voltage": battery_voltage,
-                    "limit": 11.0
-                });
-                if let Err(e) = db::insert_event(
-                    &self.db_pool,
-                    sat_id,
-                    "ANOMALY_BATTERY_DEGRADATION",
-                    "CRITICAL",
-                    &format!("Battery voltage is critical: {}V", battery_voltage),
-                    details,
-                )
-                .await
-                {
-                    error!("Failed to log battery anomaly for {}: {}", sat_id, e);
+                if self.should_alert(sat_id, "ANOMALY_BATTERY_DEGRADATION").await {
+                    let details = serde_json::json!({
+                        "battery_voltage": battery_voltage,
+                        "limit": 11.0
+                    });
+                    if let Err(e) = db::insert_event(
+                        &self.db_pool,
+                        sat_id,
+                        "ANOMALY_BATTERY_DEGRADATION",
+                        "CRITICAL",
+                        &format!("Battery voltage is critical: {}V", battery_voltage),
+                        details,
+                    )
+                    .await
+                    {
+                        error!("Failed to log battery anomaly for {}: {}", sat_id, e);
+                    }
                 }
             }
         }
@@ -460,25 +495,27 @@ impl TelemetryConsumer {
         // 3. Fuel Leak anomaly detection - only check if fuel_remaining is updated
         if let Some(fuel_remaining) = incoming.fuel_remaining {
             if fuel_remaining < 15.0 {
-                let details = serde_json::json!({
-                    "fuel_remaining": fuel_remaining,
-                    "limit": 15.0
-                });
-                if let Err(e) = db::insert_event(
-                    &self.db_pool,
-                    sat_id,
-                    "ANOMALY_FUEL_LOW",
-                    if fuel_remaining < 5.0 {
-                        "CRITICAL"
-                    } else {
-                        "WARNING"
-                    },
-                    &format!("Satellite fuel level has dropped to {}%", fuel_remaining),
-                    details,
-                )
-                .await
-                {
-                    error!("Failed to log fuel anomaly for {}: {}", sat_id, e);
+                if self.should_alert(sat_id, "ANOMALY_FUEL_LOW").await {
+                    let details = serde_json::json!({
+                        "fuel_remaining": fuel_remaining,
+                        "limit": 15.0
+                    });
+                    if let Err(e) = db::insert_event(
+                        &self.db_pool,
+                        sat_id,
+                        "ANOMALY_FUEL_LOW",
+                        if fuel_remaining < 5.0 {
+                            "CRITICAL"
+                        } else {
+                            "WARNING"
+                        },
+                        &format!("Satellite fuel level has dropped to {}%", fuel_remaining),
+                        details,
+                    )
+                    .await
+                    {
+                        error!("Failed to log fuel anomaly for {}: {}", sat_id, e);
+                    }
                 }
             }
         }
@@ -489,24 +526,26 @@ impl TelemetryConsumer {
             let comm_latency = merged.communication_latency.unwrap_or(0.0);
 
             if packet_loss > 10.0 || comm_latency > 1000.0 {
-                let details = serde_json::json!({
-                    "packet_loss": packet_loss,
-                    "latency": comm_latency
-                });
-                if let Err(e) = db::insert_event(
-                    &self.db_pool,
-                    sat_id,
-                    "ANOMALY_COMMUNICATION_DEGRADED",
-                    "WARNING",
-                    &format!(
-                        "Communications degraded. Latency: {}ms, Packet Loss: {}%",
-                        comm_latency, packet_loss
-                    ),
-                    details,
-                )
-                .await
-                {
-                    error!("Failed to log communication anomaly for {}: {}", sat_id, e);
+                if self.should_alert(sat_id, "ANOMALY_COMMUNICATION_DEGRADED").await {
+                    let details = serde_json::json!({
+                        "packet_loss": packet_loss,
+                        "latency": comm_latency
+                    });
+                    if let Err(e) = db::insert_event(
+                        &self.db_pool,
+                        sat_id,
+                        "ANOMALY_COMMUNICATION_DEGRADED",
+                        "WARNING",
+                        &format!(
+                            "Communications degraded. Latency: {}ms, Packet Loss: {}%",
+                            comm_latency, packet_loss
+                        ),
+                        details,
+                    )
+                    .await
+                    {
+                        error!("Failed to log communication anomaly for {}: {}", sat_id, e);
+                    }
                 }
             }
         }

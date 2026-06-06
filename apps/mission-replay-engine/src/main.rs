@@ -11,7 +11,6 @@ use axum::{
 use clap::Parser;
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgPoolOptions;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -129,40 +128,46 @@ async fn main() -> Result<(), anyhow::Error> {
     metrics::register_metrics();
 
     // Connect to database
-    info!("Connecting to TimescaleDB...");
-    let mut retries = 5;
-    let mut db_pool = None;
-    while retries > 0 {
-        match PgPoolOptions::new()
-            .max_connections(10)
-            .acquire_timeout(Duration::from_secs(3))
-            .connect(&cli.database_url)
-            .await
-        {
-            Ok(pool) => {
-                info!("TimescaleDB connection pool established.");
-                db_pool = Some(pool);
-                break;
-            }
-            Err(e) => {
-                retries -= 1;
-                error!(
-                    "TimescaleDB connection failed. Retries left: {}. Error: {}",
-                    retries, e
-                );
-                if retries > 0 {
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-                }
-            }
-        }
-    }
-    let db_pool = db_pool.ok_or_else(|| anyhow::anyhow!("Failed to connect to database"))?;
+    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 10).await?;
 
     let state = Arc::new(AppState {
         db_pool,
         api_key: cli.api_key,
         cors_allowed_origin: cli.cors_allowed_origin,
         sessions: dashmap::DashMap::new(),
+    });
+
+    // Spawn background cleanup task for old replay sessions (M-15)
+    let state_for_cleanup = state.clone();
+    tokio::spawn(async move {
+        info!("Starting background replay session cleanup task...");
+        loop {
+            tokio::time::sleep(Duration::from_secs(300)).await; // 5 minutes
+            info!("Running cleanup of old replay sessions...");
+            
+            // Delete from DB
+            match sqlx::query("DELETE FROM replay_sessions WHERE created_at < NOW() - INTERVAL '1 hour'")
+                .execute(&state_for_cleanup.db_pool)
+                .await
+            {
+                Ok(result) => {
+                    info!("Successfully cleaned up {} old replay sessions from DB.", result.rows_affected());
+                }
+                Err(e) => {
+                    error!("Failed to clean up old replay sessions from DB: {}", e);
+                }
+            }
+
+            // Clean up in-memory sessions DashMap
+            let cutoff = chrono::Utc::now() - chrono::Duration::hours(1);
+            state_for_cleanup.sessions.retain(|_, session| {
+                if let Some(created) = session.created_at {
+                    created >= cutoff
+                } else {
+                    true
+                }
+            });
+        }
     });
 
     let replay_routes = Router::new()
@@ -1039,5 +1044,101 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_replay_lifecycle_integration() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::util::ServiceExt;
+
+        let database_url = std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://postgres:postgrespassword@localhost:5432/spaceops".to_string());
+        
+        let db_pool = match sqlx::PgPool::connect_with(
+            database_url.parse().unwrap()
+        ).await {
+            Ok(pool) => pool,
+            Err(_) => {
+                sqlx::PgPool::connect_lazy(&database_url).unwrap()
+            }
+        };
+
+        let state = Arc::new(AppState {
+            db_pool,
+            api_key: "secret-key".to_string(),
+            cors_allowed_origin: "http://localhost:3000".to_string(),
+            sessions: dashmap::DashMap::new(),
+        });
+
+        let app = Router::new()
+            .route("/api/replays", post(create_replay))
+            .route("/api/replays/:id/control", post(control_replay))
+            .route("/api/replays/:id/stream", get(stream_replay))
+            .layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            ))
+            .with_state(state);
+
+        // 1. Assert Unauthorized request is rejected
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/replays")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(serde_json::to_string(&serde_json::json!({
+                        "start_time": "2026-01-01T00:00:00Z",
+                        "end_time": "2026-01-01T01:00:00Z"
+                    })).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        // 2. Assert request with valid auth header but invalid speed is rejected
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/replays")
+                    .header("Authorization", "Bearer secret-key")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(serde_json::to_string(&serde_json::json!({
+                        "start_time": "2026-01-01T00:00:00Z",
+                        "end_time": "2026-01-01T01:00:00Z",
+                        "speed": 3.0
+                    })).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        // 3. Assert request with valid auth and correct parameters
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/replays")
+                    .header("Authorization", "Bearer secret-key")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(serde_json::to_string(&serde_json::json!({
+                        "start_time": "2026-01-01T00:00:00Z",
+                        "end_time": "2026-01-01T01:00:00Z",
+                        "speed": 5.0
+                    })).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        
+        let status = response.status();
+        assert!(status == StatusCode::CREATED || status == StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

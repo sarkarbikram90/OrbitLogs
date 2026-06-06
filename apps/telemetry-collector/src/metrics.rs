@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use prometheus::{Histogram, HistogramOpts, IntCounter, IntCounterVec, Opts, Registry};
+use prometheus::{GaugeVec, Histogram, HistogramOpts, IntCounter, IntCounterVec, Opts, Registry};
 
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
@@ -62,6 +62,14 @@ lazy_static! {
         ])
     )
     .expect("database_insert_latency metric must be created");
+    pub static ref KAFKA_CONSUMER_LAG: GaugeVec = GaugeVec::new(
+        Opts::new(
+            "kafka_consumer_lag",
+            "Lag of the Kafka consumer group (offsets behind high watermark)"
+        ),
+        &["topic", "partition"]
+    )
+    .expect("kafka_consumer_lag metric must be created");
 }
 
 pub fn register_metrics() {
@@ -86,4 +94,7 @@ pub fn register_metrics() {
     REGISTRY
         .register(Box::new(DATABASE_INSERT_LATENCY.clone()))
         .expect("database_insert_latency registration must succeed");
+    REGISTRY
+        .register(Box::new(KAFKA_CONSUMER_LAG.clone()))
+        .expect("kafka_consumer_lag registration must succeed");
 }

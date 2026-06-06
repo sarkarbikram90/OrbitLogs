@@ -2456,8 +2456,12 @@ name = "spaceops-models"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "rdkafka",
  "serde",
  "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 

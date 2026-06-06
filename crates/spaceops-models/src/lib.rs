@@ -212,6 +212,8 @@ pub fn load_secret(env_var: &str) -> Option<String> {
     }
     None
 }
+pub mod kafka;
+pub mod db;
 
 #[cfg(test)]
 mod tests {

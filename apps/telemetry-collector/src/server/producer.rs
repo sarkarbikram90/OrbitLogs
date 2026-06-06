@@ -1,4 +1,3 @@
-use rdkafka::config::ClientConfig;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -93,27 +92,18 @@ impl KafkaProducer {
         sasl_password: Option<&str>,
         ssl_ca_location: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
-        let mut config = ClientConfig::new();
+        let mut config = spaceops_models::kafka::KafkaConfigBuilder::new(brokers.to_string())
+            .with_security(
+                security_protocol.map(|s| s.to_string()),
+                sasl_mechanism.map(|s| s.to_string()),
+                sasl_username.map(|s| s.to_string()),
+                sasl_password.map(|s| s.to_string()),
+                ssl_ca_location.map(|s| s.to_string()),
+            )
+            .build();
         config
-            .set("bootstrap.servers", brokers)
             .set("message.timeout.ms", "5000")
             .set("queue.buffering.max.messages", "100000");
-
-        if let Some(proto) = security_protocol {
-            config.set("security.protocol", proto);
-        }
-        if let Some(mech) = sasl_mechanism {
-            config.set("sasl.mechanism", mech);
-        }
-        if let Some(user) = sasl_username {
-            config.set("sasl.username", user);
-        }
-        if let Some(pass) = sasl_password {
-            config.set("sasl.password", pass);
-        }
-        if let Some(ca) = ssl_ca_location {
-            config.set("ssl.ca.location", ca);
-        }
 
         let producer: FutureProducer = config.create()?;
         let cb = CircuitBreaker::new(5, Duration::from_secs(10));

@@ -24,6 +24,14 @@ lazy_static! {
         &["satellite_id", "subsystem_id"]
     )
     .expect("subsystem_health_score metric must be created");
+    pub static ref KAFKA_CONSUMER_LAG: GaugeVec = GaugeVec::new(
+        Opts::new(
+            "kafka_consumer_lag",
+            "Lag of the Kafka consumer group (offsets behind high watermark)"
+        ),
+        &["topic", "partition"]
+    )
+    .expect("kafka_consumer_lag metric must be created");
 }
 
 pub fn register_metrics() {
@@ -36,4 +44,8 @@ pub fn register_metrics() {
     REGISTRY
         .register(Box::new(SUBSYSTEM_HEALTH_SCORE.clone()))
         .expect("subsystem_health_score registration must succeed");
+    REGISTRY
+        .register(Box::new(KAFKA_CONSUMER_LAG.clone()))
+        .expect("kafka_consumer_lag registration must succeed");
 }
+

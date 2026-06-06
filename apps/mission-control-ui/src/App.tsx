@@ -7,12 +7,21 @@ import { ReplayControls } from './components/ReplayControls';
 import { IncidentPanel } from './components/IncidentPanel';
 import type { Satellite, GroundStation, EventLog, ReplaySession, SatelliteHealth, TelemetryRecord } from './types';
 
-const BACKEND_REPLAY_URL = 'http://localhost:8084';
+const BACKEND_REPLAY_URL = import.meta.env.VITE_REPLAY_API_URL || 'http://localhost:8084';
+const BACKEND_COLLECTOR_URL = import.meta.env.VITE_COLLECTOR_API_URL || 'http://localhost:8080';
 const API_KEY = import.meta.env.VITE_API_KEY || 'secret-spaceops-key-2026';
 
 export default function App() {
   const [mode, setMode] = useState<'LIVE' | 'REPLAY'>('LIVE');
   const [selectedSatId, setSelectedSatId] = useState<string | null>('SAT-0001');
+  const [utcTime, setUtcTime] = useState(new Date().toISOString().replace('T', ' ').substring(0, 19));
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setUtcTime(new Date().toISOString().replace('T', ' ').substring(0, 19));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Initialize fleet list with default objects
   const [satellites, setSatellites] = useState<Satellite[]>(
@@ -123,8 +132,8 @@ export default function App() {
     // B. WebSocket connection for real-time telemetry updates
     const connectWs = () => {
       cleanupConnections();
-      console.log('Connecting to live telemetry WebSocket...');
-      const ws = new WebSocket(`ws://localhost:8080/ws`);
+      const wsUrl = BACKEND_COLLECTOR_URL.replace(/^http/, 'ws') + `/ws?token=${encodeURIComponent(API_KEY)}`;
+      const ws = new WebSocket(wsUrl);
       
       ws.onmessage = (event) => {
         try {
@@ -381,7 +390,7 @@ export default function App() {
           <span className="header-title">Open SpaceOps - Mission Control</span>
         </div>
         <div className="header-status">
-          <span>UTC: {new Date().toISOString().replace('T', ' ').substring(0, 19)}</span>
+          <span>UTC: {utcTime}</span>
           <div className={`mode-badge ${mode === 'LIVE' ? 'live' : 'replay'}`}>
             {mode === 'LIVE' ? '● LIVE CONSOLE' : '▼ REPLAY CONSOLE'}
           </div>

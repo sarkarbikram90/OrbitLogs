@@ -1,9 +1,7 @@
 use clap::Parser;
 use lazy_static::lazy_static;
 use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
-use rdkafka::config::ClientConfig;
 use rdkafka::producer::{FutureProducer, FutureRecord};
-use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tracing::{error, info};
@@ -161,56 +159,19 @@ async fn main() -> Result<(), anyhow::Error> {
     tokio::spawn(start_metrics_server(cli.metrics_port));
 
     // Connect to database
-    info!("Connecting to TimescaleDB...");
-    let mut retries = 5;
-    let mut db_pool = None;
-    while retries > 0 {
-        match PgPoolOptions::new()
-            .max_connections(5)
-            .acquire_timeout(Duration::from_secs(3))
-            .connect(&cli.database_url)
-            .await
-        {
-            Ok(pool) => {
-                info!("TimescaleDB connection pool established.");
-                db_pool = Some(pool);
-                break;
-            }
-            Err(e) => {
-                retries -= 1;
-                error!(
-                    "TimescaleDB connection failed. Retries left: {}. Error: {}",
-                    retries, e
-                );
-                if retries > 0 {
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-                }
-            }
-        }
-    }
-    let db_pool = db_pool.ok_or_else(|| anyhow::anyhow!("Failed to connect to database"))?;
+    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
 
     // Init Kafka Producer
-    let mut config = ClientConfig::new();
-    config
-        .set("bootstrap.servers", &cli.kafka_brokers)
-        .set("message.timeout.ms", "5000");
-
-    if let Some(ref proto) = cli.kafka_security_protocol {
-        config.set("security.protocol", proto);
-    }
-    if let Some(ref mech) = cli.kafka_sasl_mechanism {
-        config.set("sasl.mechanism", mech);
-    }
-    if let Some(ref user) = cli.kafka_sasl_username {
-        config.set("sasl.username", user);
-    }
-    if let Some(ref pass) = cli.kafka_sasl_password {
-        config.set("sasl.password", pass);
-    }
-    if let Some(ref ca) = cli.kafka_ssl_ca_location {
-        config.set("ssl.ca.location", ca);
-    }
+    let mut config = spaceops_models::kafka::KafkaConfigBuilder::new(cli.kafka_brokers.clone())
+        .with_security(
+            cli.kafka_security_protocol.clone(),
+            cli.kafka_sasl_mechanism.clone(),
+            cli.kafka_sasl_username.clone(),
+            cli.kafka_sasl_password.clone(),
+            cli.kafka_ssl_ca_location.clone(),
+        )
+        .build();
+    config.set("message.timeout.ms", "5000");
 
     let producer: FutureProducer = config.create()?;
     info!("Kafka producer successfully initialized.");

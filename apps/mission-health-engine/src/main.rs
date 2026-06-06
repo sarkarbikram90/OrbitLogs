@@ -2,11 +2,10 @@
 
 use clap::Parser;
 use prometheus::{Encoder, TextEncoder};
-use rdkafka::config::ClientConfig;
-use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
+use rdkafka::client::ClientContext;
+use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -15,6 +14,8 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
+use spaceops_models::db::establish_db_connection;
+use spaceops_models::kafka::KafkaConfigBuilder;
 
 mod db;
 mod health;
@@ -22,6 +23,30 @@ mod metrics;
 
 use health::{assess_satellite_health, GroundStationState};
 use spaceops_models::TelemetryRecord;
+
+struct MetricsContext;
+
+impl ClientContext for MetricsContext {
+    fn stats_raw(&self, statistics: &[u8]) {
+        if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
+            if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
+                for (topic_name, topic_val) in topics {
+                    if let Some(partitions) = topic_val.get("partitions").and_then(|p| p.as_object()) {
+                        for (partition_id, partition_val) in partitions {
+                            if let Some(lag) = partition_val.get("consumer_lag").and_then(|l| l.as_i64()) {
+                                metrics::KAFKA_CONSUMER_LAG
+                                    .with_label_values(&[topic_name, partition_id])
+                                    .set(lag as f64);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl ConsumerContext for MetricsContext {}
 
 #[derive(Parser, Debug, Clone)]
 #[command(name = "Open SpaceOps - Mission Health Engine")]
@@ -141,87 +166,41 @@ async fn main() -> Result<(), anyhow::Error> {
     tokio::spawn(start_metrics_server(cli.metrics_port));
 
     // Connect to database
-    info!("Connecting to TimescaleDB...");
-    let mut retries = 5;
-    let mut db_pool = None;
-    while retries > 0 {
-        match PgPoolOptions::new()
-            .max_connections(10)
-            .acquire_timeout(Duration::from_secs(3))
-            .connect(&cli.database_url)
-            .await
-        {
-            Ok(pool) => {
-                info!("TimescaleDB connection pool established.");
-                db_pool = Some(pool);
-                break;
-            }
-            Err(e) => {
-                retries -= 1;
-                error!(
-                    "TimescaleDB connection failed. Retries left: {}. Error: {}",
-                    retries, e
-                );
-                if retries > 0 {
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-                }
-            }
-        }
-    }
-    let db_pool = db_pool.ok_or_else(|| anyhow::anyhow!("Failed to connect to database"))?;
+    let db_pool = establish_db_connection(&cli.database_url, 10).await?;
 
     // Init Kafka Producer
-    let mut producer_config = ClientConfig::new();
-    producer_config
-        .set("bootstrap.servers", &cli.kafka_brokers)
-        .set("message.timeout.ms", "5000");
-
-    if let Some(ref proto) = cli.kafka_security_protocol {
-        producer_config.set("security.protocol", proto);
-    }
-    if let Some(ref mech) = cli.kafka_sasl_mechanism {
-        producer_config.set("sasl.mechanism", mech);
-    }
-    if let Some(ref user) = cli.kafka_sasl_username {
-        producer_config.set("sasl.username", user);
-    }
-    if let Some(ref pass) = cli.kafka_sasl_password {
-        producer_config.set("sasl.password", pass);
-    }
-    if let Some(ref ca) = cli.kafka_ssl_ca_location {
-        producer_config.set("ssl.ca.location", ca);
-    }
+    let producer_config = KafkaConfigBuilder::new(cli.kafka_brokers.clone())
+        .with_security(
+            cli.kafka_security_protocol.clone(),
+            cli.kafka_sasl_mechanism.clone(),
+            cli.kafka_sasl_username.clone(),
+            cli.kafka_sasl_password.clone(),
+            cli.kafka_ssl_ca_location.clone(),
+        )
+        .build();
 
     let producer: FutureProducer = producer_config.create()?;
     info!("Kafka producer successfully initialized.");
 
     // Init Kafka Consumer
-    let mut consumer_config = ClientConfig::new();
+    let mut consumer_config = KafkaConfigBuilder::new(cli.kafka_brokers.clone())
+        .with_security(
+            cli.kafka_security_protocol.clone(),
+            cli.kafka_sasl_mechanism.clone(),
+            cli.kafka_sasl_username.clone(),
+            cli.kafka_sasl_password.clone(),
+            cli.kafka_ssl_ca_location.clone(),
+        )
+        .build();
     consumer_config
-        .set("bootstrap.servers", &cli.kafka_brokers)
         .set("group.id", &cli.group_id)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "6000")
         .set("enable.auto.commit", "false")
-        .set("auto.offset.reset", "latest");
+        .set("auto.offset.reset", "latest")
+        .set("statistics.interval.ms", "1000");
 
-    if let Some(ref proto) = cli.kafka_security_protocol {
-        consumer_config.set("security.protocol", proto);
-    }
-    if let Some(ref mech) = cli.kafka_sasl_mechanism {
-        consumer_config.set("sasl.mechanism", mech);
-    }
-    if let Some(ref user) = cli.kafka_sasl_username {
-        consumer_config.set("sasl.username", user);
-    }
-    if let Some(ref pass) = cli.kafka_sasl_password {
-        consumer_config.set("sasl.password", pass);
-    }
-    if let Some(ref ca) = cli.kafka_ssl_ca_location {
-        consumer_config.set("ssl.ca.location", ca);
-    }
-
-    let consumer: StreamConsumer = consumer_config.create()?;
+    let consumer: StreamConsumer<MetricsContext> = consumer_config.create_with_context(MetricsContext)?;
     consumer.subscribe(&[&cli.processed_topic])?;
     info!(
         "Kafka consumer subscribed to topic '{}'",
@@ -257,9 +236,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
     tokio::spawn(async move {
         info!("Starting ground station health consumer for mission-health-engine...");
-        let mut bg_config = ClientConfig::new();
+        let mut bg_config = KafkaConfigBuilder::new(brokers)
+            .with_security(
+                security_protocol,
+                sasl_mechanism,
+                sasl_username,
+                sasl_password,
+                ssl_ca_location,
+            )
+            .build();
         bg_config
-            .set("bootstrap.servers", &brokers)
             .set(
                 "group.id",
                 &format!("mission-health-engine-gs-group-{}", uuid::Uuid::new_v4()),
@@ -267,25 +253,10 @@ async fn main() -> Result<(), anyhow::Error> {
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true")
-            .set("auto.offset.reset", "latest");
+            .set("auto.offset.reset", "latest")
+            .set("statistics.interval.ms", "1000");
 
-        if let Some(ref proto) = security_protocol {
-            bg_config.set("security.protocol", proto);
-        }
-        if let Some(ref mech) = sasl_mechanism {
-            bg_config.set("sasl.mechanism", mech);
-        }
-        if let Some(ref user) = sasl_username {
-            bg_config.set("sasl.username", user);
-        }
-        if let Some(ref pass) = sasl_password {
-            bg_config.set("sasl.password", pass);
-        }
-        if let Some(ref ca) = ssl_ca_location {
-            bg_config.set("ssl.ca.location", ca);
-        }
-
-        let consumer_res: Result<StreamConsumer, _> = bg_config.create();
+        let consumer_res: Result<StreamConsumer<MetricsContext>, _> = bg_config.create_with_context(MetricsContext);
 
         let consumer = match consumer_res {
             Ok(c) => c,

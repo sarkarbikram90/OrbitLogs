@@ -343,10 +343,38 @@ pub async fn metrics_endpoint() -> impl IntoResponse {
         .into_response()
 }
 
+#[derive(serde::Deserialize)]
+pub struct WsParams {
+    token: Option<String>,
+}
+
 pub async fn ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
+    axum::extract::Query(params): axum::extract::Query<WsParams>,
+    headers: HeaderMap,
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
+    let mut authenticated = false;
+
+    if let Some(ref tok) = params.token {
+        if tok == &state.api_key {
+            authenticated = true;
+        }
+    }
+
+    if !authenticated {
+        if let Some(auth_val) = headers.get("Authorization").and_then(|h| h.to_str().ok()) {
+            let token = auth_val.strip_prefix("Bearer ").unwrap_or(auth_val);
+            if token == state.api_key {
+                authenticated = true;
+            }
+        }
+    }
+
+    if !authenticated {
+        return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
+    }
+
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 

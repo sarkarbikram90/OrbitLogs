@@ -83,11 +83,9 @@ jobs:
         uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
       - name: Run license and advisory checks
         uses: EmbarkStudios/cargo-deny-action@v2
-        continue-on-error: true
 
   container-builds:
     name: Container Build Verification

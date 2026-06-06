@@ -17,9 +17,34 @@ mod scenario;
 use config::Config;
 use generator::{GroundStationState, SatelliteSimulator};
 use lazy_static::lazy_static;
-use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
+use rdkafka::client::ClientContext;
+use rdkafka::consumer::ConsumerContext;
+
+struct MetricsContext;
+
+impl ClientContext for MetricsContext {
+    fn stats_raw(&self, statistics: &[u8]) {
+        if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
+            if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
+                for (topic_name, topic_val) in topics {
+                    if let Some(partitions) = topic_val.get("partitions").and_then(|p| p.as_object()) {
+                        for (partition_id, partition_val) in partitions {
+                            if let Some(lag) = partition_val.get("consumer_lag").and_then(|l| l.as_i64()) {
+                                KAFKA_CONSUMER_LAG
+                                    .with_label_values(&[topic_name, partition_id])
+                                    .set(lag as f64);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl ConsumerContext for MetricsContext {}
 
 fn get_linked_ground_station(satellite_id: &str) -> String {
     if let Some(num_str) = satellite_id.strip_prefix("SAT-") {
@@ -48,6 +73,14 @@ lazy_static! {
         "Total failed HTTP posts to collector"
     )
     .unwrap();
+    pub static ref KAFKA_CONSUMER_LAG: prometheus::GaugeVec = prometheus::GaugeVec::new(
+        prometheus::Opts::new(
+            "kafka_consumer_lag",
+            "Lag of the Kafka consumer group (offsets behind high watermark)"
+        ),
+        &["topic", "partition"]
+    )
+    .unwrap();
 }
 
 fn register_metrics() {
@@ -59,6 +92,9 @@ fn register_metrics() {
         .unwrap();
     REGISTRY
         .register(Box::new(TELEMETRY_POST_FAILURE_TOTAL.clone()))
+        .unwrap();
+    REGISTRY
+        .register(Box::new(KAFKA_CONSUMER_LAG.clone()))
         .unwrap();
 }
 
@@ -148,9 +184,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let consumer_handle = tokio::spawn(async move {
         info!("Starting background groundstation.health consumer...");
-        let mut client_config = ClientConfig::new();
+        let mut client_config = spaceops_models::kafka::KafkaConfigBuilder::new(brokers)
+            .with_security(
+                security_protocol,
+                sasl_mechanism,
+                sasl_username,
+                sasl_password,
+                ssl_ca_location,
+            )
+            .build();
         client_config
-            .set("bootstrap.servers", &brokers)
             .set(
                 "group.id",
                 &format!("telemetry-simulator-gs-group-{}", uuid::Uuid::new_v4()),
@@ -158,25 +201,10 @@ async fn main() -> Result<(), anyhow::Error> {
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true")
-            .set("auto.offset.reset", "latest");
+            .set("auto.offset.reset", "latest")
+            .set("statistics.interval.ms", "1000");
 
-        if let Some(ref proto) = security_protocol {
-            client_config.set("security.protocol", proto);
-        }
-        if let Some(ref mech) = sasl_mechanism {
-            client_config.set("sasl.mechanism", mech);
-        }
-        if let Some(ref user) = sasl_username {
-            client_config.set("sasl.username", user);
-        }
-        if let Some(ref pass) = sasl_password {
-            client_config.set("sasl.password", pass);
-        }
-        if let Some(ref ca) = ssl_ca_location {
-            client_config.set("ssl.ca.location", ca);
-        }
-
-        let consumer_res: Result<StreamConsumer, _> = client_config.create();
+        let consumer_res: Result<StreamConsumer<MetricsContext>, _> = client_config.create_with_context(MetricsContext);
 
         let consumer = match consumer_res {
             Ok(c) => c,

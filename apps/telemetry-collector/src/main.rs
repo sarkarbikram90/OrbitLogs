@@ -1,6 +1,4 @@
 use clap::{Parser, Subcommand};
-use sqlx::postgres::PgPoolOptions;
-use std::time::Duration;
 use tracing::{error, info};
 
 use telemetry_collector::{
@@ -151,33 +149,13 @@ async fn main() -> Result<(), anyhow::Error> {
     let db_pool = match run_mode {
         Commands::RunConsumer | Commands::RunAll | Commands::RunServer => {
             info!("Configuring database connection pool...");
-            let mut retries = 5;
-            let mut pool = None;
-            while retries > 0 {
-                match PgPoolOptions::new()
-                    .max_connections(20)
-                    .acquire_timeout(Duration::from_secs(3))
-                    .connect(&cli.database_url)
-                    .await
-                {
-                    Ok(p) => {
-                        info!("TimescaleDB Connection pool established successfully.");
-                        pool = Some(p);
-                        break;
-                    }
-                    Err(e) => {
-                        retries -= 1;
-                        error!(
-                            "Failed to connect to TimescaleDB. Retries remaining: {}. Error: {}",
-                            retries, e
-                        );
-                        if retries > 0 {
-                            tokio::time::sleep(Duration::from_secs(3)).await;
-                        }
-                    }
+            match spaceops_models::db::establish_db_connection(&cli.database_url, 20).await {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    error!("Fatal: Failed to connect to TimescaleDB connection: {}", e);
+                    None
                 }
             }
-            pool
         }
     };
 
