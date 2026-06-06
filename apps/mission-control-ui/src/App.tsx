@@ -84,7 +84,7 @@ export default function App() {
       try {
         const satsResp = await fetch(`${BACKEND_REPLAY_URL}/api/satellites`);
         if (satsResp.ok) {
-          const satsData = await satsResp.json();
+          const satsData = await satsResp.json() as SatelliteHealth[];
           // Update satellites health assessments
           if (satsData.length > 0) {
             setSatellites(prev =>
@@ -100,13 +100,13 @@ export default function App() {
 
         const gsResp = await fetch(`${BACKEND_REPLAY_URL}/api/ground-stations`);
         if (gsResp.ok) {
-          const gsData = await gsResp.json();
+          const gsData = await gsResp.json() as GroundStation[];
           setGroundStations(gsData);
         }
 
         const evResp = await fetch(`${BACKEND_REPLAY_URL}/api/events`);
         if (evResp.ok) {
-          const evData = await evResp.json();
+          const evData = await evResp.json() as EventLog[];
           setEvents(evData);
         }
       } catch (err) {
@@ -128,7 +128,7 @@ export default function App() {
       
       ws.onmessage = (event) => {
         try {
-          const rec = JSON.parse(event.data);
+          const rec = JSON.parse(event.data) as TelemetryRecord;
           // If the telemetry matches the selected satellite, update the telemetry panel
           if (rec.satellite_id === selectedSatId) {
             setTelemetry(rec);
@@ -221,7 +221,7 @@ export default function App() {
 
     sse.addEventListener('state', (e: MessageEvent) => {
       try {
-        const sessionState = JSON.parse(e.data);
+        const sessionState = JSON.parse(e.data) as ReplaySession;
         setReplaySession(sessionState);
       } catch (err) {
         console.error('Error parsing session state SSE:', err);
@@ -230,7 +230,7 @@ export default function App() {
 
     sse.addEventListener('telemetry', (e: MessageEvent) => {
       try {
-        const rec = JSON.parse(e.data);
+        const rec = JSON.parse(e.data) as TelemetryRecord;
         if (rec.satellite_id === selectedSatId) {
           setTelemetry(rec);
         }
@@ -241,7 +241,7 @@ export default function App() {
 
     sse.addEventListener('satellite_health', (e: MessageEvent) => {
       try {
-        const hRec = JSON.parse(e.data);
+        const hRec = JSON.parse(e.data) as SatelliteHealth;
         
         // Update satellites array
         setSatellites(prev =>
@@ -263,7 +263,7 @@ export default function App() {
 
     sse.addEventListener('ground_station_health', (e: MessageEvent) => {
       try {
-        const gsRec = JSON.parse(e.data);
+        const gsRec = JSON.parse(e.data) as GroundStation;
         setGroundStations(prev => {
           const index = prev.findIndex(g => g.station_id === gsRec.station_id);
           if (index >= 0) {
@@ -281,7 +281,7 @@ export default function App() {
 
     sse.addEventListener('event', (e: MessageEvent) => {
       try {
-        const evRec = JSON.parse(e.data);
+        const evRec = JSON.parse(e.data) as EventLog;
         setEvents(prev => [evRec, ...prev].slice(0, 100)); // Cap at 100 elements
       } catch (err) {
         console.error('Error parsing event SSE:', err);
@@ -323,7 +323,7 @@ export default function App() {
       });
 
       if (resp.ok) {
-        const session = await resp.json();
+        const session = await resp.json() as ReplaySession;
         setReplaySession(session);
         setEvents([]); // Reset logs
         console.log('Successfully initialized replay session:', session.session_id);
@@ -355,7 +355,7 @@ export default function App() {
       );
 
       if (resp.ok) {
-        const updated = await resp.json();
+        const updated = await resp.json() as ReplaySession;
         setReplaySession(updated);
         if (action === 'stop') {
           // If reset, clear diagnostic screens

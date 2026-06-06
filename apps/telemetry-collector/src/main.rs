@@ -84,12 +84,36 @@ enum Commands {
     RunAll,
 }
 
+fn load_secret(env_var: &str) -> Option<String> {
+    if let Ok(val) = std::env::var(env_var) {
+        if !val.trim().is_empty() {
+            return Some(val.trim().to_string());
+        }
+    }
+    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
+        if let Ok(content) = std::fs::read_to_string(file_path) {
+            return Some(content.trim().to_string());
+        }
+    }
+    None
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // Load local .env
     let _ = dotenvy::dotenv();
 
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+    if let Some(val) = load_secret("DATABASE_URL") {
+        cli.database_url = val;
+    }
+    if let Some(val) = load_secret("API_KEY") {
+        cli.api_key = val;
+    }
+    if let Some(val) = load_secret("KAFKA_SASL_PASSWORD") {
+        cli.kafka_sasl_password = Some(val);
+    }
+
 
     // Start OpenTelemetry & tracing
     if let Err(e) = telemetry::init_telemetry("open-spaceops-collector", &cli.otel_endpoint) {

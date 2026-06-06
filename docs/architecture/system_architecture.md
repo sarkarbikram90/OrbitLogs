@@ -98,4 +98,5 @@ If the Kafka broker cannot keep up with simulator generation speeds:
 - **Memory Efficiency**: Rust processes require <20MB of resident RAM, allowing massive scale-out deployment in resource-constrained edge gateways.
 
 ### Why key-based partitioning in Kafka?
-- Using the `satellite_id` as the message key guarantees that all telemetry for a given satellite will land on the **same partition**. Since Kafka guarantees order within a partition, this ensures that the database ingester parses and inserts telemetry for each satellite in strict chronological sequence, preventing time-drift anomalies.
+- Using `{mission_id}:{satellite_id}` as the message key guarantees that all telemetry for a given satellite in a specific mission will land on the **same partition**. Since Kafka guarantees order within a partition, this ensures that the database ingester parses and inserts telemetry for each satellite in strict chronological sequence, preventing time-drift anomalies. Furthermore, including the `mission_id` in the partition key enables scaling and multi-mission fleet isolation inside the same Kafka cluster, allowing consumers to filter and route by mission or isolate processors.
+

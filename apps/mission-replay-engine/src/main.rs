@@ -50,36 +50,10 @@ struct Cli {
     cors_allowed_origin: String,
 }
 
-struct SessionState {
-    session_id: uuid::Uuid,
-    satellite_id: Option<String>,
-    start_time: chrono::DateTime<chrono::Utc>,
-    end_time: chrono::DateTime<chrono::Utc>,
-    current_position: chrono::DateTime<chrono::Utc>,
-    speed: f32,
-    status: String,
-    last_seek_position: Option<chrono::DateTime<chrono::Utc>>,
-}
 
-impl From<&SessionState> for db::ReplaySession {
-    fn from(s: &SessionState) -> Self {
-        db::ReplaySession {
-            session_id: s.session_id,
-            satellite_id: s.satellite_id.clone(),
-            start_time: s.start_time,
-            end_time: s.end_time,
-            current_position: s.current_position,
-            speed: s.speed,
-            status: s.status.clone(),
-            created_at: None,
-            updated_at: None,
-        }
-    }
-}
 
 struct AppState {
     db_pool: sqlx::PgPool,
-    sessions: tokio::sync::Mutex<HashMap<uuid::Uuid, SessionState>>,
     api_key: String,
     cors_allowed_origin: String,
 }
@@ -126,6 +100,20 @@ fn is_valid_speed(speed: f32) -> bool {
     allowed.iter().any(|&s| (s - speed).abs() < f32::EPSILON)
 }
 
+fn load_secret(env_var: &str) -> Option<String> {
+    if let Ok(val) = std::env::var(env_var) {
+        if !val.trim().is_empty() {
+            return Some(val.trim().to_string());
+        }
+    }
+    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
+        if let Ok(content) = std::fs::read_to_string(file_path) {
+            return Some(content.trim().to_string());
+        }
+    }
+    None
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // Load local .env
@@ -136,7 +124,14 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+    if let Some(val) = load_secret("DATABASE_URL") {
+        cli.database_url = val;
+    }
+    if let Some(val) = load_secret("API_KEY") {
+        cli.api_key = val;
+    }
+
     info!(
         "Starting Mission Replay Engine with configuration: {:?}",
         cli
@@ -177,7 +172,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let state = Arc::new(AppState {
         db_pool,
-        sessions: tokio::sync::Mutex::new(HashMap::new()),
         api_key: cli.api_key,
         cors_allowed_origin: cli.cors_allowed_origin,
     });
@@ -282,20 +276,7 @@ async fn create_replay(
         return api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database failure");
     }
 
-    let mut map = state.sessions.lock().await;
-    map.insert(
-        session_id,
-        SessionState {
-            session_id,
-            satellite_id: payload.satellite_id,
-            start_time: payload.start_time,
-            end_time: payload.end_time,
-            current_position: payload.start_time,
-            speed,
-            status: "PAUSED".to_string(),
-            last_seek_position: None,
-        },
-    );
+
 
     (StatusCode::CREATED, Json(session)).into_response()
 }
@@ -309,29 +290,9 @@ async fn get_replay(
         Err(_) => return api_error(StatusCode::BAD_REQUEST, "Invalid session ID"),
     };
 
-    // Try in-memory first
-    let mut map = state.sessions.lock().await;
-    if let Some(s) = map.get(&session_id) {
-        return (StatusCode::OK, Json(db::ReplaySession::from(s))).into_response();
-    }
-
     // Try DB
     match db::get_replay_session(&state.db_pool, session_id).await {
         Ok(Some(session)) => {
-            // Restore in memory
-            map.insert(
-                session_id,
-                SessionState {
-                    session_id: session.session_id,
-                    satellite_id: session.satellite_id.clone(),
-                    start_time: session.start_time,
-                    end_time: session.end_time,
-                    current_position: session.current_position,
-                    speed: session.speed,
-                    status: session.status.clone(),
-                    last_seek_position: None,
-                },
-            );
             (StatusCode::OK, Json(session)).into_response()
         }
         Ok(None) => api_error(StatusCode::NOT_FOUND, "Replay session not found"),
@@ -361,107 +322,74 @@ async fn control_replay(
         );
     }
 
-    // Wrap state query and modification inside a separate scope to release lock quickly
-    let result = {
-        let mut map = state.sessions.lock().await;
-        let session = match map.get_mut(&session_id) {
-            Some(s) => s,
-            None => {
-                // Try reading from DB
-                match db::get_replay_session(&state.db_pool, session_id).await {
-                    Ok(Some(s)) => {
-                        map.insert(
-                            session_id,
-                            SessionState {
-                                session_id: s.session_id,
-                                satellite_id: s.satellite_id.clone(),
-                                start_time: s.start_time,
-                                end_time: s.end_time,
-                                current_position: s.current_position,
-                                speed: s.speed,
-                                status: s.status.clone(),
-                                last_seek_position: None,
-                            },
-                        );
-                        map.get_mut(&session_id).unwrap()
-                    }
-                    Ok(None) => {
-                        return api_error(StatusCode::NOT_FOUND, "Replay session not found")
-                    }
-                    Err(e) => {
-                        error!("Database error fetching session: {}", e);
-                        return api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error");
-                    }
-                }
-            }
-        };
-
-        metrics::REPLAY_CONTROLS.with_label_values(&[&action]).inc();
-
-        match action.as_str() {
-            "play" => {
-                session.status = "PLAYING".to_string();
-            }
-            "pause" => {
-                session.status = "PAUSED".to_string();
-            }
-            "stop" => {
-                session.status = "STOPPED".to_string();
-            }
-            "seek" => {
-                let pos = match payload.position {
-                    Some(p) => p,
-                    None => {
-                        return api_error(
-                            StatusCode::BAD_REQUEST,
-                            "position is required for seek action",
-                        )
-                    }
-                };
-                if pos < session.start_time || pos > session.end_time {
-                    return api_error(
-                        StatusCode::BAD_REQUEST,
-                        "seek position must be within session start and end times",
-                    );
-                }
-                session.current_position = pos;
-                session.last_seek_position = Some(pos);
-            }
-            "speed" => {
-                let speed = match payload.speed {
-                    Some(s) => s,
-                    None => {
-                        return api_error(
-                            StatusCode::BAD_REQUEST,
-                            "speed is required for speed action",
-                        )
-                    }
-                };
-                if !is_valid_speed(speed) {
-                    return api_error(
-                        StatusCode::BAD_REQUEST,
-                        "Invalid speed. Must be 1.0, 5.0, 10.0, 50.0, or 100.0",
-                    );
-                }
-                session.speed = speed;
-            }
-            _ => unreachable!(),
+    // Fetch session from DB
+    let mut session = match db::get_replay_session(&state.db_pool, session_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => return api_error(StatusCode::NOT_FOUND, "Replay session not found"),
+        Err(e) => {
+            error!("Database error fetching session: {}", e);
+            return api_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error");
         }
-
-        let db_session = db::ReplaySession::from(&*session);
-        let playing_count = map.values().filter(|s| s.status == "PLAYING").count();
-        (db_session, playing_count)
     };
 
-    let (db_session, playing_count) = result;
+    metrics::REPLAY_CONTROLS.with_label_values(&[&action]).inc();
 
-    // Save changes to DB outside the lock
+    match action.as_str() {
+        "play" => {
+            session.status = "PLAYING".to_string();
+        }
+        "pause" => {
+            session.status = "PAUSED".to_string();
+        }
+        "stop" => {
+            session.status = "STOPPED".to_string();
+        }
+        "seek" => {
+            let pos = match payload.position {
+                Some(p) => p,
+                None => {
+                    return api_error(
+                        StatusCode::BAD_REQUEST,
+                        "position is required for seek action",
+                    )
+                }
+            };
+            if pos < session.start_time || pos > session.end_time {
+                return api_error(
+                    StatusCode::BAD_REQUEST,
+                    "seek position must be within session start and end times",
+                );
+            }
+            session.current_position = pos;
+        }
+        "speed" => {
+            let speed = match payload.speed {
+                Some(s) => s,
+                None => {
+                    return api_error(
+                        StatusCode::BAD_REQUEST,
+                        "speed is required for speed action",
+                    )
+                }
+            };
+            if !is_valid_speed(speed) {
+                return api_error(
+                    StatusCode::BAD_REQUEST,
+                    "Invalid speed. Must be 1.0, 5.0, 10.0, 50.0, or 100.0",
+                );
+            }
+            session.speed = speed;
+        }
+        _ => unreachable!(),
+    }
+
+    // Save changes to DB
     if let Err(e) = db::update_replay_session(
         &state.db_pool,
-        db_session.session_id,
-        db_session.current_position,
-        &db_session.status,
-        db_session.speed,
+        session.session_id,
+        session.current_position,
+        &session.status,
+        session.speed,
     )
     .await
     {
@@ -472,10 +400,22 @@ async fn control_replay(
         );
     }
 
+    // Query active playing count from DB
+    let playing_count: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'")
+        .fetch_one(&state.db_pool)
+        .await
+    {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Database error counting playing sessions: {}", e);
+            0
+        }
+    };
+
     // Set the metrics gauge
     metrics::ACTIVE_REPLAYS.set(playing_count as f64);
 
-    (StatusCode::OK, Json(db_session)).into_response()
+    (StatusCode::OK, Json(session)).into_response()
 }
 
 async fn stream_replay(
@@ -487,63 +427,30 @@ async fn stream_replay(
         Err(_) => return Err(api_error(StatusCode::BAD_REQUEST, "Invalid session ID")),
     };
 
-    // Verify session exists in memory, or restore it
-    let exists = {
-        let map = state.sessions.lock().await;
-        map.contains_key(&session_id)
-    };
-
-    if !exists {
-        match db::get_replay_session(&state.db_pool, session_id).await {
-            Ok(Some(s)) => {
-                let mut map = state.sessions.lock().await;
-                map.insert(
-                    session_id,
-                    SessionState {
-                        session_id: s.session_id,
-                        satellite_id: s.satellite_id.clone(),
-                        start_time: s.start_time,
-                        end_time: s.end_time,
-                        current_position: s.current_position,
-                        speed: s.speed,
-                        status: s.status.clone(),
-                        last_seek_position: None,
-                    },
-                );
-            }
-            Ok(None) => return Err(api_error(StatusCode::NOT_FOUND, "Replay session not found")),
-            Err(e) => {
-                error!("Database error fetching session: {}", e);
-                return Err(api_error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Database error",
-                ));
-            }
+    // Verify session exists in DB
+    let session = match db::get_replay_session(&state.db_pool, session_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => return Err(api_error(StatusCode::NOT_FOUND, "Replay session not found")),
+        Err(e) => {
+            error!("Database error fetching session: {}", e);
+            return Err(api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Database error",
+            ));
         }
-    }
+    };
 
     let (tx, rx) = mpsc::channel::<Result<Event, Infallible>>(100);
     let state_clone = Arc::clone(&state);
 
     tokio::spawn(async move {
-        // Load initial session state
-        let (satellite_id, start_time, end_time) = {
-            let map = state_clone.sessions.lock().await;
-            if let Some(s) = map.get(&session_id) {
-                (s.satellite_id.clone(), s.start_time, s.end_time)
-            } else {
-                return;
-            }
-        };
-
-        let mut local_position = {
-            let map = state_clone.sessions.lock().await;
-            if let Some(s) = map.get(&session_id) {
-                s.current_position
-            } else {
-                return;
-            }
-        };
+        let satellite_id = session.satellite_id.clone();
+        let start_time = session.start_time;
+        let end_time = session.end_time;
+        let mut local_position = session.current_position;
+        let mut last_known_position = session.current_position;
+        let mut last_known_status = session.status.clone();
+        let mut last_known_speed = session.speed;
 
         let mut last_tick = tokio::time::Instant::now();
         let tick_duration = Duration::from_millis(200);
@@ -553,73 +460,37 @@ async fn stream_replay(
         loop {
             tokio::time::sleep(tick_duration).await;
 
-            let (current_status, current_speed, seek_to, play_next, stop_at) = {
-                let mut map = state_clone.sessions.lock().await;
-                let session = match map.get_mut(&session_id) {
-                    Some(s) => s,
-                    None => {
-                        info!(
-                            "Session {} no longer in memory, exiting stream loop",
-                            session_id
-                        );
-                        break;
-                    }
-                };
-
-                let current_status = session.status.clone();
-                let current_speed = session.speed;
-
-                let mut seek_to = None;
-                let mut play_next = None;
-                let mut stop_at = None;
-
-                if current_status == "STOPPED" {
-                    stop_at = Some(local_position);
-                } else if let Some(seek_pos) = session.last_seek_position.take() {
-                    seek_to = Some(seek_pos);
-                    session.current_position = seek_pos;
-                } else if current_status == "PLAYING" {
-                    let now = tokio::time::Instant::now();
-                    let elapsed_real = now.duration_since(last_tick);
-                    last_tick = now;
-
-                    let elapsed_replay_secs = elapsed_real.as_secs_f32() * current_speed;
-                    let start_query = local_position;
-                    let candidate_end = local_position
-                        + chrono::Duration::milliseconds((elapsed_replay_secs * 1000.0) as i64);
-
-                    if candidate_end >= end_time {
-                        stop_at = Some(end_time);
-                        session.status = "STOPPED".to_string();
-                        session.current_position = end_time;
-                    } else {
-                        play_next = Some((start_query, candidate_end));
-                        session.current_position = candidate_end;
-                    }
-                } else {
-                    // PAUSED
-                    last_tick = tokio::time::Instant::now();
+            // Fetch latest session status from DB
+            let current_session = match db::get_replay_session(&state_clone.db_pool, session_id).await {
+                Ok(Some(s)) => s,
+                Ok(None) => {
+                    info!("Session {} not found in DB, exiting stream loop", session_id);
+                    break;
                 }
-
-                (current_status, current_speed, seek_to, play_next, stop_at)
+                Err(e) => {
+                    error!("Database error fetching session {} state: {}", session_id, e);
+                    continue;
+                }
             };
 
-            // Execute actions outside the lock!
-            if let Some(seek_pos) = seek_to {
-                info!("Seek requested to {} in session {}", seek_pos, session_id);
-                local_position = seek_pos;
+            let current_status = current_session.status.clone();
+            let current_speed = current_session.speed;
+            let db_position = current_session.current_position;
 
-                // Sync to DB
-                let _ = db::update_replay_session(
-                    &state_clone.db_pool,
-                    session_id,
-                    local_position,
-                    &current_status,
-                    current_speed,
-                )
-                .await;
+            let mut seek_to = None;
+            let mut play_next = None;
+            let mut stop_at = None;
 
-                // Send state event
+            if db_position != last_known_position {
+                // External seek request detected!
+                seek_to = Some(db_position);
+                local_position = db_position;
+                last_known_position = db_position;
+            } else if current_status != last_known_status || current_speed != last_known_speed {
+                last_known_status = current_status.clone();
+                last_known_speed = current_speed;
+
+                // Notify client of status change immediately
                 let sse_session = db::ReplaySession {
                     session_id,
                     satellite_id: satellite_id.clone(),
@@ -639,8 +510,53 @@ async fn stream_replay(
                 {
                     break;
                 }
+            }
 
-                // Query and send state snapshot at seek position (using 1 second window)
+            if current_status == "STOPPED" {
+                stop_at = Some(local_position);
+            } else if seek_to.is_none() && current_status == "PLAYING" {
+                let now = tokio::time::Instant::now();
+                let elapsed_real = now.duration_since(last_tick);
+                last_tick = now;
+
+                let elapsed_replay_secs = elapsed_real.as_secs_f32() * current_speed;
+                let start_query = local_position;
+                let candidate_end = local_position
+                    + chrono::Duration::milliseconds((elapsed_replay_secs * 1000.0) as i64);
+
+                if candidate_end >= end_time {
+                    stop_at = Some(end_time);
+                } else {
+                    play_next = Some((start_query, candidate_end));
+                }
+            } else {
+                // PAUSED
+                last_tick = tokio::time::Instant::now();
+            }
+
+            if let Some(seek_pos) = seek_to {
+                info!("Seek detected to {} in session {}", seek_pos, session_id);
+                let sse_session = db::ReplaySession {
+                    session_id,
+                    satellite_id: satellite_id.clone(),
+                    start_time,
+                    end_time,
+                    current_position: seek_pos,
+                    speed: current_speed,
+                    status: current_status.clone(),
+                    created_at: None,
+                    updated_at: None,
+                };
+                let state_json = serde_json::to_string(&sse_session).unwrap_or_default();
+                if tx
+                    .send(Ok(Event::default().event("state").data(state_json)))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+
+                // Query and send state snapshot at seek position (1s window)
                 let start_query = seek_pos - chrono::Duration::seconds(1);
                 let end_query = seek_pos;
                 let _ = query_and_send_events(
@@ -658,12 +574,8 @@ async fn stream_replay(
             }
 
             if let Some(stop_pos) = stop_at {
-                info!(
-                    "Session {} status is STOPPED, exiting stream loop",
-                    session_id
-                );
+                info!("Session {} status is STOPPED, exiting stream loop", session_id);
 
-                // Sync to DB
                 let _ = db::update_replay_session(
                     &state_clone.db_pool,
                     session_id,
@@ -673,7 +585,6 @@ async fn stream_replay(
                 )
                 .await;
 
-                // Send final state
                 let sse_session = db::ReplaySession {
                     session_id,
                     satellite_id: satellite_id.clone(),
@@ -690,14 +601,15 @@ async fn stream_replay(
                     .send(Ok(Event::default().event("state").data(state_json)))
                     .await;
 
-                // Sync active sessions gauge
-                let playing_count = {
-                    let map = state_clone.sessions.lock().await;
-                    map.values().filter(|s| s.status == "PLAYING").count()
+                let playing_count: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'")
+                    .fetch_one(&state_clone.db_pool)
+                    .await
+                {
+                    Ok(c) => c,
+                    Err(_) => 0,
                 };
                 metrics::ACTIVE_REPLAYS.set(playing_count as f64);
 
-                // Send final batch of events if it was playing
                 if local_position < stop_pos {
                     let _ = query_and_send_events(
                         &state_clone.db_pool,
@@ -713,7 +625,6 @@ async fn stream_replay(
             }
 
             if let Some((start_query, end_query)) = play_next {
-                // Sync to DB
                 let _ = db::update_replay_session(
                     &state_clone.db_pool,
                     session_id,
@@ -723,7 +634,6 @@ async fn stream_replay(
                 )
                 .await;
 
-                // Send state event
                 let sse_session = db::ReplaySession {
                     session_id,
                     satellite_id: satellite_id.clone(),
@@ -744,7 +654,6 @@ async fn stream_replay(
                     break;
                 }
 
-                // Query and send events
                 if let Err(e) = query_and_send_events(
                     &state_clone.db_pool,
                     satellite_id.as_deref(),
@@ -760,8 +669,9 @@ async fn stream_replay(
                 }
 
                 local_position = end_query;
+                last_known_position = end_query;
             } else {
-                // Status is PAUSED, send heartbeat state
+                // Heartbeat state
                 let sse_session = db::ReplaySession {
                     session_id,
                     satellite_id: satellite_id.clone(),
@@ -1025,28 +935,6 @@ mod tests {
         assert!(!is_valid_speed(120.0));
     }
 
-    #[test]
-    fn test_replay_session_mapping() {
-        let state = SessionState {
-            session_id: Uuid::new_v4(),
-            satellite_id: Some("SAT-0001".to_string()),
-            start_time: Utc::now(),
-            end_time: Utc::now() + chrono::Duration::hours(2),
-            current_position: Utc::now() + chrono::Duration::hours(1),
-            speed: 5.0,
-            status: "PLAYING".to_string(),
-            last_seek_position: None,
-        };
-
-        let session = db::ReplaySession::from(&state);
-        assert_eq!(session.session_id, state.session_id);
-        assert_eq!(session.satellite_id, state.satellite_id);
-        assert_eq!(session.start_time, state.start_time);
-        assert_eq!(session.end_time, state.end_time);
-        assert_eq!(session.current_position, state.current_position);
-        assert_eq!(session.speed, state.speed);
-        assert_eq!(session.status, state.status);
-    }
 
     #[test]
     fn test_db_satellite_health_mapping() {
@@ -1084,7 +972,6 @@ mod tests {
 
         let state = Arc::new(AppState {
             db_pool: sqlx::PgPool::connect_lazy("postgres://localhost/test").unwrap(),
-            sessions: tokio::sync::Mutex::new(HashMap::new()),
             api_key: "secret-key".to_string(),
             cors_allowed_origin: "http://localhost:3000".to_string(),
         });

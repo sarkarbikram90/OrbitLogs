@@ -9,3 +9,7 @@ serde = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 spaceops-models = { workspace = true }
+
+[dev-dependencies]
+proptest = "1.4.0"
+

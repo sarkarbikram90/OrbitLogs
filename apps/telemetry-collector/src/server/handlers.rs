@@ -124,9 +124,10 @@ pub async fn ingest_telemetry(
         })
         .to_string();
 
+        let key = format!("{}:{}", payload.mission_id, sat_id);
         if let Err(e) = state
             .kafka_producer
-            .publish(&state.invalid_topic, &sat_id, &serialized_err)
+            .publish(&state.invalid_topic, &key, &serialized_err)
             .await
         {
             error!(
@@ -168,9 +169,10 @@ pub async fn ingest_telemetry(
 
     // Publish to Kafka telemetry.raw
     let publish_start = Instant::now();
+    let key = format!("{}:{}", payload.mission_id, sat_id);
     match state
         .kafka_producer
-        .publish(&state.raw_topic, &sat_id, &serialized_payload)
+        .publish(&state.raw_topic, &key, &serialized_payload)
         .await
     {
         Ok(_) => {

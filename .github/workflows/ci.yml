@@ -135,3 +135,71 @@ jobs:
       - name: Build production bundle
         working-directory: apps/mission-control-ui
         run: npm run build
+
+  e2e-smoke-test:
+    name: End-to-End Smoke Test
+    runs-on: ubuntu-latest
+    needs: [container-builds, rust-ci]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Docker secrets directory and files
+        run: |
+          mkdir -p deployments/docker-compose/secrets
+          echo "postgrespassword" > deployments/docker-compose/secrets/postgres_password.txt
+          echo "kafkasaslpassword" > deployments/docker-compose/secrets/kafka_sasl_password.txt
+          echo "default_api_key" > deployments/docker-compose/secrets/api_key.txt
+          echo "admin" > deployments/docker-compose/secrets/grafana_admin_password.txt
+          echo "postgres://postgres:postgrespassword@timescaledb:5432/spaceops" > deployments/docker-compose/secrets/database_url.txt
+
+      - name: Build and start the docker compose stack
+        run: |
+          docker compose -f deployments/docker-compose/docker-compose.yml up -d --build
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for collector /health..."
+          for i in {1..60}; do
+            if curl -s -f http://localhost:8080/health > /dev/null; then
+              echo "Collector is up!"
+              break
+            fi
+            echo "Still waiting for collector..."
+            sleep 2
+          done
+
+          echo "Waiting for replay-engine /health..."
+          for i in {1..60}; do
+            if curl -s -f http://localhost:8084/health > /dev/null; then
+              echo "Replay Engine is up!"
+              break
+            fi
+            echo "Still waiting for replay engine..."
+            sleep 2
+          done
+
+      - name: Send a telemetry record
+        run: |
+          curl -i -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer default_api_key" \
+            -d '{"satellite_id":"SAT-0001","subsystem_id":"power","mission_id":"unknown","timestamp":"2026-06-05T23:00:00Z","battery_voltage":13.8,"battery_current":2.1,"solar_panel_output":110.0,"event_id":"550e8400-e29b-41d4-a716-446655440000"}' \
+            http://localhost:8080/telemetry/
+
+      - name: Wait for telemetry ingestion pipeline
+        run: |
+          echo "Waiting for data propagation into DB..."
+          sleep 5
+
+      - name: Query replay engine /api/satellites
+        run: |
+          echo "Querying satellites list..."
+          response=$(curl -s http://localhost:8084/api/satellites)
+          echo "Response: $response"
+          echo "$response" | grep -q "SAT-0001"
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose -f deployments/docker-compose/docker-compose.yml logs
+

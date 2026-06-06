@@ -142,6 +142,20 @@ async fn start_metrics_server(port: u16) {
     }
 }
 
+fn load_secret(env_var: &str) -> Option<String> {
+    if let Ok(val) = std::env::var(env_var) {
+        if !val.trim().is_empty() {
+            return Some(val.trim().to_string());
+        }
+    }
+    if let Ok(file_path) = std::env::var(format!("{}_FILE", env_var)) {
+        if let Ok(content) = std::fs::read_to_string(file_path) {
+            return Some(content.trim().to_string());
+        }
+    }
+    None
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // Load local .env
@@ -152,7 +166,14 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+    if let Some(val) = load_secret("DATABASE_URL") {
+        cli.database_url = val;
+    }
+    if let Some(val) = load_secret("KAFKA_SASL_PASSWORD") {
+        cli.kafka_sasl_password = Some(val);
+    }
+
     info!(
         "Starting Ground Station Simulator with configuration: {:?}",
         cli

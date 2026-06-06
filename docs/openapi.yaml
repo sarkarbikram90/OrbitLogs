@@ -1,0 +1,566 @@
+openapi: 3.0.3
+info:
+  title: Open SpaceOps API Specification
+  description: API contract and schema specifications for the real-time telemetry ingestion and historical replay services.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Telemetry Ingestion Service (telemetry-collector)
+  - url: http://localhost:8084
+    description: Mission Replay Engine (mission-replay-engine)
+
+security:
+  - BearerAuth: []
+
+paths:
+  /telemetry:
+    post:
+      summary: Ingest satellite telemetry
+      description: Accepts either real-time JSON telemetry records or raw CCSDS transfer frames as binary stream.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryRecord'
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              description: Raw binary CCSDS frame containing packed space packet telemetry.
+      responses:
+        '202':
+          description: Telemetry received and queued for processing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Telemetry received and queued
+                  event_id:
+                    type: string
+                    format: uuid
+                  request_id:
+                    type: string
+                    format: uuid
+        '400':
+          description: Validation or parse failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+        '429':
+          description: Rate limit exceeded
+        '503':
+          description: Ingestion queue buffer full or broker unreachable
+
+  /ws:
+    get:
+      summary: Real-time telemetry WebSocket stream
+      description: Establishes a WebSocket connection to stream processed telemetry records in real-time.
+      responses:
+        '101':
+          description: WebSocket protocol handshake successful
+
+  /health:
+    get:
+      summary: Deep service health check
+      description: Validates database, Kafka, and internal service connectivity.
+      security: []
+      responses:
+        '200':
+          description: Service is fully healthy and connected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+        '503':
+          description: One or more dependent services are down
+
+  /readiness:
+    get:
+      summary: Service readiness probe
+      description: Returns 200 only when all databases and messaging layers are connected.
+      security: []
+      responses:
+        '200':
+          description: Service ready to handle traffic
+        '503':
+          description: Dependencies not initialized
+
+  /liveness:
+    get:
+      summary: Process liveness probe
+      description: Quick ping to verify the HTTP server process is running.
+      security: []
+      responses:
+        '200':
+          description: Process is alive
+
+  /metrics:
+    get:
+      summary: Prometheus scraper endpoint
+      description: Exposes Prometheus-formatted system, runtime, and business metrics.
+      security: []
+      responses:
+        '200':
+          description: Scraped metrics payload
+          content:
+            text/plain; version=0.0.4:
+              schema:
+                type: string
+
+  /api/replays:
+    post:
+      summary: Create replay session
+      description: Initializes a historical playback session over a specific time range.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - start_time
+                - end_time
+              properties:
+                satellite_id:
+                  type: string
+                  nullable: true
+                  example: SAT-0001
+                start_time:
+                  type: string
+                  format: date-time
+                end_time:
+                  type: string
+                  format: date-time
+                speed:
+                  type: number
+                  enum: [1.0, 5.0, 10.0, 50.0, 100.0]
+                  default: 1.0
+      responses:
+        '201':
+          description: Replay session initialized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplaySession'
+        '400':
+          description: Invalid request parameters
+
+  /api/replays/{id}:
+    get:
+      summary: Fetch replay session metadata
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplaySession'
+        '404':
+          description: Session not found
+
+  /api/replays/{id}/control:
+    post:
+      summary: Control historical replay playback
+      description: Issues commands (play, pause, stop, seek, speed adjustment) to the active replay stream.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [play, pause, stop, seek, speed]
+                position:
+                  type: string
+                  format: date-time
+                  description: Required for 'seek' action
+                speed:
+                  type: number
+                  enum: [1.0, 5.0, 10.0, 50.0, 100.0]
+                  description: Required for 'speed' action
+      responses:
+        '200':
+          description: Action processed and state updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplaySession'
+        '400':
+          description: Invalid control parameters or missing fields
+
+  /api/replays/{id}/stream:
+    get:
+      summary: Historical playback Server-Sent Events (SSE) stream
+      description: Establishes a long-lived connection to stream historical telemetry and anomaly events at time-dilated rates.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Query parameter token needed since browser EventSource does not support custom headers.
+      responses:
+        '200':
+          description: Long-lived SSE stream connection
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /api/satellites:
+    get:
+      summary: Fetch latest health state of all satellites
+      security: []
+      responses:
+        '200':
+          description: List of active spacecraft health scores and statuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SatelliteHealth'
+
+  /api/ground-stations:
+    get:
+      summary: Fetch latest statuses of polar ground stations
+      security: []
+      responses:
+        '200':
+          description: List of ground station network links and weather states
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroundStationHealth'
+
+  /api/events:
+    get:
+      summary: Fetch recent critical anomaly and system events
+      security: []
+      responses:
+        '200':
+          description: Chronological list of recent fleet logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IncidentEvent'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Access key Bearer token gating REST routes.
+
+  schemas:
+    TelemetryRecord:
+      type: object
+      required:
+        - satellite_id
+        - timestamp
+        - event_id
+      properties:
+        satellite_id:
+          type: string
+          example: SAT-0001
+        subsystem_id:
+          type: string
+          example: power
+        mission_id:
+          type: string
+          example: MISSION-ALPHA
+        timestamp:
+          type: string
+          format: date-time
+        battery_voltage:
+          type: number
+          format: double
+        battery_current:
+          type: number
+          format: double
+        solar_panel_output:
+          type: number
+          format: double
+        cpu_usage:
+          type: number
+          format: float
+        memory_usage:
+          type: number
+          format: float
+        temperature:
+          type: number
+          format: double
+        orientation_pitch:
+          type: number
+          format: float
+        orientation_roll:
+          type: number
+          format: float
+        orientation_yaw:
+          type: number
+          format: float
+        velocity:
+          type: number
+          format: double
+        altitude:
+          type: number
+          format: double
+        fuel_remaining:
+          type: number
+          format: float
+        communication_latency:
+          type: number
+          format: float
+        packet_loss:
+          type: number
+          format: float
+        signal_strength:
+          type: number
+          format: float
+        payload_power_draw:
+          type: number
+          format: double
+        payload_active:
+          type: boolean
+        event_id:
+          type: string
+          format: uuid
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - details
+        - request_id
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+        request_id:
+          type: string
+          format: uuid
+
+    HealthCheckResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - services
+      properties:
+        status:
+          type: string
+          example: UP
+        timestamp:
+          type: string
+          format: date-time
+        services:
+          type: object
+          properties:
+            database:
+              type: string
+              example: UP
+            kafka_producer:
+              type: string
+              example: UP
+
+    ReplaySession:
+      type: object
+      required:
+        - session_id
+        - start_time
+        - end_time
+        - current_position
+        - speed
+        - status
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        satellite_id:
+          type: string
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        current_position:
+          type: string
+          format: date-time
+        speed:
+          type: number
+        status:
+          type: string
+          enum: [PLAYING, PAUSED, STOPPED]
+
+    SubsystemStatus:
+      type: object
+      required:
+        - state
+        - score
+        - explanation
+      properties:
+        state:
+          type: string
+          enum: [GREEN, YELLOW, RED]
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        explanation:
+          type: string
+
+    SatelliteHealth:
+      type: object
+      required:
+        - timestamp
+        - satellite_id
+        - mission_id
+        - overall_state
+        - overall_score
+        - power
+        - thermal
+        - communications
+        - propulsion
+        - adcs
+        - payload
+        - flight_computer
+        - explanation
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        satellite_id:
+          type: string
+        mission_id:
+          type: string
+        overall_state:
+          type: string
+          enum: [GREEN, YELLOW, RED]
+        overall_score:
+          type: integer
+        power:
+          $ref: '#/components/schemas/SubsystemStatus'
+        thermal:
+          $ref: '#/components/schemas/SubsystemStatus'
+        communications:
+          $ref: '#/components/schemas/SubsystemStatus'
+        propulsion:
+          $ref: '#/components/schemas/SubsystemStatus'
+        adcs:
+          $ref: '#/components/schemas/SubsystemStatus'
+        payload:
+          $ref: '#/components/schemas/SubsystemStatus'
+        flight_computer:
+          $ref: '#/components/schemas/SubsystemStatus'
+        explanation:
+          type: string
+
+    GroundStationHealth:
+      type: object
+      required:
+        - timestamp
+        - station_id
+        - station_name
+        - status
+        - antenna_health
+        - weather_state
+        - congestion
+        - latency
+        - bandwidth
+        - explanation
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        station_id:
+          type: string
+        station_name:
+          type: string
+        status:
+          type: string
+          enum: [ONLINE, DEGRADED, OUTAGE]
+        antenna_health:
+          type: number
+        weather_state:
+          type: string
+        congestion:
+          type: number
+        latency:
+          type: number
+        bandwidth:
+          type: number
+        explanation:
+          type: string
+
+    IncidentEvent:
+      type: object
+      required:
+        - timestamp
+        - satellite_id
+        - event_type
+        - severity
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        satellite_id:
+          type: string
+        event_type:
+          type: string
+        severity:
+          type: string
+          enum: [INFO, WARNING, CRITICAL]
+        message:
+          type: string
+        details:
+          type: object
+          nullable: true

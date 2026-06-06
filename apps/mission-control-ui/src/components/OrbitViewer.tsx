@@ -20,6 +20,53 @@ function latLonToVector(lat: number, lon: number, radius: number): THREE.Vector3
   return new THREE.Vector3(x, y, z);
 }
 
+function propagateKepler(
+  a: number,
+  e: number,
+  inclination: number,
+  raan: number,
+  argOfPerigee: number,
+  meanMotion: number,
+  meanAnomalyEpoch: number,
+  t: number
+): THREE.Vector3 {
+  // Mean anomaly
+  const M = meanAnomalyEpoch + meanMotion * t;
+  
+  // Solve Kepler's equation: E - e*sin(E) = M
+  let E = M;
+  for (let step = 0; step < 5; step++) {
+    E = E - (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  }
+  
+  // Perifocal coordinates
+  const x_prime = a * (Math.cos(E) - e);
+  const y_prime = a * Math.sqrt(1 - e * e) * Math.sin(E);
+  
+  // Rotation coefficients
+  const cosO = Math.cos(raan);
+  const sinO = Math.sin(raan);
+  const cosw = Math.cos(argOfPerigee);
+  const sinw = Math.sin(argOfPerigee);
+  const cosi = Math.cos(inclination);
+  const sini = Math.sin(inclination);
+  
+  const px = cosw * cosO - sinw * sinO * cosi;
+  const py = cosw * sinO + sinw * cosO * cosi;
+  const pz = sinw * sini;
+  
+  const qx = -sinw * cosO - cosw * sinO * cosi;
+  const qy = -sinw * sinO + cosw * cosO * cosi;
+  const qz = cosw * sini;
+  
+  const x_eci = x_prime * px + y_prime * qx;
+  const y_eci = x_prime * py + y_prime * qy;
+  const z_eci = x_prime * pz + y_prime * qz;
+  
+  // Map ECI to ThreeJS (y is up, z is out of screen)
+  return new THREE.Vector3(x_eci, z_eci, y_eci);
+}
+
 export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStations, selectedSatId }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   
@@ -122,11 +169,15 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
     // 6. Satellites orbits mapping
     const satData = Array.from({ length: 10 }).map((_, idx) => {
       const id = `SAT-${String(idx + 1).padStart(4, '0')}`;
-      const radius = 3.2 + (idx * 0.12);
-      const inclination = (idx * 18) * (Math.PI / 180); // varying orbits
-      const speed = 0.5 + (idx * 0.05); // varying speeds
+      const a = 2.8 + (idx * 0.15); // Semi-major axis
+      const e = 0.03 + (idx * 0.012); // Eccentricity
+      const inclination = (45 + idx * 5) * (Math.PI / 180); // Inclination
+      const raan = (idx * 36) * (Math.PI / 180); // RAAN
+      const argOfPerigee = (idx * 30) * (Math.PI / 180); // Argument of Perigee
+      const meanMotion = 0.4 + (10 - idx) * 0.04; // Mean Motion
+      const meanAnomalyEpoch = (idx * 45) * (Math.PI / 180); // Mean Anomaly at epoch
       const linkedGsId = `GS-000${(idx % 4) + 1}`;
-      return { id, radius, inclination, speed, linkedGsId };
+      return { id, a, e, inclination, raan, argOfPerigee, meanMotion, meanAnomalyEpoch, linkedGsId };
     });
 
     const satMeshes: { id: string; mesh: THREE.Mesh; line: THREE.Line; orbit: THREE.Line }[] = [];
@@ -134,12 +185,20 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
     satData.forEach(sat => {
       // Create Orbit Ring Loop
       const orbitPoints: THREE.Vector3[] = [];
+      const period = (2 * Math.PI) / sat.meanMotion;
       for (let i = 0; i <= 64; i++) {
-        const theta = (i / 64) * Math.PI * 2;
-        const x = sat.radius * Math.cos(theta);
-        const y = sat.radius * Math.sin(theta) * Math.cos(sat.inclination);
-        const z = sat.radius * Math.sin(theta) * Math.sin(sat.inclination);
-        orbitPoints.push(new THREE.Vector3(x, y, z));
+        const t = (i / 64) * period;
+        const pt = propagateKepler(
+          sat.a,
+          sat.e,
+          sat.inclination,
+          sat.raan,
+          sat.argOfPerigee,
+          sat.meanMotion,
+          sat.meanAnomalyEpoch,
+          t
+        );
+        orbitPoints.push(pt);
       }
       const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints);
       
@@ -206,14 +265,18 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
       // Update Satellites positions & Signal Beam connections
       satData.forEach((sat, idx) => {
         const satMesh = satMeshes[idx];
-        const angle = elapsed * sat.speed;
         
-        // Calculate Satellite position in 3D Cartesian coordinates
-        const x = sat.radius * Math.cos(angle);
-        const y = sat.radius * Math.sin(angle) * Math.cos(sat.inclination);
-        const z = sat.radius * Math.sin(angle) * Math.sin(sat.inclination);
-        
-        const satPos = new THREE.Vector3(x, y, z);
+        // Calculate Satellite position using Keplerian propagator
+        const satPos = propagateKepler(
+          sat.a,
+          sat.e,
+          sat.inclination,
+          sat.raan,
+          sat.argOfPerigee,
+          sat.meanMotion,
+          sat.meanAnomalyEpoch,
+          elapsed
+        );
         satMesh.mesh.position.copy(satPos);
 
         // Update colors based on live inputs from ref

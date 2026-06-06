@@ -1,3 +1,13 @@
+macro_rules! merge_opt_fields {
+    ($merged:expr, $incoming:expr, $($field:ident),* $(,)?) => {
+        $(
+            if $incoming.$field.is_some() {
+                $merged.$field = $incoming.$field;
+            }
+        )*
+    };
+}
+
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
@@ -160,11 +170,12 @@ impl TelemetryConsumer {
                         })
                         .to_string();
 
+                        let key = format!("{}:{}", record.mission_id, record.satellite_id);
                         if let Err(dlq_err) = self
                             .kafka_producer
                             .publish(
                                 &self.config.invalid_topic,
-                                &record.satellite_id,
+                                &key,
                                 &dlq_payload,
                             )
                             .await
@@ -273,57 +284,27 @@ impl TelemetryConsumer {
         merged.event_id = incoming.event_id;
 
         // 4. Overwrite fields that are populated in the incoming subsystem stream
-        if incoming.battery_voltage.is_some() {
-            merged.battery_voltage = incoming.battery_voltage;
-        }
-        if incoming.battery_current.is_some() {
-            merged.battery_current = incoming.battery_current;
-        }
-        if incoming.solar_panel_output.is_some() {
-            merged.solar_panel_output = incoming.solar_panel_output;
-        }
-        if incoming.cpu_usage.is_some() {
-            merged.cpu_usage = incoming.cpu_usage;
-        }
-        if incoming.memory_usage.is_some() {
-            merged.memory_usage = incoming.memory_usage;
-        }
-        if incoming.temperature.is_some() {
-            merged.temperature = incoming.temperature;
-        }
-        if incoming.orientation_pitch.is_some() {
-            merged.orientation_pitch = incoming.orientation_pitch;
-        }
-        if incoming.orientation_roll.is_some() {
-            merged.orientation_roll = incoming.orientation_roll;
-        }
-        if incoming.orientation_yaw.is_some() {
-            merged.orientation_yaw = incoming.orientation_yaw;
-        }
-        if incoming.velocity.is_some() {
-            merged.velocity = incoming.velocity;
-        }
-        if incoming.altitude.is_some() {
-            merged.altitude = incoming.altitude;
-        }
-        if incoming.fuel_remaining.is_some() {
-            merged.fuel_remaining = incoming.fuel_remaining;
-        }
-        if incoming.communication_latency.is_some() {
-            merged.communication_latency = incoming.communication_latency;
-        }
-        if incoming.packet_loss.is_some() {
-            merged.packet_loss = incoming.packet_loss;
-        }
-        if incoming.signal_strength.is_some() {
-            merged.signal_strength = incoming.signal_strength;
-        }
-        if incoming.payload_power_draw.is_some() {
-            merged.payload_power_draw = incoming.payload_power_draw;
-        }
-        if incoming.payload_active.is_some() {
-            merged.payload_active = incoming.payload_active;
-        }
+        merge_opt_fields!(
+            merged,
+            incoming,
+            battery_voltage,
+            battery_current,
+            solar_panel_output,
+            cpu_usage,
+            memory_usage,
+            temperature,
+            orientation_pitch,
+            orientation_roll,
+            orientation_yaw,
+            velocity,
+            altitude,
+            fuel_remaining,
+            communication_latency,
+            packet_loss,
+            signal_strength,
+            payload_power_draw,
+            payload_active,
+        );
 
         // 5. Save back to cache
         {
@@ -377,8 +358,9 @@ impl TelemetryConsumer {
 
         // Publish to telemetry.processed topic
         let processed_payload = serde_json::to_string(merged)?;
+        let key = format!("{}:{}", merged.mission_id, sat_id);
         self.kafka_producer
-            .publish(&self.config.processed_topic, sat_id, &processed_payload)
+            .publish(&self.config.processed_topic, &key, &processed_payload)
             .await?;
 
         // Update telemetry counters
