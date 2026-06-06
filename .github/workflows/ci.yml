@@ -1,8 +1,14 @@
 name: Open SpaceOps CI/CD
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  checks: write
+
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main]
   pull_request:
     branches: [ main ]
 
@@ -65,10 +71,10 @@ jobs:
           done
 
       - name: Check code formatting
-        run: cargo fmt --check
+        run: cargo fmt --all --check
 
       - name: Cargo clippy linting
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Run unit & integration tests
         run: cargo test --all-targets --all-features
