@@ -1,15 +1,13 @@
 use axum::{
-    error_handling::HandleErrorLayer,
     extract::{DefaultBodyLimit, State},
     http::StatusCode,
     routing::{get, post},
-    BoxError, Router,
+    Router,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Instant;
 use tokio::net::TcpListener;
-use tower::ServiceBuilder;
 use tracing::info;
 
 pub mod handlers;
@@ -17,25 +15,8 @@ pub mod producer;
 
 use handlers::AppState;
 
-async fn handle_rate_limit_error(err: BoxError) -> (StatusCode, String) {
-    (
-        StatusCode::TOO_MANY_REQUESTS,
-        serde_json::json!({
-            "error": "Rate limit exceeded",
-            "details": vec![err.to_string()]
-        })
-        .to_string(),
-    )
-}
-
 pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Error> {
     let state_arc = Arc::new(state);
-
-    let rate_limit_layer = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(handle_rate_limit_error))
-        .load_shed()
-        .buffer(1)
-        .rate_limit(100, Duration::from_secs(1));
 
     let app = Router::new()
         .nest(
@@ -43,7 +24,11 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
             Router::new()
                 .route(
                     "/",
-                    post(handlers::ingest_telemetry).layer(rate_limit_layer),
+                    post(handlers::ingest_telemetry)
+                        .layer(axum::middleware::from_fn_with_state(
+                            state_arc.clone(),
+                            rate_limit_middleware,
+                        )),
                 )
                 .layer(axum::middleware::from_fn_with_state(
                     state_arc.clone(),
@@ -74,6 +59,76 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
     Ok(())
 }
 
+pub async fn rate_limit_middleware(
+    State(state): State<Arc<AppState>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, std::convert::Infallible> {
+    // Extract client identifier (token or IP address)
+    let client_id = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            // Fallback to query param token
+            if let Some(query) = req.uri().query() {
+                for pair in query.split('&') {
+                    let mut parts = pair.splitn(2, '=');
+                    if let (Some("token"), Some(val)) = (parts.next(), parts.next()) {
+                        return val.to_string();
+                    }
+                }
+            }
+            "anonymous".to_string()
+        });
+
+    let now = Instant::now();
+    let limit_exceeded = {
+        let entry = state.rate_limiter.entry(client_id).or_insert_with(|| {
+            std::sync::Mutex::new(crate::server::handlers::TokenBucket {
+                tokens: 100.0,
+                last_refill: now,
+            })
+        });
+        let mut bucket = entry.lock().unwrap();
+        
+        let elapsed = now.duration_since(bucket.last_refill).as_secs_f64();
+        bucket.tokens = (bucket.tokens + elapsed * 100.0).min(100.0);
+        bucket.last_refill = now;
+
+        if bucket.tokens >= 1.0 {
+            bucket.tokens -= 1.0;
+            false
+        } else {
+            true
+        }
+    };
+
+    if limit_exceeded {
+        let body = serde_json::json!({
+            "error": "Rate limit exceeded",
+            "details": vec!["Per-client rate limit of 100 requests per second exceeded".to_string()]
+        })
+        .to_string();
+        let mut response = axum::response::Response::new(axum::body::Body::from(body));
+        *response.status_mut() = StatusCode::TOO_MANY_REQUESTS;
+        response.headers_mut().insert(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("application/json"),
+        );
+        if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
+            response
+                .headers_mut()
+                .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
+        }
+        Ok(response)
+    } else {
+        Ok(next.run(req).await)
+    }
+}
+
 pub async fn auth_middleware(
     State(state): State<Arc<AppState>>,
     req: axum::extract::Request,
@@ -98,27 +153,31 @@ pub async fn auth_middleware(
         }
     }
 
-    match token_opt {
-        Some(ref t) if t == &state.api_key => Ok(next.run(req).await),
-        _ => {
-            let body = serde_json::json!({
-                "error": "Unauthorized",
-                "details": vec!["Missing or invalid authorization token"]
-            })
-            .to_string();
-            let mut response = axum::response::Response::new(axum::body::Body::from(body));
-            *response.status_mut() = StatusCode::UNAUTHORIZED;
-            response.headers_mut().insert(
-                axum::http::header::CONTENT_TYPE,
-                axum::http::HeaderValue::from_static("application/json"),
-            );
-            if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
-                response
-                    .headers_mut()
-                    .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
-            }
-            Ok(response)
+    let authenticated = match token_opt {
+        Some(ref t) => crate::server::handlers::secure_compare(t, &state.api_key),
+        None => false,
+    };
+
+    if authenticated {
+        Ok(next.run(req).await)
+    } else {
+        let body = serde_json::json!({
+            "error": "Unauthorized",
+            "details": vec!["Missing or invalid authorization token"]
+        })
+        .to_string();
+        let mut response = axum::response::Response::new(axum::body::Body::from(body));
+        *response.status_mut() = StatusCode::UNAUTHORIZED;
+        response.headers_mut().insert(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("application/json"),
+        );
+        if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
+            response
+                .headers_mut()
+                .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
         }
+        Ok(response)
     }
 }
 

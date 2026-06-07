@@ -1,7 +1,9 @@
+use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CircuitState {
@@ -66,7 +68,7 @@ impl CircuitBreaker {
     pub fn record_failure(&self) {
         let mut state = self.state.lock().unwrap();
         state.consecutive_failures += 1;
-        if state.consecutive_failures >= self.failure_threshold {
+        if state.state == CircuitState::HalfOpen || state.consecutive_failures >= self.failure_threshold {
             state.state = CircuitState::Open;
             state.last_state_change = Instant::now();
             error!(
@@ -123,7 +125,23 @@ impl KafkaProducer {
             ));
         }
 
-        let record = FutureRecord::to(topic).key(key).payload(payload);
+        let mut headers = OwnedHeaders::new();
+        let context = tracing::Span::current().context();
+        let mut carrier = std::collections::HashMap::new();
+        opentelemetry::global::get_text_map_propagator(|propagator| {
+            propagator.inject_context(&context, &mut carrier);
+        });
+        for (k, v) in &carrier {
+            headers = headers.insert(Header {
+                key: k,
+                value: Some(v),
+            });
+        }
+
+        let record = FutureRecord::to(topic)
+            .key(key)
+            .payload(payload)
+            .headers(headers);
 
         match self.producer.send(record, Duration::from_secs(5)).await {
             Ok((partition, offset)) => {

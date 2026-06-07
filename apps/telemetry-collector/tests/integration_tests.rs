@@ -24,11 +24,6 @@ async fn mock_ingest_telemetry(
 /// Create a test application without real Kafka/DB dependencies.
 /// This allows HTTP-layer integration testing without infrastructure.
 fn create_test_app() -> Router {
-    use axum::error_handling::HandleErrorLayer;
-    use axum::BoxError;
-    use std::time::Duration;
-    use tower::ServiceBuilder;
-
     // Register metrics (idempotent in tests due to lazy_static)
     let _ = std::panic::catch_unwind(metrics::register_metrics);
 
@@ -52,27 +47,17 @@ fn create_test_app() -> Router {
         broadcast_tx,
         api_key: "secret-spaceops-key-2026".to_string(),
         cors_allowed_origin: "http://localhost:3000".to_string(),
+        rate_limiter: std::sync::Arc::new(dashmap::DashMap::new()),
     });
-
-    let rate_limit_layer = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(|err: BoxError| async move {
-            (
-                StatusCode::TOO_MANY_REQUESTS,
-                serde_json::json!({
-                    "error": "Rate limit exceeded",
-                    "details": vec![err.to_string()]
-                })
-                .to_string(),
-            )
-        }))
-        .load_shed()
-        .buffer(1)
-        .rate_limit(100, Duration::from_secs(1));
 
     Router::new()
         .route(
             "/telemetry",
-            post(mock_ingest_telemetry).layer(rate_limit_layer),
+            post(mock_ingest_telemetry)
+                .layer(axum::middleware::from_fn_with_state(
+                    state.clone(),
+                    telemetry_collector::server::rate_limit_middleware,
+                )),
         )
         .route(
             "/telemetry_real",

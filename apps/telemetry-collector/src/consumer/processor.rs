@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::consumer::db;
 use crate::metrics::{
@@ -151,6 +152,24 @@ impl TelemetryConsumer {
         loop {
             match consumer.recv().await {
                 Ok(msg) => {
+                    let mut carrier = std::collections::HashMap::new();
+                    if let Some(headers) = rdkafka::message::Message::headers(&msg) {
+                        for i in 0..rdkafka::message::Headers::count(headers) {
+                            let header = rdkafka::message::Headers::get(headers, i);
+                            if let Ok(val) = std::str::from_utf8(header.value.unwrap_or(&[])) {
+                                carrier.insert(header.key.to_string(), val.to_string());
+                            }
+                        }
+                    }
+
+                    let parent_context = opentelemetry::global::get_text_map_propagator(|propagator| {
+                        propagator.extract(&carrier)
+                    });
+
+                    let span = tracing::info_span!("telemetry_consumer_recv");
+                    span.set_parent(parent_context);
+                    let _enter = span.enter();
+
                     let payload = match msg.payload_view::<str>() {
                         Some(Ok(s)) => s,
                         Some(Err(e)) => {
@@ -241,10 +260,14 @@ impl TelemetryConsumer {
                             .await
                         {
                             error!(
-                                "DLQ publish failed for satellite {} after DB failure: {}",
-                                record.satellite_id, dlq_err
+                                "Double failure: DB insert failed ({}) and DLQ publish failed ({}). Aborting consumption to prevent data loss.",
+                                e, dlq_err
                             );
                             DLQ_PUBLISH_FAILURES_TOTAL.inc();
+                            return Err(anyhow::anyhow!(
+                                "Double failure: DB insert and DLQ routing failed. Satellite: {}, Error: {}",
+                                record.satellite_id, e
+                            ));
                         }
                     }
 

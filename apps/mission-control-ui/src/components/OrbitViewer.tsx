@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Satellite, GroundStation } from '../types';
 
 interface OrbitViewerProps {
@@ -107,6 +108,14 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
+
+    // 3.5. OrbitControls setup
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.rotateSpeed = 0.5;
+    controls.minDistance = 4;
+    controls.maxDistance = 20;
 
     // 4. Earth creation (Sleek dark wireframe with a translucent core)
     const earthRadius = 2.0;
@@ -242,6 +251,9 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
       animationId = requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
 
+      // Update controls
+      controls.update();
+
       // Rotate Earth grid slowly
       earthGrid.rotation.y = elapsed * 0.05;
       earthCore.rotation.y = elapsed * 0.05;
@@ -372,6 +384,7 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
           }
         }
       });
+      controls.dispose();
       renderer.dispose();
     };
   }, []); // Re-run effect only on mount / unmount

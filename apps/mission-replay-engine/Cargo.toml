@@ -24,6 +24,7 @@ lazy_static = "1.4"
 tokio-stream = { version = "0.1", features = ["sync"] }
 futures-util = "0.3"
 dashmap = "5.5"
+subtle = { workspace = true }
 
 
 [dev-dependencies]

@@ -458,6 +458,7 @@ async fn stream_replay(
         let mut last_known_speed = session.speed;
 
         let mut last_tick = tokio::time::Instant::now();
+        let mut last_db_write = tokio::time::Instant::now();
         let tick_duration = Duration::from_millis(200);
 
         info!("Starting SSE Replay stream for session: {}", session_id);
@@ -639,16 +640,22 @@ async fn stream_replay(
             }
 
             if let Some((start_query, end_query)) = play_next {
-                let _ = db::update_replay_session(
-                    &state_clone.db_pool,
-                    session_id,
-                    end_query,
-                    &current_status,
-                    current_speed,
-                )
-                .await;
                 if let Some(mut s) = state_clone.sessions.get_mut(&session_id) {
                     s.current_position = end_query;
+                }
+
+                // Throttle Postgres updates to once every 5 seconds to reduce write load
+                let now_inst = tokio::time::Instant::now();
+                if now_inst.duration_since(last_db_write) >= Duration::from_secs(5) {
+                    let _ = db::update_replay_session(
+                        &state_clone.db_pool,
+                        session_id,
+                        end_query,
+                        &current_status,
+                        current_speed,
+                    )
+                    .await;
+                    last_db_write = now_inst;
                 }
 
                 let sse_session = db::ReplaySession {
@@ -709,6 +716,26 @@ async fn stream_replay(
                     break;
                 }
             }
+        }
+
+        // Final DB write to persist exact state at disconnect
+        let final_pos = {
+            if let Some(s) = state_clone.sessions.get(&session_id) {
+                Some((s.current_position, s.status.clone(), s.speed))
+            } else {
+                None
+            }
+        };
+        if let Some((pos, status, speed)) = final_pos {
+            info!("Persisting final replay session state to DB on exit: position={}, status={}", pos, status);
+            let _ = db::update_replay_session(
+                &state_clone.db_pool,
+                session_id,
+                pos,
+                &status,
+                speed,
+            )
+            .await;
         }
     });
 
@@ -824,6 +851,17 @@ async fn list_events(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     }
 }
 
+use subtle::ConstantTimeEq;
+
+pub fn secure_compare(provided: &str, expected: &str) -> bool {
+    if provided.len() != expected.len() {
+        let _ = expected.as_bytes().ct_eq(expected.as_bytes());
+        false
+    } else {
+        provided.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() == 1
+    }
+}
+
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,
     req: axum::extract::Request,
@@ -848,9 +886,14 @@ async fn auth_middleware(
         }
     }
 
-    match token_opt {
-        Some(ref t) if t == &state.api_key => Ok(next.run(req).await),
-        _ => {
+    let authenticated = match token_opt {
+        Some(ref t) => secure_compare(t, &state.api_key),
+        None => false,
+    };
+
+    if authenticated {
+        Ok(next.run(req).await)
+    } else {
             let body = serde_json::json!({
                 "error": "Unauthorized",
                 "details": vec!["Missing or invalid authorization token"]
@@ -868,7 +911,6 @@ async fn auth_middleware(
                     .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
             }
             Ok(response)
-        }
     }
 }
 

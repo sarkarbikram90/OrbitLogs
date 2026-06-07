@@ -32,6 +32,8 @@ anyhow = "1.0"
 dotenvy = "0.15"
 spaceops-models = { path = "crates/spaceops-models" }
 spaceops-packets = { path = "crates/spaceops-packets" }
+subtle = "2.5"
+dashmap = "5.5"
 
 # Optimize profiles for production build speed vs runtime execution speed
 [profile.release]

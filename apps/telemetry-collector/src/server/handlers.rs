@@ -15,6 +15,11 @@ use crate::metrics::{
 use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;
 
+pub struct TokenBucket {
+    pub tokens: f64,
+    pub last_refill: std::time::Instant,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub kafka_producer: KafkaProducer,
@@ -24,6 +29,18 @@ pub struct AppState {
     pub broadcast_tx: tokio::sync::broadcast::Sender<String>,
     pub api_key: String,
     pub cors_allowed_origin: String,
+    pub rate_limiter: std::sync::Arc<dashmap::DashMap<String, std::sync::Mutex<TokenBucket>>>,
+}
+
+use subtle::ConstantTimeEq;
+
+pub fn secure_compare(provided: &str, expected: &str) -> bool {
+    if provided.len() != expected.len() {
+        let _ = expected.as_bytes().ct_eq(expected.as_bytes());
+        false
+    } else {
+        provided.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() == 1
+    }
 }
 
 #[derive(Serialize)]
@@ -357,7 +374,7 @@ pub async fn ws_handler(
     let mut authenticated = false;
 
     if let Some(ref tok) = params.token {
-        if tok == &state.api_key {
+        if secure_compare(tok, &state.api_key) {
             authenticated = true;
         }
     }
@@ -365,7 +382,7 @@ pub async fn ws_handler(
     if !authenticated {
         if let Some(auth_val) = headers.get("Authorization").and_then(|h| h.to_str().ok()) {
             let token = auth_val.strip_prefix("Bearer ").unwrap_or(auth_val);
-            if token == state.api_key {
+            if secure_compare(token, &state.api_key) {
                 authenticated = true;
             }
         }
