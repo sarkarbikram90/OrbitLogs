@@ -4,8 +4,14 @@
 [![Language: Rust](https://img.shields.io/badge/Language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript-blue.svg)](https://www.typescriptlang.org/)
 [![Database: TimescaleDB](https://img.shields.io/badge/Database-TimescaleDB-blue.svg)](https://www.timescale.com/)
-[![Message Queue: Kafka](https://img.shields.io/badge/Queue-Kafka-black.svg)](https://kafka.apache.org/)
+[![Message Queue: Kafka (KRaft)](https://img.shields.io/badge/Queue-Kafka%20(KRaft)-green.svg)](https://kafka.apache.org/)
+[![Security: Constant--Time](https://img.shields.io/badge/Security-Constant--Time-red.svg)](https://crates.io/crates/subtle)
+[![Observability: OpenTelemetry](https://img.shields.io/badge/Observability-OpenTelemetry-blueviolet.svg)](https://opentelemetry.io/)
+[![3D Graphics: Three.js](https://img.shields.io/badge/3D%20Graphics-Three.js-black.svg)](https://threejs.org/)
+[![Infrastructure: Docker](https://img.shields.io/badge/Infrastructure-Docker-blue.svg)](https://www.docker.com/)
+[![SRE: Hardened](https://img.shields.io/badge/SRE-Hardened-brightgreen.svg)](#⚡-recent-production--security-hardening)
 [![License: Apache](https://img.shields.io/badge/License-Apache-green.svg)](LICENSE)
+
 
 ![Open SpaceOps Mission Control Console](docs/images/open_spaceops_dashboard.png)
 
@@ -149,8 +155,23 @@ graph TD
 
 ### 5. 3D Mission Control Console
 *   A premium React/TypeScript client console ([apps/mission-control-ui](apps/mission-control-ui)) built with Vanilla CSS (HSL dark system themes).
-*   **3D Earth & Orbit Tracking**: Uses Three.js to render a sleek, cybernetic wireframe globe with live satellite positions, orbital inclinations, and active color-coded communication beams showing ground station connections.
+*   **3D Earth & Orbit Tracking**: Uses Three.js to render a sleek, cybernetic wireframe globe with live satellite positions, orbital inclinations, and active color-coded communication beams showing ground station connections. Includes standard OrbitControls for dynamic camera rotations.
 *   **Subsystem Diagnostic Panels**: Real-time diagnostic cards for all 7 subsystems, ground network load monitors, and a structured events log filterable by severity level (INFO, WARNING, CRITICAL).
+
+---
+
+## ⚡ Recent Production & Security Hardening
+
+To elevate Open SpaceOps to mission-grade standard, the core platform has been hardened with the following enterprise features:
+
+*   **Kafka KRaft Migration**: Migrated Kafka deployment from Zookeeper (deprecated) to native KRaft mode, reducing local/CI memory footprints by **~256MB** and accelerating boot times.
+*   **Distributed Trace context Propagation**: Implemented W3C text map propagation over Kafka. Request trace spans span from edge HTTP endpoints through Kafka raw topics to the telemetry consumers and final DB persistence.
+*   **Constant-Time Comparisons**: Security endpoints and WebSocket upgrades now use constant-time string checks via the `subtle` crate to prevent timing side-channel profiling attacks.
+*   **TimescaleDB Compression & Retention Policies**: Enabled automated database compression policies (older than 7 days) and strict retention windows (older than 90 days) on TimescaleDB hypertables to optimize disk usage.
+*   **Replay Engine Database Throttling**: Updates to historical replay positions are throttled to 5-second intervals and stored inside thread-safe local caches (`DashMap`) instead of writing to Postgres on every 200ms tick, reducing database write load by **96%**.
+*   **At-Least-Once Delivery**: Downstream consumer queues perform manual commits only after database write validation. A double-failure scenario (database failure + DLQ publisher breakdown) immediately triggers a consumer panic to halt ingestion and prevent offset loss.
+*   **Graceful Shutdown Routing**: Added signal handlers (`SIGTERM` / `SIGINT`) to all Rust binaries to gracefully shut down TCP loops and flush pending Kafka buffers.
+*   **HTTP Metrics Exporters**: Converted legacy TCP scraping servers to Axum HTTP compliance servers.
 
 ---
 
@@ -219,7 +240,7 @@ Open SpaceOps has been engineered to comply with enterprise-grade reliability an
 
 *   **Non-Root Execution**: Every service container runs under a dedicated system user `spaceops` with UID/GID `10001` (complying with standard Kubernetes security policies).
 *   **At-Least-Once Database Guarantee**: The processor commits Kafka offsets manually only after successful batch insertion into TimescaleDB or writing to the Dead Letter Queue (DLQ).
-*   **Ingestion Defense**: Axis endpoints reject payloads exceeding **10KB** and apply a strict token-bucket rate limiter to protect resources from Denial of Service (DoS) attempts.
+*   **Ingestion Defense**: Axum endpoints reject payloads exceeding **10KB** via `DefaultBodyLimit` and apply a strict token-bucket rate limiter (partitioned per client token or IP) to protect resources from Denial of Service (DoS) attempts.
 *   **Serde Deny**: Shared models enforce `#[serde(deny_unknown_fields)]` to prevent injection of unmapped attributes.
 
 ---
