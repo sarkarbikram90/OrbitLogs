@@ -68,7 +68,9 @@ impl CircuitBreaker {
     pub fn record_failure(&self) {
         let mut state = self.state.lock().unwrap();
         state.consecutive_failures += 1;
-        if state.state == CircuitState::HalfOpen || state.consecutive_failures >= self.failure_threshold {
+        if state.state == CircuitState::HalfOpen
+            || state.consecutive_failures >= self.failure_threshold
+        {
             state.state = CircuitState::Open;
             state.last_state_change = Instant::now();
             error!(

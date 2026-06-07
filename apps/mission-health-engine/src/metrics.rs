@@ -48,4 +48,3 @@ pub fn register_metrics() {
         .register(Box::new(KAFKA_CONSUMER_LAG.clone()))
         .expect("kafka_consumer_lag registration must succeed");
 }
-

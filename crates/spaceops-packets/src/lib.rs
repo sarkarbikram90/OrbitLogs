@@ -708,7 +708,7 @@ mod tests {
             let sat_id = format!("SAT-{:04}", scid);
             let subsystems = ["power", "thermal", "communications", "propulsion", "adcs", "payload", "flight_computer", "unified"];
             let subsystem_id = subsystems[subsystem_idx].to_string();
-            
+
             let ts = Utc.timestamp_opt(ts_coarse as i64, ts_fine).single().unwrap_or_else(Utc::now);
 
             let rec = TelemetryRecord {
@@ -800,4 +800,3 @@ mod tests {
         }
     }
 }
-

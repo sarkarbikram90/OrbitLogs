@@ -48,8 +48,6 @@ struct Cli {
     cors_allowed_origin: String,
 }
 
-
-
 struct AppState {
     db_pool: sqlx::PgPool,
     api_key: String,
@@ -144,14 +142,19 @@ async fn main() -> Result<(), anyhow::Error> {
         loop {
             tokio::time::sleep(Duration::from_secs(300)).await; // 5 minutes
             info!("Running cleanup of old replay sessions...");
-            
+
             // Delete from DB
-            match sqlx::query("DELETE FROM replay_sessions WHERE created_at < NOW() - INTERVAL '1 hour'")
-                .execute(&state_for_cleanup.db_pool)
-                .await
+            match sqlx::query(
+                "DELETE FROM replay_sessions WHERE created_at < NOW() - INTERVAL '1 hour'",
+            )
+            .execute(&state_for_cleanup.db_pool)
+            .await
             {
                 Ok(result) => {
-                    info!("Successfully cleaned up {} old replay sessions from DB.", result.rows_affected());
+                    info!(
+                        "Successfully cleaned up {} old replay sessions from DB.",
+                        result.rows_affected()
+                    );
                 }
                 Err(e) => {
                     error!("Failed to clean up old replay sessions from DB: {}", e);
@@ -286,9 +289,7 @@ async fn get_replay(
 
     // Try DB
     match db::get_replay_session(&state.db_pool, session_id).await {
-        Ok(Some(session)) => {
-            (StatusCode::OK, Json(session)).into_response()
-        }
+        Ok(Some(session)) => (StatusCode::OK, Json(session)).into_response(),
         Ok(None) => api_error(StatusCode::NOT_FOUND, "Replay session not found"),
         Err(e) => {
             error!("Database error fetching session: {}", e);
@@ -397,16 +398,17 @@ async fn control_replay(
     state.sessions.insert(session.session_id, session.clone());
 
     // Query active playing count from DB
-    let playing_count: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'")
-        .fetch_one(&state.db_pool)
-        .await
-    {
-        Ok(c) => c,
-        Err(e) => {
-            error!("Database error counting playing sessions: {}", e);
-            0
-        }
-    };
+    let playing_count: i64 =
+        match sqlx::query_scalar("SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'")
+            .fetch_one(&state.db_pool)
+            .await
+        {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Database error counting playing sessions: {}", e);
+                0
+            }
+        };
 
     // Set the metrics gauge
     metrics::ACTIVE_REPLAYS.set(playing_count as f64);
@@ -433,7 +435,9 @@ async fn stream_replay(
                     state.sessions.insert(session_id, s.clone());
                     s
                 }
-                Ok(None) => return Err(api_error(StatusCode::NOT_FOUND, "Replay session not found")),
+                Ok(None) => {
+                    return Err(api_error(StatusCode::NOT_FOUND, "Replay session not found"))
+                }
                 Err(e) => {
                     error!("Database error fetching session: {}", e);
                     return Err(api_error(
@@ -469,22 +473,26 @@ async fn stream_replay(
             // Fetch latest session status from Cache (hot path)
             let current_session = match state_clone.sessions.get(&session_id) {
                 Some(s) => s.clone(),
-                None => {
-                    match db::get_replay_session(&state_clone.db_pool, session_id).await {
-                        Ok(Some(s)) => {
-                            state_clone.sessions.insert(session_id, s.clone());
-                            s
-                        }
-                        Ok(None) => {
-                            info!("Session {} not found in DB or cache, exiting stream loop", session_id);
-                            break;
-                        }
-                        Err(e) => {
-                            error!("Database error fetching session {} state: {}", session_id, e);
-                            continue;
-                        }
+                None => match db::get_replay_session(&state_clone.db_pool, session_id).await {
+                    Ok(Some(s)) => {
+                        state_clone.sessions.insert(session_id, s.clone());
+                        s
                     }
-                }
+                    Ok(None) => {
+                        info!(
+                            "Session {} not found in DB or cache, exiting stream loop",
+                            session_id
+                        );
+                        break;
+                    }
+                    Err(e) => {
+                        error!(
+                            "Database error fetching session {} state: {}",
+                            session_id, e
+                        );
+                        continue;
+                    }
+                },
             };
 
             let current_status = current_session.status.clone();
@@ -588,7 +596,10 @@ async fn stream_replay(
             }
 
             if let Some(stop_pos) = stop_at {
-                info!("Session {} status is STOPPED, exiting stream loop", session_id);
+                info!(
+                    "Session {} status is STOPPED, exiting stream loop",
+                    session_id
+                );
 
                 let _ = db::update_replay_session(
                     &state_clone.db_pool,
@@ -619,10 +630,12 @@ async fn stream_replay(
                     .send(Ok(Event::default().event("state").data(state_json)))
                     .await;
 
-                let playing_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'")
-                    .fetch_one(&state_clone.db_pool)
-                    .await
-                    .unwrap_or_default();
+                let playing_count: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM replay_sessions WHERE status = 'PLAYING'",
+                )
+                .fetch_one(&state_clone.db_pool)
+                .await
+                .unwrap_or_default();
                 metrics::ACTIVE_REPLAYS.set(playing_count as f64);
 
                 if local_position < stop_pos {
@@ -727,15 +740,13 @@ async fn stream_replay(
             }
         };
         if let Some((pos, status, speed)) = final_pos {
-            info!("Persisting final replay session state to DB on exit: position={}, status={}", pos, status);
-            let _ = db::update_replay_session(
-                &state_clone.db_pool,
-                session_id,
-                pos,
-                &status,
-                speed,
-            )
-            .await;
+            info!(
+                "Persisting final replay session state to DB on exit: position={}, status={}",
+                pos, status
+            );
+            let _ =
+                db::update_replay_session(&state_clone.db_pool, session_id, pos, &status, speed)
+                    .await;
         }
     });
 
@@ -894,23 +905,23 @@ async fn auth_middleware(
     if authenticated {
         Ok(next.run(req).await)
     } else {
-            let body = serde_json::json!({
-                "error": "Unauthorized",
-                "details": vec!["Missing or invalid authorization token"]
-            })
-            .to_string();
-            let mut response = axum::response::Response::new(axum::body::Body::from(body));
-            *response.status_mut() = StatusCode::UNAUTHORIZED;
-            response.headers_mut().insert(
-                axum::http::header::CONTENT_TYPE,
-                axum::http::HeaderValue::from_static("application/json"),
-            );
-            if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
-                response
-                    .headers_mut()
-                    .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
-            }
-            Ok(response)
+        let body = serde_json::json!({
+            "error": "Unauthorized",
+            "details": vec!["Missing or invalid authorization token"]
+        })
+        .to_string();
+        let mut response = axum::response::Response::new(axum::body::Body::from(body));
+        *response.status_mut() = StatusCode::UNAUTHORIZED;
+        response.headers_mut().insert(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("application/json"),
+        );
+        if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
+            response
+                .headers_mut()
+                .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
+        }
+        Ok(response)
     }
 }
 
@@ -992,7 +1003,6 @@ mod tests {
         assert!(!is_valid_speed(3.0));
         assert!(!is_valid_speed(120.0));
     }
-
 
     #[test]
     fn test_db_satellite_health_mapping() {
@@ -1094,16 +1104,13 @@ mod tests {
         use axum::http::Request;
         use tower::util::ServiceExt;
 
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgrespassword@localhost:5432/spaceops".to_string());
-        
-        let db_pool = match sqlx::PgPool::connect_with(
-            database_url.parse().unwrap()
-        ).await {
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgrespassword@localhost:5432/spaceops".to_string()
+        });
+
+        let db_pool = match sqlx::PgPool::connect_with(database_url.parse().unwrap()).await {
             Ok(pool) => pool,
-            Err(_) => {
-                sqlx::PgPool::connect_lazy(&database_url).unwrap()
-            }
+            Err(_) => sqlx::PgPool::connect_lazy(&database_url).unwrap(),
         };
 
         let state = Arc::new(AppState {
@@ -1131,10 +1138,13 @@ mod tests {
                     .method("POST")
                     .uri("/api/replays")
                     .header("Content-Type", "application/json")
-                    .body(Body::from(serde_json::to_string(&serde_json::json!({
-                        "start_time": "2026-01-01T00:00:00Z",
-                        "end_time": "2026-01-01T01:00:00Z"
-                    })).unwrap()))
+                    .body(Body::from(
+                        serde_json::to_string(&serde_json::json!({
+                            "start_time": "2026-01-01T00:00:00Z",
+                            "end_time": "2026-01-01T01:00:00Z"
+                        }))
+                        .unwrap(),
+                    ))
                     .unwrap(),
             )
             .await
@@ -1150,11 +1160,14 @@ mod tests {
                     .uri("/api/replays")
                     .header("Authorization", "Bearer secret-key")
                     .header("Content-Type", "application/json")
-                    .body(Body::from(serde_json::to_string(&serde_json::json!({
-                        "start_time": "2026-01-01T00:00:00Z",
-                        "end_time": "2026-01-01T01:00:00Z",
-                        "speed": 3.0
-                    })).unwrap()))
+                    .body(Body::from(
+                        serde_json::to_string(&serde_json::json!({
+                            "start_time": "2026-01-01T00:00:00Z",
+                            "end_time": "2026-01-01T01:00:00Z",
+                            "speed": 3.0
+                        }))
+                        .unwrap(),
+                    ))
                     .unwrap(),
             )
             .await
@@ -1170,16 +1183,19 @@ mod tests {
                     .uri("/api/replays")
                     .header("Authorization", "Bearer secret-key")
                     .header("Content-Type", "application/json")
-                    .body(Body::from(serde_json::to_string(&serde_json::json!({
-                        "start_time": "2026-01-01T00:00:00Z",
-                        "end_time": "2026-01-01T01:00:00Z",
-                        "speed": 5.0
-                    })).unwrap()))
+                    .body(Body::from(
+                        serde_json::to_string(&serde_json::json!({
+                            "start_time": "2026-01-01T00:00:00Z",
+                            "end_time": "2026-01-01T01:00:00Z",
+                            "speed": 5.0
+                        }))
+                        .unwrap(),
+                    ))
                     .unwrap(),
             )
             .await
             .unwrap();
-        
+
         let status = response.status();
         assert!(status == StatusCode::CREATED || status == StatusCode::INTERNAL_SERVER_ERROR);
     }

@@ -17,10 +17,10 @@ mod scenario;
 use config::Config;
 use generator::{GroundStationState, SatelliteSimulator};
 use lazy_static::lazy_static;
-use rdkafka::consumer::{Consumer, StreamConsumer};
-use rdkafka::message::Message;
 use rdkafka::client::ClientContext;
 use rdkafka::consumer::ConsumerContext;
+use rdkafka::consumer::{Consumer, StreamConsumer};
+use rdkafka::message::Message;
 
 struct MetricsContext;
 
@@ -29,9 +29,13 @@ impl ClientContext for MetricsContext {
         if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
             if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
                 for (topic_name, topic_val) in topics {
-                    if let Some(partitions) = topic_val.get("partitions").and_then(|p| p.as_object()) {
+                    if let Some(partitions) =
+                        topic_val.get("partitions").and_then(|p| p.as_object())
+                    {
                         for (partition_id, partition_val) in partitions {
-                            if let Some(lag) = partition_val.get("consumer_lag").and_then(|l| l.as_i64()) {
+                            if let Some(lag) =
+                                partition_val.get("consumer_lag").and_then(|l| l.as_i64())
+                            {
                                 KAFKA_CONSUMER_LAG
                                     .with_label_values(&[topic_name, partition_id])
                                     .set(lag as f64);
@@ -101,18 +105,21 @@ fn register_metrics() {
 async fn start_metrics_server(port: u16) {
     use axum::{routing::get, Router};
 
-    let app = Router::new().route("/metrics", get(|| async {
-        let encoder = TextEncoder::new();
-        let metric_families = REGISTRY.gather();
-        let mut buffer = Vec::new();
-        encoder.encode(&metric_families, &mut buffer).unwrap();
-        
-        axum::response::Response::builder()
-            .status(axum::http::StatusCode::OK)
-            .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
-            .body(axum::body::Body::from(buffer))
-            .unwrap()
-    }));
+    let app = Router::new().route(
+        "/metrics",
+        get(|| async {
+            let encoder = TextEncoder::new();
+            let metric_families = REGISTRY.gather();
+            let mut buffer = Vec::new();
+            encoder.encode(&metric_families, &mut buffer).unwrap();
+
+            axum::response::Response::builder()
+                .status(axum::http::StatusCode::OK)
+                .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
+                .body(axum::body::Body::from(buffer))
+                .unwrap()
+        }),
+    );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = match tokio::net::TcpListener::bind(addr).await {
@@ -204,7 +211,8 @@ async fn main() -> Result<(), anyhow::Error> {
             .set("auto.offset.reset", "latest")
             .set("statistics.interval.ms", "1000");
 
-        let consumer_res: Result<StreamConsumer<MetricsContext>, _> = client_config.create_with_context(MetricsContext);
+        let consumer_res: Result<StreamConsumer<MetricsContext>, _> =
+            client_config.create_with_context(MetricsContext);
 
         let consumer = match consumer_res {
             Ok(c) => c,

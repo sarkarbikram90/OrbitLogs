@@ -100,7 +100,6 @@ async fn main() -> Result<(), anyhow::Error> {
         cli.kafka_sasl_password = Some(val);
     }
 
-
     // Start OpenTelemetry & tracing
     if let Err(e) = telemetry::init_telemetry("open-spaceops-collector", &cli.otel_endpoint) {
         error!(

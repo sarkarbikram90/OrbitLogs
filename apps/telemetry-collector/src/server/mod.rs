@@ -24,11 +24,10 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
             Router::new()
                 .route(
                     "/",
-                    post(handlers::ingest_telemetry)
-                        .layer(axum::middleware::from_fn_with_state(
-                            state_arc.clone(),
-                            rate_limit_middleware,
-                        )),
+                    post(handlers::ingest_telemetry).layer(axum::middleware::from_fn_with_state(
+                        state_arc.clone(),
+                        rate_limit_middleware,
+                    )),
                 )
                 .layer(axum::middleware::from_fn_with_state(
                     state_arc.clone(),
@@ -93,7 +92,7 @@ pub async fn rate_limit_middleware(
             })
         });
         let mut bucket = entry.lock().unwrap();
-        
+
         let elapsed = now.duration_since(bucket.last_refill).as_secs_f64();
         bucket.tokens = (bucket.tokens + elapsed * 100.0).min(100.0);
         bucket.last_refill = now;

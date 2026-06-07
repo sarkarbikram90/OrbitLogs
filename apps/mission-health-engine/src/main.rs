@@ -6,6 +6,8 @@ use rdkafka::client::ClientContext;
 use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
+use spaceops_models::db::establish_db_connection;
+use spaceops_models::kafka::KafkaConfigBuilder;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -14,8 +16,6 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
-use spaceops_models::db::establish_db_connection;
-use spaceops_models::kafka::KafkaConfigBuilder;
 
 mod db;
 mod health;
@@ -31,9 +31,13 @@ impl ClientContext for MetricsContext {
         if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
             if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
                 for (topic_name, topic_val) in topics {
-                    if let Some(partitions) = topic_val.get("partitions").and_then(|p| p.as_object()) {
+                    if let Some(partitions) =
+                        topic_val.get("partitions").and_then(|p| p.as_object())
+                    {
                         for (partition_id, partition_val) in partitions {
-                            if let Some(lag) = partition_val.get("consumer_lag").and_then(|l| l.as_i64()) {
+                            if let Some(lag) =
+                                partition_val.get("consumer_lag").and_then(|l| l.as_i64())
+                            {
                                 metrics::KAFKA_CONSUMER_LAG
                                     .with_label_values(&[topic_name, partition_id])
                                     .set(lag as f64);
@@ -104,18 +108,21 @@ struct EngineState {
 async fn start_metrics_server(port: u16) {
     use axum::{routing::get, Router};
 
-    let app = Router::new().route("/metrics", get(|| async {
-        let encoder = TextEncoder::new();
-        let metric_families = metrics::REGISTRY.gather();
-        let mut buffer = Vec::new();
-        encoder.encode(&metric_families, &mut buffer).unwrap();
-        
-        axum::response::Response::builder()
-            .status(axum::http::StatusCode::OK)
-            .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
-            .body(axum::body::Body::from(buffer))
-            .unwrap()
-    }));
+    let app = Router::new().route(
+        "/metrics",
+        get(|| async {
+            let encoder = TextEncoder::new();
+            let metric_families = metrics::REGISTRY.gather();
+            let mut buffer = Vec::new();
+            encoder.encode(&metric_families, &mut buffer).unwrap();
+
+            axum::response::Response::builder()
+                .status(axum::http::StatusCode::OK)
+                .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
+                .body(axum::body::Body::from(buffer))
+                .unwrap()
+        }),
+    );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = match tokio::net::TcpListener::bind(addr).await {
@@ -200,7 +207,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .set("auto.offset.reset", "latest")
         .set("statistics.interval.ms", "1000");
 
-    let consumer: StreamConsumer<MetricsContext> = consumer_config.create_with_context(MetricsContext)?;
+    let consumer: StreamConsumer<MetricsContext> =
+        consumer_config.create_with_context(MetricsContext)?;
     consumer.subscribe(&[&cli.processed_topic])?;
     info!(
         "Kafka consumer subscribed to topic '{}'",
@@ -256,7 +264,8 @@ async fn main() -> Result<(), anyhow::Error> {
             .set("auto.offset.reset", "latest")
             .set("statistics.interval.ms", "1000");
 
-        let consumer_res: Result<StreamConsumer<MetricsContext>, _> = bg_config.create_with_context(MetricsContext);
+        let consumer_res: Result<StreamConsumer<MetricsContext>, _> =
+            bg_config.create_with_context(MetricsContext);
 
         let consumer = match consumer_res {
             Ok(c) => c,

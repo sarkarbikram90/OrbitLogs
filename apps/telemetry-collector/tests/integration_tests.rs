@@ -53,11 +53,10 @@ fn create_test_app() -> Router {
     Router::new()
         .route(
             "/telemetry",
-            post(mock_ingest_telemetry)
-                .layer(axum::middleware::from_fn_with_state(
-                    state.clone(),
-                    telemetry_collector::server::rate_limit_middleware,
-                )),
+            post(mock_ingest_telemetry).layer(axum::middleware::from_fn_with_state(
+                state.clone(),
+                telemetry_collector::server::rate_limit_middleware,
+            )),
         )
         .route(
             "/telemetry_real",

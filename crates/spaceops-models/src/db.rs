@@ -1,6 +1,6 @@
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::time::Duration;
-use tracing::{info, error};
+use tracing::{error, info};
 
 pub async fn establish_db_connection(
     database_url: &str,

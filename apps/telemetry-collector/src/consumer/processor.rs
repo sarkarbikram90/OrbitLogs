@@ -32,9 +32,13 @@ impl ClientContext for MetricsContext {
         if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
             if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
                 for (topic_name, topic_val) in topics {
-                    if let Some(partitions) = topic_val.get("partitions").and_then(|p| p.as_object()) {
+                    if let Some(partitions) =
+                        topic_val.get("partitions").and_then(|p| p.as_object())
+                    {
                         for (partition_id, partition_val) in partitions {
-                            if let Some(lag) = partition_val.get("consumer_lag").and_then(|l| l.as_i64()) {
+                            if let Some(lag) =
+                                partition_val.get("consumer_lag").and_then(|l| l.as_i64())
+                            {
                                 crate::metrics::KAFKA_CONSUMER_LAG
                                     .with_label_values(&[topic_name, partition_id])
                                     .set(lag as f64);
@@ -124,15 +128,16 @@ impl TelemetryConsumer {
     }
 
     pub async fn start(&self) -> Result<(), anyhow::Error> {
-        let mut client_config = spaceops_models::kafka::KafkaConfigBuilder::new(self.config.brokers.clone())
-            .with_security(
-                self.config.security_protocol.clone(),
-                self.config.sasl_mechanism.clone(),
-                self.config.sasl_username.clone(),
-                self.config.sasl_password.clone(),
-                self.config.ssl_ca_location.clone(),
-            )
-            .build();
+        let mut client_config =
+            spaceops_models::kafka::KafkaConfigBuilder::new(self.config.brokers.clone())
+                .with_security(
+                    self.config.security_protocol.clone(),
+                    self.config.sasl_mechanism.clone(),
+                    self.config.sasl_username.clone(),
+                    self.config.sasl_password.clone(),
+                    self.config.ssl_ca_location.clone(),
+                )
+                .build();
         client_config
             .set("group.id", &self.config.group_id)
             .set("enable.partition.eof", "false")
@@ -141,7 +146,8 @@ impl TelemetryConsumer {
             .set("auto.offset.reset", "earliest")
             .set("statistics.interval.ms", "1000");
 
-        let consumer: StreamConsumer<MetricsContext> = client_config.create_with_context(MetricsContext)?;
+        let consumer: StreamConsumer<MetricsContext> =
+            client_config.create_with_context(MetricsContext)?;
 
         consumer.subscribe(&[&self.config.raw_topic])?;
         info!(
@@ -162,9 +168,10 @@ impl TelemetryConsumer {
                         }
                     }
 
-                    let parent_context = opentelemetry::global::get_text_map_propagator(|propagator| {
-                        propagator.extract(&carrier)
-                    });
+                    let parent_context =
+                        opentelemetry::global::get_text_map_propagator(|propagator| {
+                            propagator.extract(&carrier)
+                        });
 
                     let span = tracing::info_span!("telemetry_consumer_recv");
                     span.set_parent(parent_context);
@@ -252,11 +259,7 @@ impl TelemetryConsumer {
                         let key = format!("{}:{}", record.mission_id, record.satellite_id);
                         if let Err(dlq_err) = self
                             .kafka_producer
-                            .publish(
-                                &self.config.invalid_topic,
-                                &key,
-                                &dlq_payload,
-                            )
+                            .publish(&self.config.invalid_topic, &key, &dlq_payload)
                             .await
                         {
                             error!(
@@ -491,7 +494,11 @@ impl TelemetryConsumer {
 
         // 2. Battery Degradation anomaly detection - only check if battery_voltage is updated
         if let Some(battery_voltage) = incoming.battery_voltage {
-            if battery_voltage < 11.0 && self.should_alert(sat_id, "ANOMALY_BATTERY_DEGRADATION").await {
+            if battery_voltage < 11.0
+                && self
+                    .should_alert(sat_id, "ANOMALY_BATTERY_DEGRADATION")
+                    .await
+            {
                 let details = serde_json::json!({
                     "battery_voltage": battery_voltage,
                     "limit": 11.0
@@ -542,7 +549,11 @@ impl TelemetryConsumer {
             let packet_loss = merged.packet_loss.unwrap_or(0.0);
             let comm_latency = merged.communication_latency.unwrap_or(0.0);
 
-            if (packet_loss > 10.0 || comm_latency > 1000.0) && self.should_alert(sat_id, "ANOMALY_COMMUNICATION_DEGRADED").await {
+            if (packet_loss > 10.0 || comm_latency > 1000.0)
+                && self
+                    .should_alert(sat_id, "ANOMALY_COMMUNICATION_DEGRADED")
+                    .await
+            {
                 let details = serde_json::json!({
                     "packet_loss": packet_loss,
                     "latency": comm_latency
