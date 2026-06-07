@@ -469,76 +469,70 @@ impl TelemetryConsumer {
 
         // 1. Thermal Spike anomaly detection - only check if temperature is updated
         if let Some(temperature) = incoming.temperature {
-            if temperature > 85.0 {
-                if self.should_alert(sat_id, "ANOMALY_THERMAL_SPIKE").await {
-                    let details = serde_json::json!({
-                        "temperature": temperature,
-                        "limit": 85.0
-                    });
-                    if let Err(e) = db::insert_event(
-                        &self.db_pool,
-                        sat_id,
-                        "ANOMALY_THERMAL_SPIKE",
-                        "CRITICAL",
-                        &format!("Satellite temperature has spiked to {}°C", temperature),
-                        details,
-                    )
-                    .await
-                    {
-                        error!("Failed to log thermal spike anomaly for {}: {}", sat_id, e);
-                    }
+            if temperature > 85.0 && self.should_alert(sat_id, "ANOMALY_THERMAL_SPIKE").await {
+                let details = serde_json::json!({
+                    "temperature": temperature,
+                    "limit": 85.0
+                });
+                if let Err(e) = db::insert_event(
+                    &self.db_pool,
+                    sat_id,
+                    "ANOMALY_THERMAL_SPIKE",
+                    "CRITICAL",
+                    &format!("Satellite temperature has spiked to {}°C", temperature),
+                    details,
+                )
+                .await
+                {
+                    error!("Failed to log thermal spike anomaly for {}: {}", sat_id, e);
                 }
             }
         }
 
         // 2. Battery Degradation anomaly detection - only check if battery_voltage is updated
         if let Some(battery_voltage) = incoming.battery_voltage {
-            if battery_voltage < 11.0 {
-                if self.should_alert(sat_id, "ANOMALY_BATTERY_DEGRADATION").await {
-                    let details = serde_json::json!({
-                        "battery_voltage": battery_voltage,
-                        "limit": 11.0
-                    });
-                    if let Err(e) = db::insert_event(
-                        &self.db_pool,
-                        sat_id,
-                        "ANOMALY_BATTERY_DEGRADATION",
-                        "CRITICAL",
-                        &format!("Battery voltage is critical: {}V", battery_voltage),
-                        details,
-                    )
-                    .await
-                    {
-                        error!("Failed to log battery anomaly for {}: {}", sat_id, e);
-                    }
+            if battery_voltage < 11.0 && self.should_alert(sat_id, "ANOMALY_BATTERY_DEGRADATION").await {
+                let details = serde_json::json!({
+                    "battery_voltage": battery_voltage,
+                    "limit": 11.0
+                });
+                if let Err(e) = db::insert_event(
+                    &self.db_pool,
+                    sat_id,
+                    "ANOMALY_BATTERY_DEGRADATION",
+                    "CRITICAL",
+                    &format!("Battery voltage is critical: {}V", battery_voltage),
+                    details,
+                )
+                .await
+                {
+                    error!("Failed to log battery anomaly for {}: {}", sat_id, e);
                 }
             }
         }
 
         // 3. Fuel Leak anomaly detection - only check if fuel_remaining is updated
         if let Some(fuel_remaining) = incoming.fuel_remaining {
-            if fuel_remaining < 15.0 {
-                if self.should_alert(sat_id, "ANOMALY_FUEL_LOW").await {
-                    let details = serde_json::json!({
-                        "fuel_remaining": fuel_remaining,
-                        "limit": 15.0
-                    });
-                    if let Err(e) = db::insert_event(
-                        &self.db_pool,
-                        sat_id,
-                        "ANOMALY_FUEL_LOW",
-                        if fuel_remaining < 5.0 {
-                            "CRITICAL"
-                        } else {
-                            "WARNING"
-                        },
-                        &format!("Satellite fuel level has dropped to {}%", fuel_remaining),
-                        details,
-                    )
-                    .await
-                    {
-                        error!("Failed to log fuel anomaly for {}: {}", sat_id, e);
-                    }
+            if fuel_remaining < 15.0 && self.should_alert(sat_id, "ANOMALY_FUEL_LOW").await {
+                let details = serde_json::json!({
+                    "fuel_remaining": fuel_remaining,
+                    "limit": 15.0
+                });
+                if let Err(e) = db::insert_event(
+                    &self.db_pool,
+                    sat_id,
+                    "ANOMALY_FUEL_LOW",
+                    if fuel_remaining < 5.0 {
+                        "CRITICAL"
+                    } else {
+                        "WARNING"
+                    },
+                    &format!("Satellite fuel level has dropped to {}%", fuel_remaining),
+                    details,
+                )
+                .await
+                {
+                    error!("Failed to log fuel anomaly for {}: {}", sat_id, e);
                 }
             }
         }
@@ -548,27 +542,25 @@ impl TelemetryConsumer {
             let packet_loss = merged.packet_loss.unwrap_or(0.0);
             let comm_latency = merged.communication_latency.unwrap_or(0.0);
 
-            if packet_loss > 10.0 || comm_latency > 1000.0 {
-                if self.should_alert(sat_id, "ANOMALY_COMMUNICATION_DEGRADED").await {
-                    let details = serde_json::json!({
-                        "packet_loss": packet_loss,
-                        "latency": comm_latency
-                    });
-                    if let Err(e) = db::insert_event(
-                        &self.db_pool,
-                        sat_id,
-                        "ANOMALY_COMMUNICATION_DEGRADED",
-                        "WARNING",
-                        &format!(
-                            "Communications degraded. Latency: {}ms, Packet Loss: {}%",
-                            comm_latency, packet_loss
-                        ),
-                        details,
-                    )
-                    .await
-                    {
-                        error!("Failed to log communication anomaly for {}: {}", sat_id, e);
-                    }
+            if (packet_loss > 10.0 || comm_latency > 1000.0) && self.should_alert(sat_id, "ANOMALY_COMMUNICATION_DEGRADED").await {
+                let details = serde_json::json!({
+                    "packet_loss": packet_loss,
+                    "latency": comm_latency
+                });
+                if let Err(e) = db::insert_event(
+                    &self.db_pool,
+                    sat_id,
+                    "ANOMALY_COMMUNICATION_DEGRADED",
+                    "WARNING",
+                    &format!(
+                        "Communications degraded. Latency: {}ms, Packet Loss: {}%",
+                        comm_latency, packet_loss
+                    ),
+                    details,
+                )
+                .await
+                {
+                    error!("Failed to log communication anomaly for {}: {}", sat_id, e);
                 }
             }
         }

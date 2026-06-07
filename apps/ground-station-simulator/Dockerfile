@@ -29,9 +29,11 @@ RUN mkdir -p crates/spaceops-packets/src && touch crates/spaceops-packets/src/li
 RUN cargo build --release -p ground-station-simulator
 
 # Copy actual source files
+COPY crates/spaceops-models/src crates/spaceops-models/src
 COPY apps/ground-station-simulator/src apps/ground-station-simulator/src
 
 # Rebuild actual application
+RUN touch crates/spaceops-models/src/lib.rs
 RUN touch apps/ground-station-simulator/src/main.rs
 RUN cargo build --release -p ground-station-simulator
 
