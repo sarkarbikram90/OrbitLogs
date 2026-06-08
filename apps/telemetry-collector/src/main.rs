@@ -43,7 +43,7 @@ struct Cli {
     group_id: String,
 
     #[arg(long, env = "API_KEY")]
-    api_key: String,
+    api_key: Option<String>,
 
     #[arg(
         long,
@@ -93,9 +93,10 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Some(val) = load_secret("DATABASE_URL") {
         cli.database_url = val;
     }
-    if let Some(val) = load_secret("API_KEY") {
-        cli.api_key = val;
-    }
+    let api_key = cli.api_key.clone()
+        .or_else(|| load_secret("API_KEY"))
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
     if let Some(val) = load_secret("KAFKA_SASL_PASSWORD") {
         cli.kafka_sasl_password = Some(val);
     }
@@ -170,7 +171,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 invalid_topic: cli.invalid_topic,
                 db_pool,
                 broadcast_tx,
-                api_key: cli.api_key,
+                api_key,
                 cors_allowed_origin: cli.cors_allowed_origin,
                 rate_limiter,
             };
@@ -208,7 +209,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 invalid_topic: cli.invalid_topic.clone(),
                 db_pool,
                 broadcast_tx,
-                api_key: cli.api_key.clone(),
+                api_key: api_key.clone(),
                 cors_allowed_origin: cli.cors_allowed_origin.clone(),
                 rate_limiter,
             };

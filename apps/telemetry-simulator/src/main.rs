@@ -154,9 +154,11 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Some(val) = load_secret("KAFKA_SASL_PASSWORD") {
         config.kafka_sasl_password = Some(val);
     }
-    if let Some(val) = load_secret("API_KEY") {
-        config.api_key = val;
-    }
+    let api_key = config.api_key.clone()
+        .or_else(|| load_secret("API_KEY"))
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
+    config.api_key = Some(api_key);
 
     info!(
         "Launching Telemetry Simulator with configuration: {:?}",
@@ -367,7 +369,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     let client_ref = Arc::clone(&client);
                     let sat_id = telemetry.satellite_id.clone();
                     let sub_name = subsystem_name.clone();
-                    let api_key = config.api_key.clone();
+                    let api_key = config.api_key.clone().unwrap_or_default();
 
                     tokio::spawn(async move {
                         debug!(

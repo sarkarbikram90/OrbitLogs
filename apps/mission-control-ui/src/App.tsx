@@ -7,8 +7,17 @@ import { ReplayControls } from './components/ReplayControls';
 import { IncidentPanel } from './components/IncidentPanel';
 import type { Satellite, GroundStation, EventLog, ReplaySession, SatelliteHealth, TelemetryRecord } from './types';
 
-const BACKEND_REPLAY_URL = import.meta.env.VITE_REPLAY_API_URL || 'http://localhost:8084';
-const BACKEND_COLLECTOR_URL = import.meta.env.VITE_COLLECTOR_API_URL || 'http://localhost:8080';
+const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
+  if (envVal) return envVal;
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:${defaultPort}`;
+  }
+  return `http://localhost:${defaultPort}`;
+};
+
+const BACKEND_REPLAY_URL = getBackendUrl(import.meta.env.VITE_REPLAY_API_URL, '8084');
+const BACKEND_COLLECTOR_URL = getBackendUrl(import.meta.env.VITE_COLLECTOR_API_URL, '8080');
 const API_KEY = import.meta.env.VITE_API_KEY || 'secret-spaceops-key-2026';
 
 export default function App() {

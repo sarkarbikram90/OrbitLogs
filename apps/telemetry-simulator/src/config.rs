@@ -38,7 +38,7 @@ pub struct Config {
     pub health_topic: String,
 
     #[arg(long, env = "API_KEY")]
-    pub api_key: String,
+    pub api_key: Option<String>,
 
     #[arg(long, env = "KAFKA_SECURITY_PROTOCOL")]
     pub kafka_security_protocol: Option<String>,

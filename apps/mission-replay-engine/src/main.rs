@@ -38,7 +38,7 @@ struct Cli {
     port: u16,
 
     #[arg(long, env = "API_KEY")]
-    api_key: String,
+    api_key: Option<String>,
 
     #[arg(
         long,
@@ -113,9 +113,10 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Some(val) = load_secret("DATABASE_URL") {
         cli.database_url = val;
     }
-    if let Some(val) = load_secret("API_KEY") {
-        cli.api_key = val;
-    }
+    let api_key = cli.api_key.clone()
+        .or_else(|| load_secret("API_KEY"))
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
 
     info!(
         "Starting Mission Replay Engine with configuration: {:?}",
@@ -130,7 +131,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let state = Arc::new(AppState {
         db_pool,
-        api_key: cli.api_key,
+        api_key,
         cors_allowed_origin: cli.cors_allowed_origin,
         sessions: dashmap::DashMap::new(),
     });
