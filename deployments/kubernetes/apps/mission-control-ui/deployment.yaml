@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spaceops-mission-control-ui
+  namespace: spaceops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spaceops-mission-control-ui
+  template:
+    metadata:
+      labels:
+        app: spaceops-mission-control-ui
+    spec:
+      containers:
+      - name: spaceops-mission-control-ui
+        image: spaceops/spaceops-mission-control-ui:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+        env:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spaceops-mission-control-ui
+  namespace: spaceops
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: spaceops-mission-control-ui

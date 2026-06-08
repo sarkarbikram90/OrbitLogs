@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - secrets.yaml
+  - infrastructure/timescaledb/statefulset.yaml
+  - infrastructure/kafka/statefulset.yaml
+  - apps/telemetry-collector/deployment.yaml
+  - apps/telemetry-collector/hpa.yaml
+  - apps/mission-health-engine/deployment.yaml
+  - apps/mission-health-engine/hpa.yaml
+  - apps/telemetry-simulator/deployment.yaml
+  - apps/ground-station-simulator/deployment.yaml
+  - apps/mission-replay-engine/deployment.yaml
+  - apps/mission-control-ui/deployment.yaml

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spaceops-health-engine
+  namespace: spaceops
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spaceops-health-engine
+  template:
+    metadata:
+      labels:
+        app: spaceops-health-engine
+    spec:
+      containers:
+      - name: spaceops-health-engine
+        image: spaceops/spaceops-health-engine:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8082
+        env:
+        - name: RUST_LOG
+          value: "info,mission_health_engine=debug" 
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: spaceops-secrets
+              key: database_url
+        - name: KAFKA_BROKERS
+          value: "spaceops-kafka-headless:9092" 
+        - name: METRICS_PORT
+          value: "8082" 
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spaceops-health-engine
+  namespace: spaceops
+spec:
+  ports:
+  - port: 8082
+    targetPort: 8082
+  selector:
+    app: spaceops-health-engine

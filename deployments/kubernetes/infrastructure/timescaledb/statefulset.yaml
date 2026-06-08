@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spaceops-timescaledb
+  namespace: spaceops
+spec:
+  serviceName: spaceops-timescaledb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spaceops-timescaledb
+  template:
+    metadata:
+      labels:
+        app: spaceops-timescaledb
+    spec:
+      containers:
+      - name: timescaledb
+        image: timescale/timescaledb:latest-pg15
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          value: "spaceops"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spaceops-secrets
+              key: postgres_password
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spaceops-timescaledb
+  namespace: spaceops
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: spaceops-timescaledb

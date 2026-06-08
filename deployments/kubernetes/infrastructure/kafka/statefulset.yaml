@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: spaceops-kafka-headless
+  namespace: spaceops
+spec:
+  clusterIP: None
+  ports:
+  - port: 9092
+    name: broker
+  - port: 9093
+    name: controller
+  selector:
+    app: spaceops-kafka
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spaceops-kafka
+  namespace: spaceops
+spec:
+  serviceName: spaceops-kafka-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: spaceops-kafka
+  template:
+    metadata:
+      labels:
+        app: spaceops-kafka
+    spec:
+      containers:
+      - name: kafka
+        image: confluentinc/cp-kafka:7.4.0
+        ports:
+        - containerPort: 9092
+          name: broker
+        - containerPort: 9093
+          name: controller
+        env:
+        - name: KAFKA_PROCESS_ROLES
+          value: "broker,controller"
+        - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+          value: "0@spaceops-kafka-0.spaceops-kafka-headless.spaceops.svc.cluster.local:9093,1@spaceops-kafka-1.spaceops-kafka-headless.spaceops.svc.cluster.local:9093,2@spaceops-kafka-2.spaceops-kafka-headless.spaceops.svc.cluster.local:9093"
+        - name: KAFKA_LISTENERS
+          value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://$(POD_NAME).spaceops-kafka-headless.spaceops.svc.cluster.local:9092"
+        - name: KAFKA_CONTROLLER_LISTENER_NAMES
+          value: "CONTROLLER"
+        - name: KAFKA_KRAFT_CLUSTER_ID
+          value: "4L62C12345678901234567"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        command:
+          - bash
+          - -c
+          - |
+            export KAFKA_NODE_ID=${HOSTNAME##*-}
+            /etc/confluent/docker/run
