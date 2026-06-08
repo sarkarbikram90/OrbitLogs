@@ -22,5 +22,6 @@ uuid = { workspace = true }
 lazy_static = "1.4"
 axum = { version = "0.7" }
 tokio-util = { version = "0.7" }
+dashmap = { workspace = true }
 
 

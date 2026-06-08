@@ -1,5 +1,4 @@
 services:
-  # --- DATABASE (TimescaleDB) ---
   timescaledb:
     image: timescale/timescaledb:latest-pg15
     container_name: spaceops-timescaledb
@@ -8,12 +7,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     ports:
-      - "5432:5432"
+    - 5432:5432
     volumes:
-      - timescaledb_data:/var/lib/postgresql/data
-      - ../postgres/migrations:/docker-entrypoint-initdb.d
+    - timescaledb_data:/var/lib/postgresql/data
+    - ../postgres/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d spaceops"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U postgres -d spaceops
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,31 +24,316 @@ services:
           cpus: '0.50'
           memory: 512M
     secrets:
-      - postgres_password
+    - postgres_password
     restart: unless-stopped
-
-  # --- EVENT STREAMING (Zookeeper & Kafka) ---
-  # --- EVENT STREAMING (Kafka KRaft Mode) ---
-  kafka:
+  kafka-init:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: spaceops-kafka
+    container_name: spaceops-kafka-init
+    depends_on:
+    - kafka-1
+    - kafka-2
+    - kafka-3
+    entrypoint:
+    - bash
+    - -c
+    - "\n      echo 'Waiting for Kafka to be ready...';\n      cub kafka-ready -b\
+      \ kafka-1:29092,kafka-2:29094,kafka-3:29096 3 60 && \\\n      kafka-topics --create\
+      \ --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor\
+      \ 3 --topic telemetry.raw && \\\n      kafka-topics --create --if-not-exists\
+      \ --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor 3 --topic\
+      \ telemetry.processed && \\\n      kafka-topics --create --if-not-exists --bootstrap-server\
+      \ kafka-1:29092 --partitions 3 --replication-factor 3 --topic telemetry.invalid\
+      \ && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092\
+      \ --partitions 3 --replication-factor 3 --topic mission.health && \\\n     \
+      \ kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions\
+      \ 3 --replication-factor 3 --topic groundstation.health && \\\n      kafka-topics\
+      \ --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor\
+      \ 3 --topic telemetry.dlq && \\\n      echo 'Kafka topics created successfully!';"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 128M
+  jaeger:
+    image: jaegertracing/all-in-one:1.47
+    container_name: spaceops-jaeger
     ports:
-      - "9092:9092"
+    - 16686:16686
+    - 4317:4317
+    environment:
+    - COLLECTOR_OTLP_ENABLED=true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.82.0
+    container_name: spaceops-otel-collector
+    volumes:
+    - ../otel/otel-collector-config.yml:/etc/otelcol/config.yaml
+    command:
+    - --config=/etc/otelcol/config.yaml
+    ports:
+    - 4318:4318
+    depends_on:
+    - jaeger
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: spaceops-alertmanager
+    volumes:
+    - ../alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+    - 9093:9093
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 128M
+    restart: unless-stopped
+  prometheus:
+    image: prom/prometheus:v2.46.0
+    container_name: spaceops-prometheus
+    volumes:
+    - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    - ../prometheus/rules.yml:/etc/prometheus/rules.yml
+    ports:
+    - 9090:9090
+    depends_on:
+    - alertmanager
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:10.0.3
+    container_name: spaceops-grafana
+    volumes:
+    - ../grafana/provision/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+    - ../grafana/provision/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+    - ../grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+    - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
+    ports:
+    - 3005:3000
+    depends_on:
+    - prometheus
+    - timescaledb
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - grafana_admin_password
+    restart: unless-stopped
+  telemetry-collector:
+    build:
+      context: ../../
+      dockerfile: apps/telemetry-collector/Dockerfile
+    container_name: spaceops-collector
+    ports:
+    - 8080:8080
+    environment:
+    - RUST_LOG=info,telemetry_collector=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    - HTTP_PORT=8080
+    - API_KEY_FILE=/run/secrets/api_key
+    - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    - api_key
+    - kafka_sasl_password
+    restart: unless-stopped
+  telemetry-simulator:
+    build:
+      context: ../../
+      dockerfile: apps/telemetry-simulator/Dockerfile
+    container_name: spaceops-simulator
+    ports:
+    - 8081:8081
+    environment:
+    - RUST_LOG=info,telemetry_simulator=debug
+    - COLLECTOR_URL=http://telemetry-collector:8080/telemetry
+    - SIM_FLEET_SIZE=10
+    - SIM_FREQUENCY_MS=1000
+    - METRICS_PORT=8081
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - HEALTH_TOPIC=groundstation.health
+    - API_KEY_FILE=/run/secrets/api_key
+    - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    depends_on:
+      telemetry-collector:
+        condition: service_started
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - api_key
+    - kafka_sasl_password
+    restart: unless-stopped
+  mission-health-engine:
+    build:
+      context: ../../
+      dockerfile: apps/mission-health-engine/Dockerfile
+    container_name: spaceops-health-engine
+    ports:
+    - 8082:8082
+    environment:
+    - RUST_LOG=info,mission_health_engine=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - PROCESSED_TOPIC=telemetry.processed
+    - HEALTH_TOPIC=mission.health
+    - GS_HEALTH_TOPIC=groundstation.health
+    - GROUP_ID=mission-health-group
+    - METRICS_PORT=8082
+    - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    - kafka_sasl_password
+    restart: unless-stopped
+  ground-station-simulator:
+    build:
+      context: ../../
+      dockerfile: apps/ground-station-simulator/Dockerfile
+    container_name: spaceops-ground-station-simulator
+    ports:
+    - 8083:8083
+    environment:
+    - RUST_LOG=info,ground_station_simulator=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - HEALTH_TOPIC=groundstation.health
+    - METRICS_PORT=8083
+    - SIM_FREQUENCY_SEC=2
+    - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    - kafka_sasl_password
+    restart: unless-stopped
+  mission-replay-engine:
+    build:
+      context: ../../
+      dockerfile: apps/mission-replay-engine/Dockerfile
+    container_name: spaceops-replay-engine
+    ports:
+    - 8084:8084
+    environment:
+    - RUST_LOG=info,mission_replay_engine=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - PORT=8084
+    - API_KEY_FILE=/run/secrets/api_key
+    depends_on:
+    - timescaledb
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    - api_key
+    restart: unless-stopped
+  mission-control-ui:
+    build:
+      context: ../../
+      dockerfile: apps/mission-control-ui/Dockerfile
+    container_name: spaceops-mission-control-ui
+    ports:
+    - 3000:3000
+    depends_on:
+    - telemetry-collector
+    - mission-replay-engine
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped
+  kafka-1:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: spaceops-kafka-1
+    ports:
+    - 9092:9092
     environment:
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
-      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092,CONTROLLER://kafka:9093'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_KRAFT_CLUSTER_ID: '4L62C12345678901234567'
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      KAFKA_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka-1:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_KRAFT_CLUSTER_ID: 4L62C12345678901234567
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server kafka:29092 --list"]
+      test:
+      - CMD-SHELL
+      - kafka-topics --bootstrap-server kafka-1:29092 --list
       interval: 10s
       timeout: 5s
       retries: 5
@@ -57,285 +343,68 @@ services:
           cpus: '0.50'
           memory: 512M
     restart: unless-stopped
-
-  kafka-init:
+  kafka-2:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: spaceops-kafka-init
-    depends_on:
-      - kafka
-    # Creates topics with 3 partitions and a replication factor of 1 (dev setup).
-    # In production, replication factor must be at least 3 for fault tolerance.
-    entrypoint: [ "bash", "-c", "
-      echo 'Waiting for Kafka to be ready...';
-      cub kafka-ready -b kafka:29092 1 30 && \\
-      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.raw && \\
-      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.processed && \\
-      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic telemetry.invalid && \\
-      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic mission.health && \\
-      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic groundstation.health && \\
-      echo 'Kafka topics created successfully!';" ]
-    deploy:
-      resources:
-        limits:
-          cpus: '0.10'
-          memory: 128M
-
-
-  # --- TRACING (Jaeger) ---
-  jaeger:
-    image: jaegertracing/all-in-one:1.47
-    container_name: spaceops-jaeger
+    container_name: spaceops-kafka-2
     ports:
-      - "16686:16686" # Web UI
-      - "4317:4317"   # OTLP gRPC receiver (Jaeger native)
+    - 9094:9094
     environment:
-      - COLLECTOR_OTLP_ENABLED=true
+      KAFKA_NODE_ID: 2
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      KAFKA_LISTENERS: PLAINTEXT://kafka-2:29094,PLAINTEXT_HOST://0.0.0.0:9094,CONTROLLER://kafka-2:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:29094,PLAINTEXT_HOST://localhost:9094
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_KRAFT_CLUSTER_ID: 4L62C12345678901234567
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - kafka-topics --bootstrap-server kafka-2:29094 --list
+      interval: 10s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
-          cpus: '0.25'
-          memory: 256M
+          cpus: '0.50'
+          memory: 512M
     restart: unless-stopped
-
-  # --- METRICS & OBSERVABILITY (Prometheus, OTel Collector, Grafana, Alertmanager) ---
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.82.0
-    container_name: spaceops-otel-collector
-    volumes:
-      - ../otel/otel-collector-config.yml:/etc/otelcol/config.yaml
-    command: ["--config=/etc/otelcol/config.yaml"]
+  kafka-3:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: spaceops-kafka-3
     ports:
-      - "4318:4318" # OTLP HTTP receiver
-    depends_on:
-      - jaeger
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    restart: unless-stopped
-
-  alertmanager:
-    image: prom/alertmanager:v0.25.0
-    container_name: spaceops-alertmanager
-    volumes:
-      - ../alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-    ports:
-      - "9093:9093"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.10'
-          memory: 128M
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:v2.46.0
-    container_name: spaceops-prometheus
-    volumes:
-      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ../prometheus/rules.yml:/etc/prometheus/rules.yml
-    ports:
-      - "9090:9090"
-    depends_on:
-      - alertmanager
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:10.0.3
-    container_name: spaceops-grafana
-    volumes:
-      - ../grafana/provision/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
-      - ../grafana/provision/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml
-      - ../grafana/dashboards:/var/lib/grafana/dashboards
+    - 9096:9096
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
-    ports:
-      - "3005:3000"
-    depends_on:
-      - prometheus
-      - timescaledb
+      KAFKA_NODE_ID: 3
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      KAFKA_LISTENERS: PLAINTEXT://kafka-3:29096,PLAINTEXT_HOST://0.0.0.0:9096,CONTROLLER://kafka-3:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:29096,PLAINTEXT_HOST://localhost:9096
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_KRAFT_CLUSTER_ID: 4L62C12345678901234567
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - kafka-topics --bootstrap-server kafka-3:29096 --list
+      interval: 10s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
-          cpus: '0.25'
-          memory: 256M
-    secrets:
-      - grafana_admin_password
+          cpus: '0.50'
+          memory: 512M
     restart: unless-stopped
-
-  # --- APPLICATIONS (Collector & Simulator) ---
-  telemetry-collector:
-    build:
-      context: ../../
-      dockerfile: apps/telemetry-collector/Dockerfile
-    container_name: spaceops-collector
-    ports:
-      - "8080:8080"
-    environment:
-      - RUST_LOG=info,telemetry_collector=debug
-      - DATABASE_URL_FILE=/run/secrets/database_url
-      - KAFKA_BROKERS=kafka:29092
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - HTTP_PORT=8080
-      - API_KEY_FILE=/run/secrets/api_key
-      - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    secrets:
-      - database_url
-      - api_key
-      - kafka_sasl_password
-    restart: unless-stopped
-
-  telemetry-simulator:
-    build:
-      context: ../../
-      dockerfile: apps/telemetry-simulator/Dockerfile
-    container_name: spaceops-simulator
-    ports:
-      - "8081:8081"
-    environment:
-      - RUST_LOG=info,telemetry_simulator=debug
-      - COLLECTOR_URL=http://telemetry-collector:8080/telemetry
-      - SIM_FLEET_SIZE=10
-      - SIM_FREQUENCY_MS=1000
-      - METRICS_PORT=8081
-      - KAFKA_BROKERS=kafka:29092
-      - HEALTH_TOPIC=groundstation.health
-      - API_KEY_FILE=/run/secrets/api_key
-      - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
-    depends_on:
-      kafka:
-        condition: service_healthy
-      telemetry-collector:
-        condition: service_started
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    secrets:
-      - api_key
-      - kafka_sasl_password
-    restart: unless-stopped
-
-  mission-health-engine:
-    build:
-      context: ../../
-      dockerfile: apps/mission-health-engine/Dockerfile
-    container_name: spaceops-health-engine
-    ports:
-      - "8082:8082"
-    environment:
-      - RUST_LOG=info,mission_health_engine=debug
-      - DATABASE_URL_FILE=/run/secrets/database_url
-      - KAFKA_BROKERS=kafka:29092
-      - PROCESSED_TOPIC=telemetry.processed
-      - HEALTH_TOPIC=mission.health
-      - GS_HEALTH_TOPIC=groundstation.health
-      - GROUP_ID=mission-health-group
-      - METRICS_PORT=8082
-      - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    secrets:
-      - database_url
-      - kafka_sasl_password
-    restart: unless-stopped
-
-  ground-station-simulator:
-    build:
-      context: ../../
-      dockerfile: apps/ground-station-simulator/Dockerfile
-    container_name: spaceops-ground-station-simulator
-    ports:
-      - "8083:8083"
-    environment:
-      - RUST_LOG=info,ground_station_simulator=debug
-      - DATABASE_URL_FILE=/run/secrets/database_url
-      - KAFKA_BROKERS=kafka:29092
-      - HEALTH_TOPIC=groundstation.health
-      - METRICS_PORT=8083
-      - SIM_FREQUENCY_SEC=2
-      - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    secrets:
-      - database_url
-      - kafka_sasl_password
-    restart: unless-stopped
-
-  mission-replay-engine:
-    build:
-      context: ../../
-      dockerfile: apps/mission-replay-engine/Dockerfile
-    container_name: spaceops-replay-engine
-    ports:
-      - "8084:8084"
-    environment:
-      - RUST_LOG=info,mission_replay_engine=debug
-      - DATABASE_URL_FILE=/run/secrets/database_url
-      - PORT=8084
-      - API_KEY_FILE=/run/secrets/api_key
-    depends_on:
-      - timescaledb
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    secrets:
-      - database_url
-      - api_key
-    restart: unless-stopped
-
-  mission-control-ui:
-    build:
-      context: ../../
-      dockerfile: apps/mission-control-ui/Dockerfile
-    container_name: spaceops-mission-control-ui
-    ports:
-      - "3000:3000"
-    depends_on:
-      - telemetry-collector
-      - mission-replay-engine
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    restart: unless-stopped
-
 secrets:
   postgres_password:
     file: ./secrets/postgres_password.txt
@@ -347,6 +416,5 @@ secrets:
     file: ./secrets/grafana_admin_password.txt
   database_url:
     file: ./secrets/database_url.txt
-
 volumes:
-  timescaledb_data:
+  timescaledb_data: null

@@ -2,12 +2,12 @@
 
 use clap::Parser;
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
+use dashmap::DashMap;
 use tokio::time::sleep;
+use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 mod config;
@@ -180,8 +180,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let config = Arc::new(config);
 
     // Track ground station states
-    let gs_states: Arc<Mutex<HashMap<String, GroundStationState>>> =
-        Arc::new(Mutex::new(HashMap::new()));
+    let gs_states: Arc<DashMap<String, GroundStationState>> =
+        Arc::new(DashMap::new());
     let gs_states_clone = Arc::clone(&gs_states);
     let brokers = config.kafka_brokers.clone();
     let topic = config.health_topic.clone();
@@ -250,8 +250,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                 "Received ground station health update: {} -> {}",
                                 gs.station_id, gs.status
                             );
-                            let mut map = gs_states_clone.lock().await;
-                            map.insert(gs.station_id.clone(), gs);
+                            gs_states_clone.insert(gs.station_id.clone(), gs);
                         }
                         Err(e) => {
                             error!(
@@ -338,8 +337,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 loop {
                     let linked_gs = {
                         let gs_id = get_linked_ground_station(&satellite_id);
-                        let map = gs_states_sub.lock().await;
-                        map.get(&gs_id).cloned()
+                        gs_states_sub.get(&gs_id).map(|r| r.clone())
                     };
 
                     let (telemetry, tick) = {

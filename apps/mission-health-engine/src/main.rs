@@ -9,11 +9,10 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use spaceops_models::db::establish_db_connection;
 use spaceops_models::kafka::KafkaConfigBuilder;
 use sqlx::PgPool;
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
+use dashmap::DashMap;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
@@ -75,34 +74,23 @@ struct Cli {
     #[arg(long, env = "GS_HEALTH_TOPIC", default_value = "groundstation.health")]
     gs_health_topic: String,
 
+    #[arg(long, env = "DLQ_TOPIC", default_value = "telemetry.dlq")]
+    dlq_topic: String,
+
     #[arg(long, env = "GROUP_ID", default_value = "mission-health-group")]
     group_id: String,
 
     #[arg(long, env = "METRICS_PORT", default_value = "8082")]
     metrics_port: u16,
-
-    #[arg(long, env = "KAFKA_SECURITY_PROTOCOL")]
-    kafka_security_protocol: Option<String>,
-
-    #[arg(long, env = "KAFKA_SASL_MECHANISM")]
-    kafka_sasl_mechanism: Option<String>,
-
-    #[arg(long, env = "KAFKA_SASL_USERNAME")]
-    kafka_sasl_username: Option<String>,
-
-    #[arg(long, env = "KAFKA_SASL_PASSWORD")]
-    kafka_sasl_password: Option<String>,
-
-    #[arg(long, env = "KAFKA_SSL_CA_LOCATION")]
-    kafka_ssl_ca_location: Option<String>,
 }
 
 struct EngineState {
     db_pool: PgPool,
     kafka_producer: FutureProducer,
     health_topic: String,
-    satellite_scores: Mutex<HashMap<String, i32>>,
-    gs_states: Mutex<HashMap<String, GroundStationState>>,
+    dlq_topic: String,
+    satellite_scores: DashMap<String, i32>,
+    gs_states: DashMap<String, GroundStationState>,
 }
 
 async fn start_metrics_server(port: u16) {
@@ -157,9 +145,6 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Some(val) = load_secret("DATABASE_URL") {
         cli.database_url = val;
     }
-    if let Some(val) = load_secret("KAFKA_SASL_PASSWORD") {
-        cli.kafka_sasl_password = Some(val);
-    }
 
     info!(
         "Starting Mission Health Engine with configuration: {:?}",
@@ -176,29 +161,13 @@ async fn main() -> Result<(), anyhow::Error> {
     let db_pool = establish_db_connection(&cli.database_url, 10).await?;
 
     // Init Kafka Producer
-    let producer_config = KafkaConfigBuilder::new(cli.kafka_brokers.clone())
-        .with_security(
-            cli.kafka_security_protocol.clone(),
-            cli.kafka_sasl_mechanism.clone(),
-            cli.kafka_sasl_username.clone(),
-            cli.kafka_sasl_password.clone(),
-            cli.kafka_ssl_ca_location.clone(),
-        )
-        .build();
+    let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
 
     let producer: FutureProducer = producer_config.create()?;
     info!("Kafka producer successfully initialized.");
 
     // Init Kafka Consumer
-    let mut consumer_config = KafkaConfigBuilder::new(cli.kafka_brokers.clone())
-        .with_security(
-            cli.kafka_security_protocol.clone(),
-            cli.kafka_sasl_mechanism.clone(),
-            cli.kafka_sasl_username.clone(),
-            cli.kafka_sasl_password.clone(),
-            cli.kafka_ssl_ca_location.clone(),
-        )
-        .build();
+    let mut consumer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
     consumer_config
         .set("group.id", &cli.group_id)
         .set("enable.partition.eof", "false")
@@ -219,8 +188,9 @@ async fn main() -> Result<(), anyhow::Error> {
         db_pool,
         kafka_producer: producer,
         health_topic: cli.health_topic,
-        satellite_scores: Mutex::new(HashMap::new()),
-        gs_states: Mutex::new(HashMap::new()),
+        dlq_topic: cli.dlq_topic,
+        satellite_scores: DashMap::new(),
+        gs_states: DashMap::new(),
     });
 
     let cancel_token = CancellationToken::new();
@@ -236,23 +206,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let cancel_token_gs = cancel_token.clone();
     let brokers = cli.kafka_brokers.clone();
     let gs_topic = cli.gs_health_topic.clone();
-    let security_protocol = cli.kafka_security_protocol.clone();
-    let sasl_mechanism = cli.kafka_sasl_mechanism.clone();
-    let sasl_username = cli.kafka_sasl_username.clone();
-    let sasl_password = cli.kafka_sasl_password.clone();
-    let ssl_ca_location = cli.kafka_ssl_ca_location.clone();
-
     tokio::spawn(async move {
         info!("Starting ground station health consumer for mission-health-engine...");
-        let mut bg_config = KafkaConfigBuilder::new(brokers)
-            .with_security(
-                security_protocol,
-                sasl_mechanism,
-                sasl_username,
-                sasl_password,
-                ssl_ca_location,
-            )
-            .build();
+        let mut bg_config = KafkaConfigBuilder::from_env(brokers).build();
         bg_config
             .set(
                 "group.id",
@@ -307,8 +263,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                         "Engine received ground station update: {} -> {}",
                                         gs.station_id, gs.status
                                     );
-                                    let mut map = gs_states_clone.gs_states.lock().await;
-                                    map.insert(gs.station_id.clone(), gs);
+                                    gs_states_clone.gs_states.insert(gs.station_id.clone(), gs);
                                 }
                                 Err(e) => {
                                     error!(
@@ -341,6 +296,18 @@ async fn main() -> Result<(), anyhow::Error> {
                             Some(Ok(s)) => s,
                             Some(Err(e)) => {
                                 error!("Failed to parse Kafka payload as string: {}", e);
+                                // DLQ routing
+                                let dlq_payload = serde_json::json!({
+                                    "error": e.to_string(),
+                                    "reason": "payload_parse_failed"
+                                }).to_string();
+                                let _ = state.kafka_producer.send(
+                                    FutureRecord::to(&state.dlq_topic)
+                                        .key("corrupt-payload")
+                                        .payload(&dlq_payload),
+                                    Duration::from_secs(5),
+                                ).await;
+
                                 let _ = consumer.commit_message(&msg, CommitMode::Async);
                                 continue;
                             }
@@ -357,6 +324,19 @@ async fn main() -> Result<(), anyhow::Error> {
                                     "Failed to deserialize telemetry record: {}. Payload: {}",
                                     e, payload
                                 );
+                                // DLQ routing
+                                let dlq_payload = serde_json::json!({
+                                    "payload": payload,
+                                    "error": e.to_string(),
+                                    "reason": "json_deserialization_failed"
+                                }).to_string();
+                                let _ = state.kafka_producer.send(
+                                    FutureRecord::to(&state.dlq_topic)
+                                        .key("corrupt-payload")
+                                        .payload(&dlq_payload),
+                                    Duration::from_secs(5),
+                                ).await;
+
                                 let _ = consumer.commit_message(&msg, CommitMode::Async);
                                 continue;
                             }
@@ -392,8 +372,11 @@ async fn process_telemetry_health(
 ) -> Result<(), anyhow::Error> {
     // 1. Run health assessment rules
     let gs_states_map = {
-        let map = state.gs_states.lock().await;
-        map.clone()
+        let mut map = std::collections::HashMap::new();
+        for entry in state.gs_states.iter() {
+            map.insert(entry.key().clone(), entry.value().clone());
+        }
+        map
     };
     let assessment = assess_satellite_health(record, &gs_states_map);
     info!(
@@ -447,10 +430,10 @@ async fn process_telemetry_health(
 
     // Update fleet health average score
     let avg_fleet = {
-        let mut scores = state.satellite_scores.lock().await;
-        scores.insert(assessment.satellite_id.clone(), assessment.overall_score);
-        let total: i32 = scores.values().sum();
-        total as f64 / scores.len() as f64
+        state.satellite_scores.insert(assessment.satellite_id.clone(), assessment.overall_score);
+        let total: i32 = state.satellite_scores.iter().map(|entry| *entry.value()).sum();
+        let len = state.satellite_scores.len();
+        if len > 0 { total as f64 / len as f64 } else { 0.0 }
     };
     metrics::FLEET_HEALTH_SCORE.set(avg_fleet);
 

@@ -23,5 +23,6 @@ spaceops-models = { workspace = true }
 spaceops-packets = { workspace = true }
 rdkafka = { workspace = true }
 axum = { version = "0.7" }
+dashmap = { workspace = true }
 
 

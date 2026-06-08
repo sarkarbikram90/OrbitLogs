@@ -18,6 +18,18 @@ impl KafkaConfigBuilder {
         }
     }
 
+    pub fn from_env(brokers: String) -> Self {
+        use crate::load_secret;
+        Self {
+            brokers,
+            security_protocol: load_secret("KAFKA_SECURITY_PROTOCOL"),
+            sasl_mechanism: load_secret("KAFKA_SASL_MECHANISM"),
+            sasl_username: load_secret("KAFKA_SASL_USERNAME"),
+            sasl_password: load_secret("KAFKA_SASL_PASSWORD"),
+            ssl_ca_location: load_secret("KAFKA_SSL_CA_LOCATION"),
+        }
+    }
+
     pub fn with_security(
         mut self,
         security_protocol: Option<String>,
