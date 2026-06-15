@@ -19,6 +19,8 @@ use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info, warn};
 use uuid::Uuid;
+use subtle::ConstantTimeEq;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Parser, Debug)]
 #[command(name = "Digital Twin Engine")]
@@ -51,6 +53,16 @@ struct Cli {
 
     #[arg(long, env = "GROUP_ID", default_value = "digital-twin-group")]
     group_id: String,
+
+    #[arg(long, env = "API_KEY")]
+    api_key: Option<String>,
+
+    #[arg(
+        long,
+        env = "CORS_ALLOWED_ORIGIN",
+        default_value = "http://localhost:3000"
+    )]
+    cors_allowed_origin: String,
 }
 
 struct AppState {
@@ -59,6 +71,8 @@ struct AppState {
     db_pool: PgPool,
     kafka_producer: FutureProducer,
     timeline_topic: String,
+    api_key: String,
+    cors_allowed_origin: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,6 +106,129 @@ struct SimulateFailureRequest {
     subsystem: String, // e.g. "thermal", "power", "adcs", "communications", "propulsion"
 }
 
+pub fn secure_compare(provided: &str, expected: &str) -> bool {
+    if provided.len() != expected.len() {
+        let _ = expected.as_bytes().ct_eq(expected.as_bytes());
+        false
+    } else {
+        provided.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() == 1
+    }
+}
+
+async fn auth_middleware(
+    State(state): State<Arc<AppState>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, std::convert::Infallible> {
+    let mut token_opt = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|s| s.to_string());
+
+    if token_opt.is_none() {
+        if let Some(query) = req.uri().query() {
+            for pair in query.split('&') {
+                let mut parts = pair.splitn(2, '=');
+                if let (Some("token"), Some(val)) = (parts.next(), parts.next()) {
+                    token_opt = Some(val.to_string());
+                    break;
+                }
+            }
+        }
+    }
+
+    let authenticated = match token_opt {
+        Some(ref t) => secure_compare(t, &state.api_key),
+        None => false,
+    };
+
+    if authenticated {
+        Ok(next.run(req).await)
+    } else {
+        let body = serde_json::json!({
+            "error": "Unauthorized",
+            "details": vec!["Missing or invalid authorization token"]
+        })
+        .to_string();
+        let mut response = axum::response::Response::new(axum::body::Body::from(body));
+        *response.status_mut() = StatusCode::UNAUTHORIZED;
+        response.headers_mut().insert(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("application/json"),
+        );
+        if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
+            response
+                .headers_mut()
+                .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
+        }
+        Ok(response)
+    }
+}
+
+async fn cors_middleware(
+    State(state): State<Arc<AppState>>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let method = request.method().clone();
+    let allowed_origin = state.cors_allowed_origin.clone();
+
+    if method == axum::http::Method::OPTIONS {
+        return axum::response::Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .header("access-control-allow-origin", &allowed_origin)
+            .header("access-control-allow-methods", "GET, POST, OPTIONS")
+            .header(
+                "access-control-allow-headers",
+                "content-type, x-request-id, authorization",
+            )
+            .body(axum::body::Body::empty())
+            .unwrap();
+    }
+
+    let mut response = next.run(request).await;
+    if let Ok(origin_val) = axum::http::HeaderValue::from_str(&allowed_origin) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
+    }
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
+        axum::http::HeaderValue::from_static("GET, POST, OPTIONS"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
+        axum::http::HeaderValue::from_static("content-type, x-request-id, authorization"),
+    );
+    response
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let _ = dotenvy::dotenv();
@@ -101,6 +238,11 @@ async fn main() -> Result<(), anyhow::Error> {
     spaceops_models::telemetry::init_telemetry("digital-twin-engine", &cli.otel_endpoint)?;
 
     info!("Starting Digital Twin Engine...");
+
+    let api_key = cli.api_key.clone()
+        .or_else(|| spaceops_models::load_secret("API_KEY"))
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
 
     let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
 
@@ -113,37 +255,52 @@ async fn main() -> Result<(), anyhow::Error> {
         db_pool,
         kafka_producer,
         timeline_topic: cli.timeline_topic,
+        api_key,
+        cors_allowed_origin: cli.cors_allowed_origin.clone(),
     });
+
+    let cancel_token = CancellationToken::new();
+    let cancel_token_trigger = cancel_token.clone();
 
     // Start background Kafka consumer
     let state_clone = Arc::clone(&state);
     let brokers = cli.kafka_brokers.clone();
     let processed_topic = cli.processed_topic.clone();
     let group_id = cli.group_id.clone();
+    let cancel_token_clone = cancel_token.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_telemetry_consumer(state_clone, brokers, processed_topic, group_id).await {
+        if let Err(e) = run_telemetry_consumer(state_clone, brokers, processed_topic, group_id, cancel_token_clone).await {
             error!("Background digital twin consumer failed: {}", e);
         }
     });
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let state_trigger = Arc::clone(&state);
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        info!("Shutdown signal received. Cancelling background digital twin tasks...");
+        cancel_token_trigger.cancel();
+    });
+
+    let state_routes = Router::new()
+        .route("/:satellite/simulate-failure", post(simulate_failure).layer(axum::middleware::from_fn_with_state(state.clone(), auth_middleware)));
 
     let app = Router::new()
         .route("/api/twin/:satellite", get(get_twin))
         .route("/api/twin/:satellite/health", get(get_twin_health))
         .route("/api/twin/:satellite/timeline", get(get_twin_timeline))
-        .route("/api/twin/:satellite/simulate-failure", post(simulate_failure))
-        .layer(cors)
+        .nest("/api/twin", state_routes)
+        .layer(axum::middleware::from_fn_with_state(state.clone(), cors_middleware))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("Digital Twin Engine listening on http://localhost:{}", cli.port);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    info!("Digital Twin Engine shut down gracefully.");
     Ok(())
 }
 
@@ -152,6 +309,7 @@ async fn run_telemetry_consumer(
     brokers: String,
     topic: String,
     group_id: String,
+    cancel_token: CancellationToken,
 ) -> Result<(), anyhow::Error> {
     let mut config = KafkaConfigBuilder::from_env(brokers).build();
     config
@@ -167,48 +325,57 @@ async fn run_telemetry_consumer(
     info!("Digital twin background consumer subscribed to {}", topic);
 
     loop {
-        match consumer.recv().await {
-            Ok(msg) => {
-                if let Some(Ok(payload)) = msg.payload_view::<str>() {
-                    if let Ok(mut rec) = serde_json::from_str::<TelemetryRecord>(payload) {
-                        // Apply active simulated failures
-                        if let Some(failures) = state.simulated_failures.get(&rec.satellite_id) {
-                            for sub in failures.value() {
-                                match sub.as_str() {
-                                    "power" => {
-                                        rec.battery_voltage = Some(rec.battery_voltage.unwrap_or(12.0) * 0.75);
-                                        rec.solar_panel_output = Some(0.0);
+        tokio::select! {
+            _ = cancel_token.cancelled() => {
+                info!("Digital twin background consumer stopping...");
+                break;
+            }
+            msg_res = consumer.recv() => {
+                match msg_res {
+                    Ok(msg) => {
+                        if let Some(Ok(payload)) = msg.payload_view::<str>() {
+                            if let Ok(mut rec) = serde_json::from_str::<TelemetryRecord>(payload) {
+                                // Apply active simulated failures
+                                if let Some(failures) = state.simulated_failures.get(&rec.satellite_id) {
+                                    for sub in failures.value() {
+                                        match sub.as_str() {
+                                            "power" => {
+                                                rec.battery_voltage = Some(rec.battery_voltage.unwrap_or(12.0) * 0.75);
+                                                rec.solar_panel_output = Some(0.0);
+                                            }
+                                            "thermal" => {
+                                                rec.temperature = Some(rec.temperature.unwrap_or(25.0) + 65.0);
+                                            }
+                                            "adcs" => {
+                                                rec.orientation_pitch = Some(rec.orientation_pitch.unwrap_or(0.0) + 15.0);
+                                            }
+                                            "communications" => {
+                                                rec.packet_loss = Some(95.0);
+                                                rec.communication_latency = Some(5000.0);
+                                            }
+                                            "propulsion" => {
+                                                rec.fuel_remaining = Some(rec.fuel_remaining.unwrap_or(10.0) * 0.1);
+                                            }
+                                            _ => {}
+                                        }
                                     }
-                                    "thermal" => {
-                                        rec.temperature = Some(rec.temperature.unwrap_or(25.0) + 65.0);
-                                    }
-                                    "adcs" => {
-                                        rec.orientation_pitch = Some(rec.orientation_pitch.unwrap_or(0.0) + 15.0);
-                                    }
-                                    "communications" => {
-                                        rec.packet_loss = Some(95.0);
-                                        rec.communication_latency = Some(5000.0);
-                                    }
-                                    "propulsion" => {
-                                        rec.fuel_remaining = Some(rec.fuel_remaining.unwrap_or(10.0) * 0.1);
-                                    }
-                                    _ => {}
                                 }
+
+                                // Store twin state
+                                state.twins.insert(rec.satellite_id.clone(), rec);
                             }
                         }
-
-                        // Store twin state
-                        state.twins.insert(rec.satellite_id.clone(), rec);
+                        let _ = consumer.commit_message(&msg, CommitMode::Async);
+                    }
+                    Err(e) => {
+                        error!("Error consuming telemetry for digital twin: {}", e);
+                        tokio::time::sleep(Duration::from_millis(500)).await;
                     }
                 }
-                let _ = consumer.commit_message(&msg, CommitMode::Async);
-            }
-            Err(e) => {
-                error!("Error consuming telemetry for digital twin: {}", e);
-                tokio::time::sleep(Duration::from_millis(500)).await;
             }
         }
     }
+    Ok(())
 }
 
 async fn get_twin(

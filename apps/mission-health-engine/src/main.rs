@@ -196,7 +196,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let cancel_token = CancellationToken::new();
     let cancel_token_trigger = cancel_token.clone();
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.ok();
+        shutdown_signal().await;
         info!("Shutdown signal received. Cancelling consumer tasks...");
         cancel_token_trigger.cancel();
     });
@@ -438,4 +438,28 @@ async fn process_telemetry_health(
     metrics::FLEET_HEALTH_SCORE.set(avg_fleet);
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }

@@ -181,6 +181,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let mut ticks: u64 = 0;
 
+    let shutdown_fut = shutdown_signal();
+    tokio::pin!(shutdown_fut);
+
     loop {
         ticks += 1;
 
@@ -353,7 +356,7 @@ async fn main() -> Result<(), anyhow::Error> {
         }
 
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
+            _ = &mut shutdown_fut => {
                 info!("Shutdown signal received. Shutting down ground station simulator...");
                 break;
             }
@@ -363,4 +366,28 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Ground station simulator exited cleanly.");
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }

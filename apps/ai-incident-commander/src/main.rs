@@ -11,6 +11,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info};
+use subtle::ConstantTimeEq;
 
 #[derive(Parser, Debug)]
 #[command(name = "AI Incident Commander")]
@@ -31,10 +32,22 @@ struct Cli {
         default_value = "http://localhost:4317"
     )]
     otel_endpoint: String,
+
+    #[arg(long, env = "API_KEY")]
+    api_key: Option<String>,
+
+    #[arg(
+        long,
+        env = "CORS_ALLOWED_ORIGIN",
+        default_value = "http://localhost:3000"
+    )]
+    cors_allowed_origin: String,
 }
 
 struct AppState {
     db_pool: PgPool,
+    api_key: String,
+    cors_allowed_origin: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +60,129 @@ struct ChatRequest {
 struct ChatResponse {
     response: String,
     sources: Vec<String>,
+}
+
+pub fn secure_compare(provided: &str, expected: &str) -> bool {
+    if provided.len() != expected.len() {
+        let _ = expected.as_bytes().ct_eq(expected.as_bytes());
+        false
+    } else {
+        provided.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() == 1
+    }
+}
+
+async fn auth_middleware(
+    State(state): State<Arc<AppState>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, std::convert::Infallible> {
+    let mut token_opt = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|s| s.to_string());
+
+    if token_opt.is_none() {
+        if let Some(query) = req.uri().query() {
+            for pair in query.split('&') {
+                let mut parts = pair.splitn(2, '=');
+                if let (Some("token"), Some(val)) = (parts.next(), parts.next()) {
+                    token_opt = Some(val.to_string());
+                    break;
+                }
+            }
+        }
+    }
+
+    let authenticated = match token_opt {
+        Some(ref t) => secure_compare(t, &state.api_key),
+        None => false,
+    };
+
+    if authenticated {
+        Ok(next.run(req).await)
+    } else {
+        let body = serde_json::json!({
+            "error": "Unauthorized",
+            "details": vec!["Missing or invalid authorization token"]
+        })
+        .to_string();
+        let mut response = axum::response::Response::new(axum::body::Body::from(body));
+        *response.status_mut() = StatusCode::UNAUTHORIZED;
+        response.headers_mut().insert(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("application/json"),
+        );
+        if let Ok(origin_val) = axum::http::HeaderValue::from_str(&state.cors_allowed_origin) {
+            response
+                .headers_mut()
+                .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
+        }
+        Ok(response)
+    }
+}
+
+async fn cors_middleware(
+    State(state): State<Arc<AppState>>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let method = request.method().clone();
+    let allowed_origin = state.cors_allowed_origin.clone();
+
+    if method == axum::http::Method::OPTIONS {
+        return axum::response::Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .header("access-control-origin", &allowed_origin)
+            .header("access-control-allow-methods", "GET, POST, OPTIONS")
+            .header(
+                "access-control-allow-headers",
+                "content-type, x-request-id, authorization",
+            )
+            .body(axum::body::Body::empty())
+            .unwrap();
+    }
+
+    let mut response = next.run(request).await;
+    if let Ok(origin_val) = axum::http::HeaderValue::from_str(&allowed_origin) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin_val);
+    }
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
+        axum::http::HeaderValue::from_static("GET, POST, OPTIONS"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
+        axum::http::HeaderValue::from_static("content-type, x-request-id, authorization"),
+    );
+    response
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
 
 const THERMAL_RUNBOOK: &str = "
@@ -77,24 +213,32 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Starting AI Incident Commander...");
 
-    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
-    let state = Arc::new(AppState { db_pool });
+    let api_key = cli.api_key.clone()
+        .or_else(|| spaceops_models::load_secret("API_KEY"))
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
+    let state = Arc::new(AppState {
+        db_pool,
+        api_key,
+        cors_allowed_origin: cli.cors_allowed_origin.clone(),
+    });
 
     let app = Router::new()
-        .route("/api/chat", post(chat))
-        .layer(cors)
+        .route("/api/chat", post(chat).layer(axum::middleware::from_fn_with_state(state.clone(), auth_middleware)))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), cors_middleware))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("AI Incident Commander listening on http://localhost:{}", cli.port);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    info!("AI Incident Commander shut down gracefully.");
     Ok(())
 }
 

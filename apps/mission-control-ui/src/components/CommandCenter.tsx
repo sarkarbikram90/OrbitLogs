@@ -1,18 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import type { Command } from '../types';
 
-const BACKEND_CMD_URL = 'http://localhost:8085';
+const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
+  if (envVal) return envVal;
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:${defaultPort}`;
+  }
+  return `http://localhost:${defaultPort}`;
+};
+
+const BACKEND_CMD_URL = getBackendUrl(import.meta.env.VITE_COMMAND_API_URL, '8085');
 
 interface CommandCenterProps {
   selectedSatId: string | null;
   satellites: { id: string }[];
+  apiKey: string;
+  jwtToken: string;
+  onJwtTokenChange: (token: string) => void;
 }
 
 export const CommandCenter: React.FC<CommandCenterProps> = ({
   selectedSatId,
+  apiKey,
+  jwtToken,
+  onJwtTokenChange,
 }) => {
   const [commands, setCommands] = useState<Command[]>([]);
-  const [currentRole, setCurrentRole] = useState<'OPERATOR' | 'FLIGHT_DIRECTOR' | 'MISSION_MANAGER' | 'ADMINISTRATOR'>('OPERATOR');
+  const [currentRole, setCurrentRole] = useState<'OPERATOR' | 'FLIGHT_DIRECTOR' | 'MISSION_MANAGER' | 'ADMINISTRATOR'>(
+    (sessionStorage.getItem('CURRENT_ROLE') as any) || 'OPERATOR'
+  );
   const [commandType, setCommandType] = useState('REBOOT_FC');
   const [shouldFail, setShouldFail] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,6 +52,31 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const fetchNewToken = async () => {
+      if (!apiKey) return;
+      try {
+        const resp = await fetch(`${BACKEND_CMD_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: apiKey, role: currentRole }),
+        });
+        if (resp.ok) {
+          const data = await resp.json() as { token: string };
+          onJwtTokenChange(data.token);
+          sessionStorage.setItem('JWT_TOKEN', data.token);
+          sessionStorage.setItem('CURRENT_ROLE', currentRole);
+        } else {
+          console.error('Failed to update JWT for new role');
+        }
+      } catch (err) {
+        console.error('Auth service offline while updating role JWT', err);
+      }
+    };
+
+    fetchNewToken();
+  }, [currentRole, apiKey, onJwtTokenChange]);
+
   const handleCreateCommand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSatId) return;
@@ -45,7 +87,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Role': currentRole,
+          'Authorization': `Bearer ${jwtToken}`,
         },
         body: JSON.stringify({
           satellite_id: selectedSatId,
@@ -72,7 +114,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
       const resp = await fetch(`${BACKEND_CMD_URL}/api/commands/${id}/${action}`, {
         method: 'POST',
         headers: {
-          'X-User-Role': currentRole,
+          'Authorization': `Bearer ${jwtToken}`,
         },
       });
 

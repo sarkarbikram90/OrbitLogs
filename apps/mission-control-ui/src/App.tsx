@@ -22,9 +22,19 @@ const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
 
 const BACKEND_REPLAY_URL = getBackendUrl(import.meta.env.VITE_REPLAY_API_URL, '8084');
 const BACKEND_COLLECTOR_URL = getBackendUrl(import.meta.env.VITE_COLLECTOR_API_URL, '8080');
-const API_KEY = import.meta.env.VITE_API_KEY || 'secret-spaceops-key-2026';
+const BACKEND_CMD_URL = getBackendUrl(import.meta.env.VITE_COMMAND_API_URL, '8085');
+
+const getInitialApiKey = () => {
+  return import.meta.env.VITE_API_KEY || sessionStorage.getItem('VITE_API_KEY') || '';
+};
+
+const getInitialJwtToken = () => {
+  return sessionStorage.getItem('JWT_TOKEN') || '';
+};
 
 export default function App() {
+  const [apiKey, setApiKey] = useState<string>(getInitialApiKey());
+  const [jwtToken, setJwtToken] = useState<string>(getInitialJwtToken());
   const [mode, setMode] = useState<'LIVE' | 'REPLAY'>('LIVE');
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'COMMANDS' | 'TIMELINE' | 'TWIN' | 'AI'>('DASHBOARD');
   const [selectedSatId, setSelectedSatId] = useState<string | null>('SAT-0001');
@@ -145,8 +155,9 @@ export default function App() {
 
     // B. WebSocket connection for real-time telemetry updates
     const connectWs = () => {
+      if (!apiKey) return;
       cleanupConnections();
-      const wsUrl = BACKEND_COLLECTOR_URL.replace(/^http/, 'ws') + `/ws?token=${encodeURIComponent(API_KEY)}`;
+      const wsUrl = BACKEND_COLLECTOR_URL.replace(/^http/, 'ws') + `/ws?token=${encodeURIComponent(apiKey)}`;
       const ws = new WebSocket(wsUrl);
       
       ws.onmessage = (event) => {
@@ -182,7 +193,7 @@ export default function App() {
       clearInterval(pollInterval);
       cleanupConnections();
     };
-  }, [mode, selectedSatId]);
+  }, [mode, selectedSatId, apiKey]);
 
   // When selected satellite changes, update its telemetry from the live diagnostics
   useEffect(() => {
@@ -240,7 +251,7 @@ export default function App() {
     }
 
     console.log(`Connecting to Replay SSE stream for session ${sessionId}...`);
-    const sse = new EventSource(`${BACKEND_REPLAY_URL}/api/replays/${sessionId}/stream?token=${encodeURIComponent(API_KEY)}`);
+    const sse = new EventSource(`${BACKEND_REPLAY_URL}/api/replays/${sessionId}/stream?token=${encodeURIComponent(apiKey)}`);
 
     sse.addEventListener('state', (e: MessageEvent) => {
       try {
@@ -321,7 +332,7 @@ export default function App() {
       sse.close();
       sseRef.current = null;
     };
-  }, [mode, sessionId, selectedSatId]);
+  }, [mode, sessionId, selectedSatId, apiKey]);
 
   // Create Replay Session
   const handleCreateSession = async (
@@ -335,7 +346,7 @@ export default function App() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
           satellite_id: satId,
@@ -371,7 +382,7 @@ export default function App() {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${API_KEY}`
+            'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({ action, position, speed }),
         }
@@ -393,7 +404,16 @@ export default function App() {
     } catch (err) {
       console.error('Failed to control playback:', err);
     }
-  };
+  if (!apiKey || !jwtToken) {
+    return (
+      <LoginScreen
+        onLoginSuccess={(key, token) => {
+          setApiKey(key);
+          setJwtToken(token);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="app-container">
@@ -441,6 +461,32 @@ export default function App() {
             <div className={`mode-badge ${mode === 'LIVE' ? 'live' : 'replay'}`}>
               {mode === 'LIVE' ? '● LIVE CONSOLE' : '▼ REPLAY CONSOLE'}
             </div>
+            <button
+              onClick={() => {
+                sessionStorage.clear();
+                window.location.reload();
+              }}
+              style={{
+                backgroundColor: 'transparent',
+                border: '1px solid #ef4444',
+                color: '#ef4444',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '10px',
+                fontFamily: 'var(--font-display)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
+              }}
+            >
+              DISCONNECT
+            </button>
           </div>
         </div>
       </header>
@@ -496,7 +542,7 @@ export default function App() {
 
         {activeTab === 'COMMANDS' && (
           <div style={{ height: '100%' }}>
-            <CommandCenter selectedSatId={selectedSatId} satellites={satellites} />
+            <CommandCenter selectedSatId={selectedSatId} satellites={satellites} apiKey={apiKey} jwtToken={jwtToken} onJwtTokenChange={setJwtToken} />
           </div>
         )}
 
@@ -508,16 +554,292 @@ export default function App() {
 
         {activeTab === 'TWIN' && (
           <div style={{ height: '100%' }}>
-            <DigitalTwinViewer selectedSatId={selectedSatId} />
+            <DigitalTwinViewer selectedSatId={selectedSatId} apiKey={apiKey} />
           </div>
         )}
 
         {activeTab === 'AI' && (
           <div style={{ height: '100%' }}>
-            <AiCopilot selectedSatId={selectedSatId} />
+            <AiCopilot selectedSatId={selectedSatId} apiKey={apiKey} />
           </div>
         )}
       </main>
     </div>
   );
 }
+
+// ==========================================
+// SPACEX LOGIN CONTROL SCREEN & STYLES
+// ==========================================
+
+interface LoginScreenProps {
+  onLoginSuccess: (apiKey: string, jwtToken: string) => void;
+}
+
+function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
+  const [keyInput, setKeyInput] = useState(import.meta.env.VITE_API_KEY || sessionStorage.getItem('VITE_API_KEY') || '');
+  const [role, setRole] = useState<'OPERATOR' | 'FLIGHT_DIRECTOR' | 'MISSION_MANAGER' | 'ADMINISTRATOR'>('OPERATOR');
+  const [statusLogs, setStatusLogs] = useState<string[]>([
+    '[SYSTEM] Booting secure link protocol...',
+    '[SYSTEM] Awaiting console credentials...'
+  ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!keyInput.trim()) {
+      setStatusLogs(prev => [...prev, '[ERROR] Access key cannot be empty.']);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatusLogs(prev => [
+      ...prev,
+      `[SYSTEM] Connecting to Mission Command Service (8085)...`,
+      `[SYSTEM] Authenticating as role ${role}...`
+    ]);
+
+    try {
+      const resp = await fetch(`${BACKEND_CMD_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: keyInput, role }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json() as { token: string };
+        setStatusLogs(prev => [
+          ...prev,
+          `[SYSTEM] Cryptographic key verification successful.`,
+          `[SYSTEM] JWT Token received. Session initialized.`,
+          `[SYSTEM] Loading Flight Control Dashboard...`
+        ]);
+        
+        sessionStorage.setItem('VITE_API_KEY', keyInput);
+        sessionStorage.setItem('JWT_TOKEN', data.token);
+        sessionStorage.setItem('CURRENT_ROLE', role);
+
+        setTimeout(() => {
+          onLoginSuccess(keyInput, data.token);
+        }, 800);
+      } else {
+        const err = await resp.json() as { error?: string };
+        setStatusLogs(prev => [
+          ...prev,
+          `[ERROR] Authentication failed: ${err.error || 'Invalid API Key specified.'}`
+        ]);
+        setIsSubmitting(false);
+      }
+    } catch (err) {
+      setStatusLogs(prev => [
+        ...prev,
+        `[ERROR] Auth service offline. Ensure command service is running on port 8085.`
+      ]);
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={loginBgStyle}>
+      <div style={loginCardStyle}>
+        <div style={loginHeaderStyle}>
+          <span style={{ fontSize: '28px' }}>🛰</span>
+          <h2 style={loginTitleStyle}>SPACEX • FLIGHT OPERATIONS</h2>
+          <span style={loginSubTitleStyle}>ORBITLOGS CORE ACCESS CONTROL</span>
+        </div>
+
+        <form onSubmit={handleSubmit} style={loginFormStyle}>
+          <div style={loginFormGroupStyle}>
+            <label style={loginLabelStyle}>OPERATOR PASSKEY</label>
+            <input
+              type="password"
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              placeholder="ENTER SECURE CONSOLE API KEY"
+              style={loginInputStyle}
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div style={loginFormGroupStyle}>
+            <label style={loginLabelStyle}>CONSOLE ROLE CONTEXT</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as any)}
+              style={loginSelectStyle}
+              disabled={isSubmitting}
+            >
+              <option value="OPERATOR">Operator (Telemetry Uplink)</option>
+              <option value="FLIGHT_DIRECTOR">Flight Director (Operations Approval)</option>
+              <option value="MISSION_MANAGER">Mission Manager</option>
+              <option value="ADMINISTRATOR">Administrator</option>
+            </select>
+          </div>
+
+          <button type="submit" style={loginBtnStyle} disabled={isSubmitting}>
+            {isSubmitting ? 'ESTABLISHING LINK...' : 'INITIALIZE CONSOLE UPLINK'}
+          </button>
+        </form>
+
+        <div style={logBoxStyle}>
+          <div style={logHeaderStyle}>TELEMETRY CONSOLE DIAGNOSTICS:</div>
+          <div style={logContentStyle}>
+            {statusLogs.map((log, index) => (
+              <div
+                key={index}
+                style={{
+                  color: log.startsWith('[ERROR]') ? '#ef4444' : log.includes('successful') || log.includes('Token') ? '#10b981' : '#38bdf8',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  marginBottom: '4px',
+                }}
+              >
+                {log}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const loginBgStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '100vw',
+  height: '100vh',
+  backgroundColor: '#020408',
+  backgroundImage: 'radial-gradient(circle at center, #0f172a 0%, #020408 100%)',
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  zIndex: 9999,
+};
+
+const loginCardStyle: React.CSSProperties = {
+  width: '420px',
+  padding: '32px',
+  backgroundColor: 'rgba(8, 11, 20, 0.85)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+  border: '1px solid rgba(56, 189, 248, 0.3)',
+  borderRadius: '12px',
+  boxShadow: '0 0 30px rgba(56, 189, 248, 0.15)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '24px',
+};
+
+const loginHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '8px',
+  textAlign: 'center',
+};
+
+const loginTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontFamily: 'var(--font-display)',
+  fontSize: '18px',
+  fontWeight: '900',
+  letterSpacing: '2px',
+  color: '#38bdf8',
+  textShadow: '0 0 10px rgba(56, 189, 248, 0.3)',
+};
+
+const loginSubTitleStyle: React.CSSProperties = {
+  fontSize: '10px',
+  fontFamily: 'var(--font-display)',
+  letterSpacing: '1.5px',
+  color: '#64748b',
+  fontWeight: 'bold',
+};
+
+const loginFormStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+};
+
+const loginFormGroupStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '6px',
+};
+
+const loginLabelStyle: React.CSSProperties = {
+  fontSize: '10px',
+  fontFamily: 'var(--font-display)',
+  letterSpacing: '1px',
+  color: '#94a3b8',
+  fontWeight: 'bold',
+};
+
+const loginInputStyle: React.CSSProperties = {
+  backgroundColor: '#07090e',
+  color: '#f8fafc',
+  border: '1px solid rgba(56, 189, 248, 0.2)',
+  borderRadius: '6px',
+  padding: '12px',
+  fontSize: '13px',
+  fontFamily: 'var(--font-mono)',
+  outline: 'none',
+  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+};
+
+const loginSelectStyle: React.CSSProperties = {
+  backgroundColor: '#07090e',
+  color: '#f8fafc',
+  border: '1px solid rgba(56, 189, 248, 0.2)',
+  borderRadius: '6px',
+  padding: '12px',
+  fontSize: '13px',
+  outline: 'none',
+  cursor: 'pointer',
+};
+
+const loginBtnStyle: React.CSSProperties = {
+  backgroundColor: '#38bdf8',
+  color: '#020408',
+  border: 'none',
+  borderRadius: '6px',
+  padding: '12px',
+  fontSize: '12px',
+  fontFamily: 'var(--font-display)',
+  fontWeight: '900',
+  letterSpacing: '1px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  marginTop: '8px',
+  boxShadow: '0 0 15px rgba(56, 189, 248, 0.3)',
+};
+
+const logBoxStyle: React.CSSProperties = {
+  backgroundColor: '#04060a',
+  border: '1px solid rgba(56, 189, 248, 0.1)',
+  borderRadius: '6px',
+  padding: '12px',
+  height: '120px',
+  overflowY: 'auto',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+};
+
+const logHeaderStyle: React.CSSProperties = {
+  fontSize: '9px',
+  fontFamily: 'var(--font-display)',
+  color: '#64748b',
+  letterSpacing: '0.5px',
+  marginBottom: '6px',
+  fontWeight: 'bold',
+};
+
+const logContentStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+};

@@ -17,6 +17,7 @@ use tracing::{error, info, instrument, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use opentelemetry::trace::TraceContextExt;
 use uuid::Uuid;
+use subtle::ConstantTimeEq;
 
 #[derive(Parser, Debug)]
 #[command(name = "Mission Command Service")]
@@ -46,6 +47,16 @@ struct Cli {
 
     #[arg(long, env = "TIMELINE_EVENTS_TOPIC", default_value = "timeline.events")]
     timeline_events_topic: String,
+
+    #[arg(long, env = "API_KEY")]
+    api_key: Option<String>,
+
+    #[arg(
+        long,
+        env = "CORS_ALLOWED_ORIGIN",
+        default_value = "http://localhost:3000"
+    )]
+    cors_allowed_origin: String,
 }
 
 struct AppState {
@@ -53,6 +64,8 @@ struct AppState {
     kafka_producer: FutureProducer,
     command_topic: String,
     timeline_topic: String,
+    api_key: String,
+    cors_allowed_origin: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +94,24 @@ struct QueryParams {
     satellite_id: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    sub: String,
+    role: String,
+    exp: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct LoginRequest {
+    api_key: String,
+    role: String,
+}
+
+#[derive(Debug, Serialize)]
+struct LoginResponse {
+    token: String,
+}
+
 // Simple RBAC roles
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 enum Role {
@@ -102,27 +133,105 @@ impl Role {
     }
 }
 
-fn check_role(headers: &HeaderMap, required: Role) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
-    let role_header = headers
-        .get("X-User-Role")
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("Operator");
+pub fn secure_compare(provided: &str, expected: &str) -> bool {
+    if provided.len() != expected.len() {
+        let _ = expected.as_bytes().ct_eq(expected.as_bytes());
+        false
+    } else {
+        provided.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() == 1
+    }
+}
 
-    let role = Role::from_str(role_header).ok_or_else(|| {
+fn check_role(
+    state: &AppState,
+    headers: &HeaderMap,
+    required: Role,
+) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "Missing Authorization Bearer token" })),
+            )
+        })?;
+
+    let mut validation = jsonwebtoken::Validation::default();
+    validation.validate_exp = true;
+
+    let token_data = jsonwebtoken::decode::<Claims>(
+        token,
+        &jsonwebtoken::DecodingKey::from_secret(state.api_key.as_bytes()),
+        &validation,
+    )
+    .map_err(|e| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": format!("Invalid token: {}", e) })),
+        )
+    })?;
+
+    let role = Role::from_str(&token_data.claims.role).ok_or_else(|| {
         (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Invalid role specified in X-User-Role header" })),
+            Json(serde_json::json!({ "error": "Invalid role in token claims" })),
         )
     })?;
 
     if role >= required {
-        Ok(role_header.to_string())
+        Ok(token_data.claims.role)
     } else {
         Err((
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({ "error": format!("Insufficient permissions: required {:?}, got {:?}", required, role) })),
         ))
     }
+}
+
+async fn login_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, (StatusCode, Json<serde_json::Value>)> {
+    if !secure_compare(&req.api_key, &state.api_key) {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid API key" })),
+        ));
+    }
+
+    let Some(role) = Role::from_str(&req.role) else {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid role specified" })),
+        ));
+    };
+
+    let exp = chrono::Utc::now()
+        .checked_add_signed(chrono::Duration::hours(24))
+        .expect("valid timestamp")
+        .timestamp() as usize;
+
+    let claims = Claims {
+        sub: "spaceops-operator".to_string(),
+        role: format!("{:?}", role),
+        exp,
+    };
+
+    let token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &claims,
+        &jsonwebtoken::EncodingKey::from_secret(state.api_key.as_bytes()),
+    )
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": format!("Token generation failed: {}", e) })),
+        )
+    })?;
+
+    Ok(Json(LoginResponse { token }))
 }
 
 #[tokio::main]
@@ -135,6 +244,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Starting Mission Command Service...");
 
+    let api_key = cli.api_key.clone()
+        .or_else(|| spaceops_models::load_secret("API_KEY"))
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
+
     let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
 
     let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
@@ -145,14 +259,28 @@ async fn main() -> Result<(), anyhow::Error> {
         kafka_producer,
         command_topic: cli.command_events_topic,
         timeline_topic: cli.timeline_events_topic,
+        api_key,
+        cors_allowed_origin: cli.cors_allowed_origin.clone(),
     });
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let cors = if let Ok(origin_val) = cli.cors_allowed_origin.parse::<axum::http::HeaderValue>() {
+        CorsLayer::new()
+            .allow_origin(origin_val)
+            .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::OPTIONS])
+            .allow_headers([
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::AUTHORIZATION,
+                axum::http::HeaderName::from_static("x-user-role"),
+            ])
+    } else {
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
 
     let app = Router::new()
+        .route("/api/auth/login", post(login_handler))
         .route("/api/commands", get(list_commands).post(create_command))
         .route("/api/commands/:id/approve", post(approve_command))
         .route("/api/commands/:id/queue", post(queue_command))
@@ -164,9 +292,36 @@ async fn main() -> Result<(), anyhow::Error> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("Mission Command Service listening on http://localhost:{}", cli.port);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
 }
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+}
+
 
 async fn list_commands(
     State(state): State<Arc<AppState>>,
@@ -211,7 +366,7 @@ async fn create_command(
     headers: HeaderMap,
     Json(req): Json<CreateCommandRequest>,
 ) -> Result<(StatusCode, Json<Command>), (StatusCode, Json<serde_json::Value>)> {
-    let user_name = check_role(&headers, Role::Operator)?;
+    let user_name = check_role(&state, &headers, Role::Operator)?;
 
     let id = Uuid::new_v4();
     let status = "CREATED";
@@ -265,7 +420,7 @@ async fn approve_command(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Command>, (StatusCode, Json<serde_json::Value>)> {
-    let approver = check_role(&headers, Role::FlightDirector)?;
+    let approver = check_role(&state, &headers, Role::FlightDirector)?;
 
     // Fetch existing
     let mut cmd = fetch_command_by_id(&state, id).await?;
@@ -307,7 +462,7 @@ async fn queue_command(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Command>, (StatusCode, Json<serde_json::Value>)> {
-    let operator = check_role(&headers, Role::Operator)?;
+    let operator = check_role(&state, &headers, Role::Operator)?;
 
     let mut cmd = fetch_command_by_id(&state, id).await?;
 
@@ -348,7 +503,7 @@ async fn execute_command(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Command>, (StatusCode, Json<serde_json::Value>)> {
-    let operator = check_role(&headers, Role::Operator)?;
+    let operator = check_role(&state, &headers, Role::Operator)?;
 
     let mut cmd = fetch_command_by_id(&state, id).await?;
 
@@ -497,5 +652,65 @@ async fn publish_timeline_event(state: &AppState, cmd: &Command, severity: &str,
         if let Err((e, _)) = state.kafka_producer.send(record, Duration::from_secs(5)).await {
             error!("Failed to publish command to timeline: {}", e);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_secure_compare() {
+        assert!(secure_compare("secretkey", "secretkey"));
+        assert!(!secure_compare("secretkey", "wrongkey"));
+        assert!(!secure_compare("secretkey", "short"));
+    }
+
+    #[test]
+    fn test_role_parsing() {
+        assert_eq!(Role::from_str("OPERATOR"), Some(Role::Operator));
+        assert_eq!(Role::from_str("FLIGHT_DIRECTOR"), Some(Role::FlightDirector));
+        assert_eq!(Role::from_str("MISSION_MANAGER"), Some(Role::MissionManager));
+        assert_eq!(Role::from_str("ADMINISTRATOR"), Some(Role::Administrator));
+        assert_eq!(Role::from_str("UNKNOWN"), None);
+    }
+
+    #[test]
+    fn test_role_hierarchy() {
+        assert!(Role::Operator < Role::FlightDirector);
+        assert!(Role::FlightDirector < Role::MissionManager);
+        assert!(Role::MissionManager < Role::Administrator);
+        
+        assert!(Role::Administrator >= Role::Operator);
+        assert!(Role::FlightDirector >= Role::Operator);
+        assert!(Role::Operator >= Role::Operator);
+    }
+
+    #[test]
+    fn test_jwt_encoding_decoding() {
+        let secret = "test-secret-key";
+        let claims = Claims {
+            sub: "test-user".to_string(),
+            role: "OPERATOR".to_string(),
+            exp: (chrono::Utc::now() + chrono::Duration::hours(1)).timestamp() as usize,
+        };
+
+        let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::default(),
+            &claims,
+            &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
+        ).unwrap();
+
+        let mut validation = jsonwebtoken::Validation::default();
+        validation.validate_exp = true;
+
+        let token_data = jsonwebtoken::decode::<Claims>(
+            &token,
+            &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
+            &validation,
+        ).unwrap();
+
+        assert_eq!(token_data.claims.sub, "test-user");
+        assert_eq!(token_data.claims.role, "OPERATOR");
     }
 }

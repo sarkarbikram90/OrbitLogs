@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
 
-const BACKEND_AI_URL = 'http://localhost:8088';
+const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
+  if (envVal) return envVal;
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:${defaultPort}`;
+  }
+  return `http://localhost:${defaultPort}`;
+};
+
+const BACKEND_AI_URL = getBackendUrl(import.meta.env.VITE_AI_API_URL, '8088');
 
 interface AiCopilotProps {
   selectedSatId: string | null;
+  apiKey: string;
 }
 
 interface Message {
@@ -12,7 +22,7 @@ interface Message {
   sources?: string[];
 }
 
-export const AiCopilot: React.FC<AiCopilotProps> = ({ selectedSatId }) => {
+export const AiCopilot: React.FC<AiCopilotProps> = ({ selectedSatId, apiKey }) => {
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -34,7 +44,10 @@ export const AiCopilot: React.FC<AiCopilotProps> = ({ selectedSatId }) => {
     try {
       const resp = await fetch(`${BACKEND_AI_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
         body: JSON.stringify({
           query: userMsg,
           satellite_id: selectedSatId,

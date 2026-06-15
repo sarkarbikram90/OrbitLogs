@@ -1,14 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import type { TwinHealthProjection, TelemetryRecord } from '../types';
 
-const BACKEND_TWIN_URL = 'http://localhost:8086';
+const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
+  if (envVal) return envVal;
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:${defaultPort}`;
+  }
+  return `http://localhost:${defaultPort}`;
+};
+
+const BACKEND_TWIN_URL = getBackendUrl(import.meta.env.VITE_TWIN_API_URL, '8086');
 
 interface DigitalTwinViewerProps {
   selectedSatId: string | null;
+  apiKey: string;
 }
 
 export const DigitalTwinViewer: React.FC<DigitalTwinViewerProps> = ({
   selectedSatId,
+  apiKey,
 }) => {
   const [twin, setTwin] = useState<TelemetryRecord | null>(null);
   const [projection, setProjection] = useState<TwinHealthProjection | null>(null);
@@ -50,7 +61,10 @@ export const DigitalTwinViewer: React.FC<DigitalTwinViewerProps> = ({
         `${BACKEND_TWIN_URL}/api/twin/${selectedSatId}/simulate-failure`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
           body: JSON.stringify({ subsystem }),
         }
       );

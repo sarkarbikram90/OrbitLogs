@@ -72,6 +72,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let raw_topic = Arc::new(cli.raw_topic);
     let mut ticks = 0;
 
+    let shutdown_fut = shutdown_signal();
+    tokio::pin!(shutdown_fut);
+
     loop {
         ticks += 1;
         info!("Simulation tick {} for constellation start...", ticks);
@@ -137,13 +140,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Encode binary CCSDS frame
             if let Ok(bytes) = spaceops_packets::encode_record_to_frame(&rec, ticks as u16) {
-                // Post directly to Kafka to bypass HTTP stack overhead for mass fleet scale
                 let key = format!("MISSION-CONSTELLATION:{}", sat.id);
-                // Convert bytes to JSON String to keep compatibility with ingest consumer, or just write JSON string
-                // The main telemetry-collector consumer expects a JSON string in telemetry.raw, or a binary packet frame?
-                // Wait! Let's check telemetry-collector main consumer code:
-                // `let record: TelemetryRecord = serde_json::from_str(payload)...`
-                // Yes, the consumer expects a JSON string!
                 if let Ok(json_payload) = serde_json::to_string(&rec) {
                     let producer_clone = Arc::clone(&producer);
                     let topic_clone = Arc::clone(&raw_topic);
@@ -165,6 +162,39 @@ async fn main() -> Result<(), anyhow::Error> {
             "Constellation tick processed in {}ms",
             start_time.elapsed().as_millis()
         );
-        sleep(Duration::from_millis(cli.tick_interval_ms)).await;
+
+        tokio::select! {
+            _ = &mut shutdown_fut => {
+                info!("Shutdown signal received. Shutting down constellation simulator...");
+                break;
+            }
+            _ = sleep(Duration::from_millis(cli.tick_interval_ms)) => {}
+        }
+    }
+    info!("Constellation simulator stopped.");
+    Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
     }
 }

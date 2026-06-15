@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.1.0] - 2026-06-15
+
+### Added
+- **Staff Engineer Production Readiness Review**: Conducted a comprehensive end-to-end codebase review evaluating all 16 workspace members across 10 engineering dimensions (Architecture, Code Quality, Security, Testing, Observability, Data Layer, Deployment, Frontend, Documentation, Production Hardening). Published as `SpaceX-Staff-Engineer-Review.md`.
+- **Per-Service Scorecard**: Documented individual production readiness scores for all 11 apps and 5 shared crates with detailed findings per component.
+- **Prioritized Action Plan**: Created a 28-item tiered remediation roadmap (P0/P1/P2) covering security hardening, test coverage expansion, deployment gaps, and engineering excellence targets.
+
+### Identified — Security (P0 Blockers)
+- Frontend API key hardcoded in client-side JavaScript (`App.tsx`).
+- CORS wildcard (`allow_origin(Any)`) on the Mission Command Service.
+- RBAC implemented via self-declared `X-User-Role` headers with no JWT/OIDC validation.
+- No authentication middleware on command lifecycle endpoints.
+- Kafka SASL/TLS disabled by default; all inter-service traffic is plaintext.
+
+### Identified — Infrastructure Gaps
+- 5 of 11 services (`mission-command-service`, `digital-twin-engine`, `ai-incident-commander`, `constellation-simulator`, `mission-timeline`) have no Dockerfile and cannot be deployed.
+- Existing Dockerfiles are stale and reference only the original 5 workspace members.
+- Schema mismatch between `NOT NULL` database columns and `Option<>` Rust model fields.
+- No migration tooling — raw SQL files applied via bash scripts with no rollback capability.
+
+### Identified — Testing Gaps
+- 8 of 11 services have zero test coverage.
+- No frontend tests (no Jest, React Testing Library, or Playwright).
+- No contract tests, chaos tests, or code coverage enforcement.
+
+---
+
 ## [2.0.0] - 2026-06-15
 
 ### Added

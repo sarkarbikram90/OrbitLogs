@@ -24,3 +24,5 @@ clap = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 spaceops-models = { workspace = true }
 tower-http = { version = "0.5", features = ["cors"] }
+subtle = { workspace = true }
+

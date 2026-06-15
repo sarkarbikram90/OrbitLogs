@@ -25,3 +25,6 @@ clap = { workspace = true }
 spaceops-models = { workspace = true }
 dashmap = { workspace = true }
 tower-http = { version = "0.5", features = ["cors"] }
+subtle = { workspace = true }
+tokio-util = { workspace = true }
+
