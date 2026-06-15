@@ -1,10 +1,36 @@
 # Changelog 📖
 
-All notable changes to the **Open SpaceOps** platform will be documented in this file.
+All notable changes to the **OrbitLogs** platform will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+
+## [2.0.0] - 2026-06-15
+
+### Added
+- **Space Schema Registry**: Added schema validation and compatibility checks for telemetry format version transitions (V1, V2, V3).
+- **Fleet Health Engine**: Implemented fleet-wide calculation metrics covering readiness, availability, risk score, capacity, and utilization.
+- **Mission Command Service**: Created an Axum-based service with role-based access control (RBAC) to model command creation, approval, and execution states.
+- **Digital Twin Engine**: Built virtual representation states that listen to telemetry and allow failure simulation injections.
+- **Mission Timeline**: Consolidated events and logs querying in TimescaleDB using hypertables.
+- **AI Incident Commander**: Integrated LLM prompt builders and rule-based diagnostic fallbacks to support operator remediation.
+- **Constellation Simulator**: Simulates high-throughput state loops for up to 5,000 satellites.
+- **Simulators Enhancements**: Enhanced simulators with ISS TLE propagation orbits and Ground Station backhaul weather faults.
+- **Advanced Frontend Console**: Designed a new sidebar navigation structure with specific sections for Command Center (RBAC controls), Mission Timeline search, Digital Twin subsystems viewer, and AI Copilot.
+- **Satellite Orbit Visualization**: Generated and embedded a realistic cybernetic satellite orbit graphic in `README.md` to represent active space operations.
+
+### Changed
+- **Branding**: Rebranded the entire project, docs, configuration, and UI consoles to **OrbitLogs**.
+- **Centralized Telemetry**: Consolidated tracing and OpenTelemetry initialization code into the shared `spaceops-models` crate.
+- **Documentation Overhaul**: Significantly expanded `README.md` with deep operational specifications for all microservices, port mappings, and roadmap progress.
+
+### Fixed
+- **Tokio Runtime Context in Tests**: Resolved tokio reactor panic warnings in simulator unit tests using graceful `Handle::try_current()` runtime fallbacks.
+- **FutureRecord Lifetimes**: Fixed `'static` loop variable reference borrows in constellation simulator threads.
+
+### Removed
+- **Contributing Guide**: Removed outdated `CONTRIBUTING.md` from the repository.
 
 ## [1.1.0] - 2026-06-07
 

@@ -2,7 +2,7 @@
 name = "ground-station-simulator"
 version = "1.0.0"
 edition = "2021"
-description = "Simulates the spaceops ground station network"
+description = "Simulates the orbitlogs ground station network"
 
 [dependencies]
 tokio = { workspace = true }

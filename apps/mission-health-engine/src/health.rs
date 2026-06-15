@@ -617,6 +617,10 @@ mod tests {
                 latency: 2500.0,
                 bandwidth: 0.0,
                 explanation: "Antenna alignment failure".to_string(),
+                backhaul_health: None,
+                packet_loss: None,
+                signal_quality: None,
+                maintenance: None,
             },
         );
 
@@ -647,6 +651,10 @@ mod tests {
                 latency: 42.0,
                 bandwidth: 1000.0,
                 explanation: "All operational".to_string(),
+                backhaul_health: None,
+                packet_loss: None,
+                signal_quality: None,
+                maintenance: None,
             },
         );
 

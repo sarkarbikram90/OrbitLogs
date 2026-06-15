@@ -1,0 +1,12 @@
+[package]
+name = "space-schema-registry"
+version = "1.0.0"
+edition = "2021"
+description = "Space telemetry schema registry and version compatibility checker"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "1.0"
+chrono = { workspace = true }
+uuid = { workspace = true }

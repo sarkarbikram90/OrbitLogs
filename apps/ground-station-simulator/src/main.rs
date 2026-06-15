@@ -196,6 +196,10 @@ async fn main() -> Result<(), anyhow::Error> {
             latency: 42.0,
             bandwidth: 1000.0,
             explanation: "All ground station systems operational.".to_string(),
+            backhaul_health: Some(100.0),
+            packet_loss: Some(0.0),
+            signal_quality: Some(100.0),
+            maintenance: Some(false),
         };
 
         let mut gs_troll = GroundStationHealth {
@@ -209,6 +213,10 @@ async fn main() -> Result<(), anyhow::Error> {
             latency: 95.0,
             bandwidth: 500.0,
             explanation: "All ground station systems operational.".to_string(),
+            backhaul_health: Some(100.0),
+            packet_loss: Some(0.0),
+            signal_quality: Some(100.0),
+            maintenance: Some(false),
         };
 
         let mut gs_mcmurdo = GroundStationHealth {
@@ -222,6 +230,10 @@ async fn main() -> Result<(), anyhow::Error> {
             latency: 110.0,
             bandwidth: 500.0,
             explanation: "All ground station systems operational.".to_string(),
+            backhaul_health: Some(100.0),
+            packet_loss: Some(0.0),
+            signal_quality: Some(95.0),
+            maintenance: Some(false),
         };
 
         let mut gs_kiruna = GroundStationHealth {
@@ -235,6 +247,10 @@ async fn main() -> Result<(), anyhow::Error> {
             latency: 35.0,
             bandwidth: 1000.0,
             explanation: "All ground station systems operational.".to_string(),
+            backhaul_health: Some(100.0),
+            packet_loss: Some(0.0),
+            signal_quality: Some(100.0),
+            maintenance: Some(false),
         };
 
         // Determine scenarios based on the ticks loop
@@ -247,6 +263,8 @@ async fn main() -> Result<(), anyhow::Error> {
             gs_svalbard.weather_state = "SevereStorm".to_string();
             gs_svalbard.latency = 280.0;
             gs_svalbard.bandwidth = 200.0;
+            gs_svalbard.packet_loss = Some(15.5);
+            gs_svalbard.signal_quality = Some(55.0);
             gs_svalbard.explanation =
                 "Severe storm in Svalbard sector causing major link attenuation.".to_string();
         } else if (20..30).contains(&cycle) {
@@ -255,6 +273,8 @@ async fn main() -> Result<(), anyhow::Error> {
             gs_troll.antenna_health = 12.5;
             gs_troll.latency = 2500.0;
             gs_troll.bandwidth = 0.0;
+            gs_troll.packet_loss = Some(100.0);
+            gs_troll.signal_quality = Some(0.0);
             gs_troll.explanation =
                 "Troll ground antenna structural alignment motor lockup. Downlink offline."
                     .to_string();
@@ -264,6 +284,8 @@ async fn main() -> Result<(), anyhow::Error> {
             gs_kiruna.congestion = 95.5;
             gs_kiruna.latency = 185.0;
             gs_kiruna.bandwidth = 350.0;
+            gs_kiruna.backhaul_health = Some(20.0);
+            gs_kiruna.packet_loss = Some(28.0);
             gs_kiruna.explanation = "Kiruna ground link network backhaul saturated by multiple concurrent LEO downlinks.".to_string();
         } else if (40..50).contains(&cycle) {
             // Scenario 4: Heavy snow at McMurdo (GS-0003)
@@ -271,7 +293,14 @@ async fn main() -> Result<(), anyhow::Error> {
             gs_mcmurdo.weather_state = "HeavySnow".to_string();
             gs_mcmurdo.latency = 195.0;
             gs_mcmurdo.bandwidth = 150.0;
+            gs_mcmurdo.packet_loss = Some(8.5);
+            gs_mcmurdo.signal_quality = Some(75.0);
             gs_mcmurdo.explanation = "Blizzard warning at McMurdo. Antenna heaters active but experiencing minor attenuation.".to_string();
+        } else if (50..60).contains(&cycle) {
+            // Scenario 5: Maintenance Window at McMurdo (GS-0003)
+            gs_mcmurdo.status = "MAINTENANCE".to_string();
+            gs_mcmurdo.maintenance = Some(true);
+            gs_mcmurdo.explanation = "Scheduled antenna receiver array calibration window.".to_string();
         }
 
         let stations = vec![gs_svalbard, gs_troll, gs_mcmurdo, gs_kiruna];

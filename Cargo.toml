@@ -6,8 +6,16 @@ members = [
     "apps/mission-health-engine",
     "apps/ground-station-simulator",
     "apps/mission-replay-engine",
+    "apps/mission-command-service",
+    "apps/digital-twin-engine",
+    "apps/mission-timeline",
+    "apps/ai-incident-commander",
+    "apps/constellation-simulator",
     "crates/spaceops-models",
     "crates/spaceops-packets",
+    "crates/space-schema-registry",
+    "crates/fleet-health",
+    "crates/space-otel-collector",
 ]
 
 [workspace.dependencies]
@@ -32,8 +40,12 @@ anyhow = "1.0"
 dotenvy = "0.15"
 spaceops-models = { path = "crates/spaceops-models" }
 spaceops-packets = { path = "crates/spaceops-packets" }
+space-schema-registry = { path = "crates/space-schema-registry" }
+fleet-health = { path = "crates/fleet-health" }
 subtle = "2.5"
 dashmap = "5.5"
+axum = { version = "0.7.9" }
+lazy_static = "1.4"
 
 # Optimize profiles for production build speed vs runtime execution speed
 [profile.release]

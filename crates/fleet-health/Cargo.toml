@@ -1,0 +1,9 @@
+[package]
+name = "fleet-health"
+version = "1.0.0"
+edition = "2021"
+description = "Fleet-wide health calculations for satellite constellations"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

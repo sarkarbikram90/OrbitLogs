@@ -170,6 +170,31 @@ impl SatelliteSimulator {
         let mut roll = (self.ticks as f32 * 0.03).sin() * 3.0 + self.rng.gen_range(-0.3..0.3);
         let mut yaw = (self.ticks as f32 * 0.01 + 1.2).sin() * 4.0 + self.rng.gen_range(-0.4..0.4);
 
+        if self.id == "SAT-0001" {
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let iss = tokio::task::block_in_place(|| {
+                    handle.block_on(crate::adapters::OrbitAdapters::fetch_iss_position())
+                });
+                self.altitude = iss.altitude;
+                self.velocity = iss.velocity;
+                pitch = iss.latitude as f32;
+                roll = iss.longitude as f32;
+            } else {
+                // Fallback for tests or contexts without a tokio runtime running
+                self.altitude = 420.0;
+                self.velocity = 7.66;
+                pitch = 51.64;
+                roll = 195.14;
+            }
+        } else if self.id == "SAT-0002" {
+            let tle_l1 = "1 25544U 98067A   26166.57790509  .00015525  00000-0  28286-3 0  9997";
+            let tle_l2 = "2 25544  51.6416 195.1432 0005211  92.5188  64.2188 15.49896541571216";
+            let (lat, lon, alt) = crate::adapters::OrbitAdapters::propagate_tle(tle_l1, tle_l2, self.ticks as f64 * 5.0);
+            self.altitude = alt;
+            pitch = lat as f32;
+            roll = lon as f32;
+        }
+
         // Side effect: Chaotic spinning from gas propulsion leakage
         if self.scenario == Scenario::FuelLeakage && self.fuel_remaining > 0.0 {
             pitch += self.rng.gen_range(-20.0..20.0);
@@ -458,6 +483,10 @@ mod tests {
             latency: 42.0,
             bandwidth: 1000.0,
             explanation: "Outage".to_string(),
+            backhaul_health: None,
+            packet_loss: None,
+            signal_quality: None,
+            maintenance: None,
         };
 
         let rec = sim.next_subsystem_record("Communications", "test-mission", Some(&gs));
@@ -487,6 +516,10 @@ mod tests {
             latency: 42.0,
             bandwidth: 1000.0,
             explanation: "Severe Storm".to_string(),
+            backhaul_health: None,
+            packet_loss: None,
+            signal_quality: None,
+            maintenance: None,
         };
 
         // Reset sim/ticks to keep random values aligned

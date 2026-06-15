@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Open SpaceOps API Specification
+  title: OrbitLogs API Specification
   description: API contract and schema specifications for the real-time telemetry ingestion and historical replay services.
   version: 1.0.0
 servers:

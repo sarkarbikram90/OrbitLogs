@@ -80,3 +80,48 @@ export interface TelemetryRecord {
   payload_power_draw?: number;
   payload_active?: boolean;
 }
+
+export interface Command {
+  id: string;
+  satellite_id: string;
+  command_type: string;
+  status: string;
+  parameters: Record<string, any>;
+  created_by: string;
+  approved_by?: string;
+  scheduled_time?: string;
+  executed_at?: string;
+  created_at: string;
+}
+
+export interface TimelineEvent {
+  timestamp: string;
+  event_id: string;
+  source: string;
+  satellite_id?: string;
+  event_type: string;
+  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  message: string;
+  details?: Record<string, any>;
+}
+
+export interface SubsystemStateProjection {
+  status: string;
+  score: number;
+  details: string;
+}
+
+export interface TwinHealthProjection {
+  satellite_id: string;
+  timestamp: string;
+  subsystems: {
+    power: SubsystemStateProjection;
+    thermal: SubsystemStateProjection;
+    adcs: SubsystemStateProjection;
+    communications: SubsystemStateProjection;
+    payload: SubsystemStateProjection;
+    propulsion: SubsystemStateProjection;
+  };
+  life_expectancy_days: number;
+  recommendations: string[];
+}

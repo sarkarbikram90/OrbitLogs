@@ -5,6 +5,10 @@ import { SatelliteDetail } from './components/SatelliteDetail';
 import { GroundStationStatus } from './components/GroundStationStatus';
 import { ReplayControls } from './components/ReplayControls';
 import { IncidentPanel } from './components/IncidentPanel';
+import { CommandCenter } from './components/CommandCenter';
+import { MissionTimelineView } from './components/MissionTimelineView';
+import { DigitalTwinViewer } from './components/DigitalTwinViewer';
+import { AiCopilot } from './components/AiCopilot';
 import type { Satellite, GroundStation, EventLog, ReplaySession, SatelliteHealth, TelemetryRecord } from './types';
 
 const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
@@ -22,6 +26,7 @@ const API_KEY = import.meta.env.VITE_API_KEY || 'secret-spaceops-key-2026';
 
 export default function App() {
   const [mode, setMode] = useState<'LIVE' | 'REPLAY'>('LIVE');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'COMMANDS' | 'TIMELINE' | 'TWIN' | 'AI'>('DASHBOARD');
   const [selectedSatId, setSelectedSatId] = useState<string | null>('SAT-0001');
   const [utcTime, setUtcTime] = useState(new Date().toISOString().replace('T', ' ').substring(0, 19));
 
@@ -396,54 +401,122 @@ export default function App() {
       <header className="header">
         <div className="header-title-container">
           <span className="logo-icon">🛰</span>
-          <span className="header-title">Open SpaceOps - Mission Control</span>
+          <span className="header-title">OrbitLogs - Mission Control</span>
         </div>
-        <div className="header-status">
-          <span>UTC: {utcTime}</span>
-          <div className={`mode-badge ${mode === 'LIVE' ? 'live' : 'replay'}`}>
-            {mode === 'LIVE' ? '● LIVE CONSOLE' : '▼ REPLAY CONSOLE'}
+
+        {/* Tab Navigation */}
+        <div style={{ display: 'flex', gap: '8px', margin: '0 32px' }}>
+          {([
+            ['DASHBOARD', 'DASHBOARD'],
+            ['COMMANDS', 'COMMAND CENTER'],
+            ['TIMELINE', 'TIMELINE'],
+            ['TWIN', 'DIGITAL TWIN'],
+            ['AI', 'AI COPILOT'],
+          ] as const).map(([tabId, label]) => (
+            <button
+              key={tabId}
+              onClick={() => setActiveTab(tabId)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: activeTab === tabId ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                color: activeTab === tabId ? '#38bdf8' : '#94a3b8',
+                border: activeTab === tabId ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                fontFamily: 'var(--font-display)',
+                letterSpacing: '1px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div className="header-status">
+            <span>UTC: {utcTime}</span>
+            <div className={`mode-badge ${mode === 'LIVE' ? 'live' : 'replay'}`}>
+              {mode === 'LIVE' ? '● LIVE CONSOLE' : '▼ REPLAY CONSOLE'}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Grid Workspace */}
-      <main className="main-content">
-        {/* Left Column: Fleet Listing & Ground Stations */}
-        <div style={{ display: 'grid', gridTemplateRows: '1fr 260px', gap: '16px', height: '100%', overflow: 'hidden' }}>
-          <FleetOverview
-            satellites={satellites}
-            selectedSatId={selectedSatId}
-            onSelectSat={(id) => setSelectedSatId(id)}
-          />
-          <GroundStationStatus groundStations={groundStations} />
-        </div>
+      {/* Main Workspace */}
+      <main 
+        className="main-content" 
+        style={{
+          display: activeTab === 'DASHBOARD' ? 'grid' : 'block',
+          height: '100%',
+        }}
+      >
+        {activeTab === 'DASHBOARD' && (
+          <>
+            {/* Left Column: Fleet Listing & Ground Stations */}
+            <div style={{ display: 'grid', gridTemplateRows: '1fr 260px', gap: '16px', height: '100%', overflow: 'hidden' }}>
+              <FleetOverview
+                satellites={satellites}
+                selectedSatId={selectedSatId}
+                onSelectSat={(id) => setSelectedSatId(id)}
+              />
+              <GroundStationStatus groundStations={groundStations} />
+            </div>
 
-        {/* Center Column: 3D Visualization & Playback Timelines */}
-        <div className="center-column">
-          <OrbitViewer
-            satellites={satellites}
-            groundStations={groundStations}
-            selectedSatId={selectedSatId}
-          />
-          <ReplayControls
-            mode={mode}
-            session={replaySession}
-            satellites={satellites}
-            onToggleMode={handleToggleMode}
-            onCreateSession={handleCreateSession}
-            onControl={handleControl}
-          />
-        </div>
+            {/* Center Column: 3D Visualization & Playback Timelines */}
+            <div className="center-column">
+              <OrbitViewer
+                satellites={satellites}
+                groundStations={groundStations}
+                selectedSatId={selectedSatId}
+              />
+              <ReplayControls
+                mode={mode}
+                session={replaySession}
+                satellites={satellites}
+                onToggleMode={handleToggleMode}
+                onCreateSession={handleCreateSession}
+                onControl={handleControl}
+              />
+            </div>
 
-        {/* Right Column: Diagnostic Cards & Events Log */}
-        <div style={{ display: 'grid', gridTemplateRows: '1fr 280px', gap: '16px', height: '100%', overflow: 'hidden' }}>
-          <SatelliteDetail
-            satelliteId={selectedSatId}
-            health={health}
-            telemetry={telemetry}
-          />
-          <IncidentPanel events={events} />
-        </div>
+            {/* Right Column: Diagnostic Cards & Events Log */}
+            <div style={{ display: 'grid', gridTemplateRows: '1fr 280px', gap: '16px', height: '100%', overflow: 'hidden' }}>
+              <SatelliteDetail
+                satelliteId={selectedSatId}
+                health={health}
+                telemetry={telemetry}
+              />
+              <IncidentPanel events={events} />
+            </div>
+          </>
+        )}
+
+        {activeTab === 'COMMANDS' && (
+          <div style={{ height: '100%' }}>
+            <CommandCenter selectedSatId={selectedSatId} satellites={satellites} />
+          </div>
+        )}
+
+        {activeTab === 'TIMELINE' && (
+          <div style={{ height: '100%' }}>
+            <MissionTimelineView selectedSatId={selectedSatId} />
+          </div>
+        )}
+
+        {activeTab === 'TWIN' && (
+          <div style={{ height: '100%' }}>
+            <DigitalTwinViewer selectedSatId={selectedSatId} />
+          </div>
+        )}
+
+        {activeTab === 'AI' && (
+          <div style={{ height: '100%' }}>
+            <AiCopilot selectedSatId={selectedSatId} />
+          </div>
+        )}
       </main>
     </div>
   );

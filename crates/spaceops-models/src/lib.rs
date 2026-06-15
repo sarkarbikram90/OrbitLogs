@@ -197,6 +197,14 @@ pub struct GroundStationHealth {
     pub latency: f32,
     pub bandwidth: f32,
     pub explanation: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backhaul_health: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub packet_loss: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signal_quality: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub maintenance: Option<bool>,
 }
 
 pub fn load_secret(env_var: &str) -> Option<String> {
@@ -214,6 +222,7 @@ pub fn load_secret(env_var: &str) -> Option<String> {
 }
 pub mod db;
 pub mod kafka;
+pub mod telemetry;
 
 #[cfg(test)]
 mod tests {

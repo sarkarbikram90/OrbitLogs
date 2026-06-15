@@ -2,7 +2,7 @@
 name = "spaceops-models"
 version = "1.0.0"
 edition = "2021"
-description = "Shared domain models for the Open SpaceOps satellite telemetry platform"
+description = "Shared domain models for the OrbitLogs satellite telemetry platform"
 
 [dependencies]
 serde = { workspace = true }
@@ -13,4 +13,10 @@ sqlx = { workspace = true }
 rdkafka = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
+tracing-subscriber = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+anyhow = { workspace = true }
 

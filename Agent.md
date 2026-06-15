@@ -1,668 +1,540 @@
-# AGENT.md
+# Open Orbitlogs 2.0 – OpenTelemetry-Native Mission Operations Platform
 
-# Open SpaceOps
+You are a Principal Software Engineer at SpaceX responsible for designing mission operations platforms that can operate and monitor thousands of spacecraft simultaneously.
 
-## Vision
+Your task is to evolve the existing Open Orbitlogs codebase into a production-grade, open-source Orbitlogs platform that combines:
 
-Open SpaceOps is not a monitoring dashboard.
-
-Open SpaceOps is an open-source Mission Operations Platform that demonstrates how modern satellite operators monitor, analyze, troubleshoot, replay, and recover spacecraft using contemporary observability technologies.
-
-The project combines:
-
-* Spacecraft Telemetry
-* Distributed Systems
-* Observability Engineering
-* Site Reliability Engineering
-* Event Streaming
 * Mission Operations
-* Artificial Intelligence
+* Satellite Fleet Management
+* OpenTelemetry
+* Observability
+* Distributed Systems
+* AI-Assisted Incident Response
+* Ground Station Monitoring
+* Digital Twins
+* Constellation Operations
 
-The long-term goal is to build a miniature version of:
+The existing codebase already contains:
 
-* SpaceX Mission Control
-* NASA Mission Operations
-* ESA Ground Segment
-* Datadog
-* Grafana Cloud
-* Splunk Observability
-* Modern AI Incident Management Platforms
+* Rust microservices
+* Kafka event streaming
+* TimescaleDB
+* OpenTelemetry
+* Jaeger
+* Prometheus
+* Grafana
+* Mission Replay Engine
+* Telemetry Simulator
+* Ground Station Simulator
+* Three.js Mission Control Console
 
-The project should be technically realistic, highly observable, well-documented, professionally engineered, and capable of serving as a flagship GitHub portfolio repository.
+DO NOT replace existing architecture.
 
----
-
-# Core Philosophy
-
-The project must prioritize:
-
-1. Mission Operations Realism
-2. Engineering Quality
-3. Reliability
-4. Observability
-5. Documentation
-6. Testing
-7. Security
-8. Scalability
-
-Feature count is less important than realism and execution quality.
-
-Every architectural decision should answer:
-
-> Would a mission operations engineer, SRE, platform engineer, or space-tech engineer find this realistic and useful?
+Build on top of the current architecture.
 
 ---
 
-# Engineering Principles
+# Product Vision
 
-## Principle 1
+Traditional observability platforms understand:
 
-Never break existing functionality.
+* Applications
+* Containers
+* Kubernetes
+* Databases
 
-All new capabilities must be backward compatible.
+Open SpaceOps should understand:
 
----
+* Satellites
+* Ground Stations
+* Telemetry
+* Commands
+* Payloads
+* Constellations
+* Mission Events
+* Orbital Assets
 
-## Principle 2
+Open Orbitlogs becomes:
 
-Every service must expose:
-
-* Logs
-* Metrics
-* Traces
-
-Observability is mandatory.
-
----
-
-## Principle 3
-
-Every feature requires:
-
-* Architecture documentation
-* Design documentation
-* Diagrams
-* Unit tests
-* Integration tests
+Datadog + Grafana + ServiceNow + OpenTelemetry + Mission Control for Space Systems.
 
 ---
 
-## Principle 4
+# Core Design Principles
 
-All services communicate through event-driven architecture whenever practical.
-
-Kafka is the primary integration mechanism.
-
----
-
-## Principle 5
-
-Documentation quality should be comparable to:
-
-* Grafana Labs
-* Datadog
-* Cloudflare
-* Stripe
-* Google SRE
+1. OpenTelemetry Native
+2. Rust First
+3. Event Driven
+4. Cloud Native
+5. Mission Operations Focused
+6. Fleet Scale Architecture
+7. AI Assisted Operations
+8. Extensible Plugin Framework
 
 ---
 
-## Principle 6
-
-All operational assumptions must be documented.
-
-Failure scenarios must be documented.
-
-Recovery procedures must be documented.
-
----
-
-## Principle 7
-
-Every subsystem must be observable.
-
-Every event must be traceable.
-
-Every failure must be diagnosable.
-
----
-
-# Current Foundation (V1)
-
-Existing Architecture:
-
-Telemetry Simulator
-↓
-Rust Telemetry Collector
-↓
-Kafka
-↓
-TimescaleDB/PostgreSQL
-↓
-Grafana
-
-This foundation must remain stable.
-
-Future work should build on top of it rather than replacing it.
-
----
-
-# Target End-State Architecture
-
-Spacecraft Subsystems
-↓
-Telemetry Packet Layer
-↓
-Ground Station Network
-↓
-Telemetry Collector
-↓
-Kafka Event Bus
-↓
-Mission Health Engine
-↓
-Telemetry Archive
-↓
-Replay Engine
-↓
-Mission Control UI
-↓
-AI Incident Commander
-
----
-
-# Phase 1
-
-## Spacecraft Subsystem Architecture
-
-Replace simplistic telemetry generation with realistic spacecraft subsystem modeling.
+# Phase 8: Space OpenTelemetry Collector
 
 Create:
 
-* Power System
-* Thermal Control System
-* Communications System
-* Propulsion System
-* ADCS
-* Payload System
-* Flight Computer
-
-Each subsystem must emit independent telemetry.
-
-Telemetry must include:
-
-* satellite_id
-* subsystem_id
-* mission_id
-* timestamp
-
-Subsystem failures must propagate realistic side effects.
-
-Example:
-
-Thermal failure
-↓
-CPU throttling
-↓
-Communication degradation
-↓
-Mission health degradation
-
-Deliverables:
-
-* Architecture document
-* Sequence diagrams
-* Failure mode documentation
-* Unit tests
-* Integration tests
-
----
-
-# Phase 2
-
-## Mission Health Engine
-
-Create:
-
-apps/mission-health-engine
+crates/space-otel-collector
 
 Purpose:
 
-Convert raw telemetry into operational state.
+Convert spacecraft telemetry into standard OpenTelemetry signals.
 
-Input:
+Input Sources:
 
-Kafka telemetry streams
+* Satellite Telemetry
+* Ground Station Events
+* Command Events
+* Mission Events
+* Digital Twin State Changes
 
 Output:
 
-Fleet Health Score
-
-Satellite Health Score
-
-Subsystem Health Score
-
-Health States:
-
-GREEN
-
-YELLOW
-
-RED
-
-Health assessments should be explainable.
-
-Publish results to:
-
-mission.health
-
-Store mission health history.
-
-Create Grafana dashboards.
-
-Mission operators should see:
-
-Mission Status
-
-instead of
-
-Raw Metrics
-
----
-
-# Phase 3
-
-## Ground Station Simulator
-
-Create:
-
-apps/ground-station-simulator
-
-Purpose:
-
-Simulate realistic space-to-ground communications.
-
-Model:
-
-* Signal Strength
-* Packet Loss
-* Antenna Health
-* Weather Interference
-* Latency
-* Bandwidth
-* Outages
-
-Create scenarios:
-
-* Ground station outage
-* Severe weather
-* Antenna degradation
-* Network congestion
-
-Publish:
-
-groundstation.health
-
-Integrate with mission health engine.
-
----
-
-# Phase 4
-
-## Telemetry Packet Layer
-
-Create:
-
-crates/spaceops-packets
-
-Implement:
-
-TelemetryPacket
-
-TelemetryFrame
-
-PacketEncoder
-
-PacketDecoder
-
-Capabilities:
-
-* Binary serialization
-* Versioning
-* Checksum validation
-* Metadata support
-
-Maintain JSON compatibility for external APIs.
-
-Telemetry should begin resembling real spacecraft telemetry rather than generic monitoring data.
-
-Include documentation explaining simplified CCSDS-inspired design concepts.
-
----
-
-# Phase 5
-
-## Mission Replay Engine
-
-Create:
-
-apps/mission-replay-engine
-
-Purpose:
-
-Answer:
-
-"What happened before the failure?"
-
-Capabilities:
-
-Replay:
-
-* Telemetry
-* Events
-* Health changes
-* Anomalies
-
-Replay speeds:
-
-* 1x
-* 5x
-* 10x
-* 50x
-* 100x
-
-Features:
-
-* Pause
-* Resume
-* Timeline scrubbing
-* Event markers
-* Failure markers
-
-Store replay metadata.
-
-Create replay APIs.
-
-Create replay dashboards.
-
-Generate sequence diagrams.
-
----
-
-# Phase 6
-
-## Mission Control User Interface
-
-Replace Grafana-only operational experience.
-
-Create:
-
-mission-control-ui
-
-Technology:
-
-* React
-* TypeScript
-* WebSocket
-* Three.js
-
-Capabilities:
-
-Fleet Overview
-
-Satellite Status
-
-Mission Status
-
-Anomalies
-
-Ground Station Status
-
-Replay Controls
-
-Mission Timeline
-
-Mission Health Visualization
-
-Grafana remains available.
-
-Mission Control becomes the primary operator interface.
-
----
-
-# Phase 7
-
-## Orbital Visualization
-
-Create:
-
-3D Earth Visualization
-
-Capabilities:
-
-* Real-time satellite tracking
-* Orbit rendering
-* Ground station rendering
-* Coverage maps
-* Historical playback
-
-Display:
-
-* Active anomalies
-* Health state
-* Communication links
-
-Performance Goal:
-
-1000+ satellites
-
-Integrate with replay engine.
-
----
-
-# Phase 8
-
-## AI Incident Commander
-
-Create:
-
-apps/incident-commander
-
-Purpose:
-
-Assist mission operators during incidents.
-
-Input:
-
-* Telemetry
-* Metrics
-* Logs
-* Traces
-* Events
-* Runbooks
-* Mission history
-
-Capabilities:
-
-### Incident Summary
-
-Generate:
-
-* Executive summary
-* Technical summary
-* Impact assessment
-
----
-
-### Timeline Generation
-
-Generate:
-
-Chronological incident timelines.
-
----
-
-### Root Cause Analysis
-
-Correlate:
-
-* Telemetry
-* Health changes
-* Ground station failures
-* System events
-
-Provide:
-
-* Confidence scores
-* Supporting evidence
-
----
-
-### Remediation Guidance
-
-Generate:
-
-* Recommended actions
-* Recovery steps
-* Runbook references
-
----
-
-### Postmortem Generation
-
-Generate:
-
-* Markdown
-* HTML
-* PDF
-
-Postmortems automatically.
-
----
-
-# Observability Requirements
-
-Every service must expose:
-
 Metrics:
 
-Prometheus
+* battery_voltage
+* battery_current
+* solar_output
+* cpu_usage
+* memory_usage
+* fuel_remaining
+* signal_strength
+* packet_loss
+* link_latency
 
 Logs:
 
-Structured Logging
+* subsystem_failures
+* payload_events
+* thermal_events
+* communication_events
 
 Traces:
 
+* command_lifecycle
+* payload_operations
+* mission_sequences
+
+Requirements:
+
+* Async Rust
+* Tokio
+* OTLP Exporters
+* Prometheus Exporters
+* Kafka Integration
+* Zero-copy processing where possible
+* High throughput design
+
+---
+
+# Phase 9: Mission Command Service
+
+Create:
+
+apps/mission-command-service
+
+Purpose:
+
+Model real spacecraft command workflows.
+
+Features:
+
+* Command Creation
+* Command Validation
+* Approval Workflow
+* Scheduling
+* Execution Tracking
+* Audit Trail
+
+Command Lifecycle:
+
+CREATED
+APPROVED
+QUEUED
+TRANSMITTED
+RECEIVED
+EXECUTED
+VERIFIED
+FAILED
+
+Every lifecycle transition must generate:
+
+* OTel Trace
+* OTel Event
+* Kafka Event
+* Timeline Event
+
+Implement RBAC:
+
+Roles:
+
+* Operator
+* Flight Director
+* Mission Manager
+* Administrator
+
+---
+
+# Phase 10: Digital Twin Engine
+
+Create:
+
+apps/digital-twin-engine
+
+Purpose:
+
+Maintain a virtual spacecraft representation.
+
+Model:
+
+Satellite
+Subsystems
+Power
+Thermal
+ADCS
+Communications
+Payload
+Propulsion
+
+Capabilities:
+
+* State Synchronization
+* Health Projection
+* Failure Simulation
+* Historical Reconstruction
+
+Expose APIs:
+
+GET /twin/{satellite}
+GET /twin/{satellite}/health
+GET /twin/{satellite}/timeline
+
+---
+
+# Phase 11: Fleet Health Engine
+
+Create:
+
+crates/fleet-health
+
+Purpose:
+
+Evaluate fleet-wide health.
+
+Metrics:
+
+Fleet Availability
+Fleet Risk Score
+Fleet Utilization
+Fleet Capacity
+Fleet Readiness
+
+Dashboard:
+
+Healthy
+Warning
+Critical
+
+Scalable to:
+
+10 satellites
+100 satellites
+1000 satellites
+10000 satellites
+
+---
+
+# Phase 12: Mission Timeline Engine
+
+Create:
+
+apps/mission-timeline
+
+Purpose:
+
+Store every operational event.
+
+Sources:
+
+Telemetry
+Commands
+Alerts
+Incidents
+Ground Station Events
+Digital Twin Events
+
+Timeline Example:
+
+12:01 Battery Warning
+
+12:03 Alert Generated
+
+12:05 Operator Acknowledged
+
+12:07 Payload Disabled
+
+12:09 Thermal Recovery
+
+Features:
+
+* Event Correlation
+* Search
+* Replay Integration
+* RCA Support
+
+---
+
+# Phase 13: AI Incident Commander
+
+Create:
+
+apps/ai-incident-commander
+
+Purpose:
+
+Provide mission intelligence.
+
+Capabilities:
+
+Incident Summaries
+Root Cause Analysis
+Anomaly Explanations
+Recovery Recommendations
+Mission Briefings
+
+Example Queries:
+
+Why is SAT-101 unhealthy?
+
+What changed before anomaly detection?
+
+Summarize the last 24 hours.
+
+Generate postmortem report.
+
+Generate operator handoff notes.
+
+Supported Models:
+
+OpenAI
+Anthropic
+Gemini
+
+Implement RAG:
+
+Knowledge Sources:
+
+* Mission Events
+* Telemetry
+* Command History
+* Runbooks
+* Incidents
+* Timeline Events
+
+---
+
+# Phase 14: Space Schema Registry
+
+Create:
+
+crates/space-schema-registry
+
+Purpose:
+
+Version telemetry schemas.
+
+Support:
+
+Telemetry V1
+Telemetry V2
+Telemetry V3
+
+Features:
+
+Schema Validation
+Compatibility Checking
+Migration Support
+Version Tracking
+
+---
+
+# Phase 15: Real Data Sources
+
+Keep simulator.
+
+Add adapters.
+
+Implement:
+
+ISS Adapter
+TLE Adapter
+SatNOGS Adapter
+N2YO Adapter
+
+Architecture:
+
+Source Adapter
+↓
+Normalization Layer
+↓
+Space OTel Collector
+↓
+Kafka
+↓
+Storage
+
+---
+
+# Phase 16: Constellation Simulator
+
+Create:
+
+apps/constellation-simulator
+
+Capabilities:
+
+100
+500
+1000
+5000
+
+simulated satellites.
+
+Simulate:
+
+Battery Aging
+Thermal Drift
+Orbit Changes
+Ground Station Failures
+Payload Failures
+Network Congestion
+
+---
+
+# Phase 17: Ground Station Operations
+
+Enhance existing ground station simulator.
+
+Add:
+
+Antenna Health
+Backhaul Network Health
+Weather Effects
+Hardware Failures
+Maintenance Windows
+
+Metrics:
+
+Availability
+Latency
+Packet Loss
+Signal Quality
+
+---
+
+# Phase 18: Space Observability Platform
+
+Support all four pillars:
+
+Metrics
+Logs
+Traces
+Profiles
+
+Integrations:
+
+Prometheus
+Loki
+Tempo
+Mimir
+Jaeger
+
+Build a unified observability view.
+
+---
+
+# Frontend Enhancements
+
+Enhance Mission Control Console.
+
+Add:
+
+Fleet Overview
+Constellation Health
+Mission Timeline
+Ground Station Dashboard
+Command Center
+Incident Center
+AI Copilot Chat
+Digital Twin Viewer
+
+Three.js Enhancements:
+
+Live Orbits
+Ground Coverage
+Communication Beams
+Collision Warnings
+Orbital Paths
+
+---
+
+# Rust Engineering Standards
+
+Use:
+
+Tokio
+Axum
+Serde
+Tracing
 OpenTelemetry
+SQLx
 
-Required Dashboards:
+Requirements:
 
-* Fleet Health
-* Satellite Health
-* Ground Station Health
-* Kafka Health
-* Database Health
-* Replay Activity
-* AI Incident Activity
+100% async services
 
----
+Structured logging
 
-# Testing Requirements
+Graceful shutdown
 
-Every feature requires:
+Health endpoints
 
-Unit Tests
+Metrics endpoints
 
-Integration Tests
+OpenAPI specs
 
-End-to-End Tests
+Integration tests
 
-Load Tests
+Property tests
 
-Failure Injection Tests
+Load tests
 
-Coverage Target:
-
-90%+
-
-All CI pipelines must pass.
+Benchmark suite
 
 ---
 
-# Documentation Requirements
+# Documentation
 
-Every phase must include:
+Generate:
 
-Architecture Document
-
-Design Document
-
+Architecture Diagrams
 Sequence Diagrams
-
-Component Diagrams
-
-Deployment Diagrams
-
-ER Diagrams
-
+Data Flow Diagrams
+ADR Documents
+API Specifications
 Operational Runbooks
 
-Troubleshooting Guides
-
-Benchmark Reports
-
-All diagrams must be GitHub-renderable using Mermaid.
-
-Documentation is a first-class deliverable.
-
 ---
 
-# GitHub Repository Goals
+# Long-Term Goal
 
-The repository should demonstrate expertise in:
+Open Orbitlogs should become:
 
-* Rust
-* Kafka
-* PostgreSQL
-* TimescaleDB
-* Prometheus
-* Grafana
-* OpenTelemetry
-* Distributed Systems
-* Observability Engineering
-* SRE
-* Mission Operations
-* AI Systems
-* Platform Engineering
+The OpenTelemetry-Native Operating System for Space Missions.
 
-The project should feel like a realistic mission operations platform rather than a generic monitoring application.
+A platform capable of operating, monitoring, troubleshooting, replaying, and analyzing thousands of spacecraft and ground stations while providing AI-assisted mission operations.
 
-Every feature should reinforce that vision.
-
----
-
-# Success Criteria
-
-A senior engineer from:
-
-* SpaceX
-* NASA
-* ESA
-* ISRO
-* Pixxel
-* Skyroot
-* Agnikul
-* Grafana Labs
-* Datadog
-* Cloudflare
-* Google
-* Netflix
-* Amazon
-* Apple
-
-should be able to review the repository and immediately understand:
-
-"This engineer understands observability, distributed systems, reliability engineering, and mission operations software."
-
-Also create a docs/architecture/roadmap.md file and maintain a checklist for every phase. That gives a clear execution plan and gives future GitHub visitors a visible product roadmap rather than a collection of disconnected features.
+Preserve all existing functionality and evolve the platform incrementally with backward compatibility.

@@ -1,0 +1,21 @@
+[package]
+name = "constellation-simulator"
+version = "1.0.0"
+edition = "2021"
+description = "Constellation Simulator - High-throughput constellation simulation modeling up to 5000 satellites"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rdkafka = { workspace = true }
+clap = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+rand = { workspace = true }
+spaceops-models = { workspace = true }
+spaceops-packets = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+dotenvy = { workspace = true }

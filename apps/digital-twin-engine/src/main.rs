@@ -1,0 +1,407 @@
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
+use clap::Parser;
+use dashmap::DashMap;
+use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
+use rdkafka::message::Message;
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use serde::{Deserialize, Serialize};
+use spaceops_models::kafka::KafkaConfigBuilder;
+use spaceops_models::TelemetryRecord;
+use sqlx::{PgPool, Row};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+use tower_http::cors::{Any, CorsLayer};
+use tracing::{error, info, warn};
+use uuid::Uuid;
+
+#[derive(Parser, Debug)]
+#[command(name = "Digital Twin Engine")]
+struct Cli {
+    #[arg(long, env = "PORT", default_value = "8086")]
+    port: u16,
+
+    #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
+    kafka_brokers: String,
+
+    #[arg(
+        long,
+        env = "DATABASE_URL",
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+    )]
+    database_url: String,
+
+    #[arg(
+        long,
+        env = "OTEL_EXPORTER_OTLP_ENDPOINT",
+        default_value = "http://localhost:4317"
+    )]
+    otel_endpoint: String,
+
+    #[arg(long, env = "PROCESSED_TOPIC", default_value = "telemetry.processed")]
+    processed_topic: String,
+
+    #[arg(long, env = "TIMELINE_EVENTS_TOPIC", default_value = "timeline.events")]
+    timeline_topic: String,
+
+    #[arg(long, env = "GROUP_ID", default_value = "digital-twin-group")]
+    group_id: String,
+}
+
+struct AppState {
+    twins: DashMap<String, TelemetryRecord>,
+    simulated_failures: DashMap<String, Vec<String>>, // satellite_id -> list of failed subsystems
+    db_pool: PgPool,
+    kafka_producer: FutureProducer,
+    timeline_topic: String,
+}
+
+#[derive(Debug, Serialize)]
+struct TwinHealthProjection {
+    satellite_id: String,
+    timestamp: chrono::DateTime<chrono::Utc>,
+    subsystems: SubsystemsHealthProjection,
+    life_expectancy_days: f64,
+    recommendations: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct SubsystemsHealthProjection {
+    power: SubsystemState,
+    thermal: SubsystemState,
+    adcs: SubsystemState,
+    communications: SubsystemState,
+    payload: SubsystemState,
+    propulsion: SubsystemState,
+}
+
+#[derive(Debug, Serialize)]
+struct SubsystemState {
+    status: String, // "NOMINAL", "DEGRADED", "FAILED"
+    score: i32,
+    details: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SimulateFailureRequest {
+    subsystem: String, // e.g. "thermal", "power", "adcs", "communications", "propulsion"
+}
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    let _ = dotenvy::dotenv();
+    let cli = Cli::parse();
+
+    // Init tracing
+    spaceops_models::telemetry::init_telemetry("digital-twin-engine", &cli.otel_endpoint)?;
+
+    info!("Starting Digital Twin Engine...");
+
+    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
+
+    let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
+    let kafka_producer: FutureProducer = producer_config.create()?;
+
+    let state = Arc::new(AppState {
+        twins: DashMap::new(),
+        simulated_failures: DashMap::new(),
+        db_pool,
+        kafka_producer,
+        timeline_topic: cli.timeline_topic,
+    });
+
+    // Start background Kafka consumer
+    let state_clone = Arc::clone(&state);
+    let brokers = cli.kafka_brokers.clone();
+    let processed_topic = cli.processed_topic.clone();
+    let group_id = cli.group_id.clone();
+    tokio::spawn(async move {
+        if let Err(e) = run_telemetry_consumer(state_clone, brokers, processed_topic, group_id).await {
+            error!("Background digital twin consumer failed: {}", e);
+        }
+    });
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let app = Router::new()
+        .route("/api/twin/:satellite", get(get_twin))
+        .route("/api/twin/:satellite/health", get(get_twin_health))
+        .route("/api/twin/:satellite/timeline", get(get_twin_timeline))
+        .route("/api/twin/:satellite/simulate-failure", post(simulate_failure))
+        .layer(cors)
+        .with_state(state);
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    info!("Digital Twin Engine listening on http://localhost:{}", cli.port);
+
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+async fn run_telemetry_consumer(
+    state: Arc<AppState>,
+    brokers: String,
+    topic: String,
+    group_id: String,
+) -> Result<(), anyhow::Error> {
+    let mut config = KafkaConfigBuilder::from_env(brokers).build();
+    config
+        .set("group.id", &group_id)
+        .set("enable.partition.eof", "false")
+        .set("session.timeout.ms", "6000")
+        .set("enable.auto.commit", "false")
+        .set("auto.offset.reset", "latest");
+
+    let consumer: StreamConsumer = config.create()?;
+    consumer.subscribe(&[&topic])?;
+
+    info!("Digital twin background consumer subscribed to {}", topic);
+
+    loop {
+        match consumer.recv().await {
+            Ok(msg) => {
+                if let Some(Ok(payload)) = msg.payload_view::<str>() {
+                    if let Ok(mut rec) = serde_json::from_str::<TelemetryRecord>(payload) {
+                        // Apply active simulated failures
+                        if let Some(failures) = state.simulated_failures.get(&rec.satellite_id) {
+                            for sub in failures.value() {
+                                match sub.as_str() {
+                                    "power" => {
+                                        rec.battery_voltage = Some(rec.battery_voltage.unwrap_or(12.0) * 0.75);
+                                        rec.solar_panel_output = Some(0.0);
+                                    }
+                                    "thermal" => {
+                                        rec.temperature = Some(rec.temperature.unwrap_or(25.0) + 65.0);
+                                    }
+                                    "adcs" => {
+                                        rec.orientation_pitch = Some(rec.orientation_pitch.unwrap_or(0.0) + 15.0);
+                                    }
+                                    "communications" => {
+                                        rec.packet_loss = Some(95.0);
+                                        rec.communication_latency = Some(5000.0);
+                                    }
+                                    "propulsion" => {
+                                        rec.fuel_remaining = Some(rec.fuel_remaining.unwrap_or(10.0) * 0.1);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        // Store twin state
+                        state.twins.insert(rec.satellite_id.clone(), rec);
+                    }
+                }
+                let _ = consumer.commit_message(&msg, CommitMode::Async);
+            }
+            Err(e) => {
+                error!("Error consuming telemetry for digital twin: {}", e);
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        }
+    }
+}
+
+async fn get_twin(
+    State(state): State<Arc<AppState>>,
+    Path(satellite): Path<String>,
+) -> Result<Json<TelemetryRecord>, StatusCode> {
+    if let Some(rec) = state.twins.get(&satellite) {
+        Ok(Json(rec.clone()))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+async fn get_twin_health(
+    State(state): State<Arc<AppState>>,
+    Path(satellite): Path<String>,
+) -> Result<Json<TwinHealthProjection>, StatusCode> {
+    let rec = state.twins.get(&satellite).ok_or(StatusCode::NOT_FOUND)?.clone();
+
+    // Formulate a dynamic projection based on twin metrics
+    let mut recommendations = Vec::new();
+    let mut life_expectancy: f64 = 1800.0; // nominal 5 years
+
+    // Power Subsystem Assessment
+    let mut power_status = "NOMINAL".to_string();
+    let mut power_score = 100;
+    let mut power_details = "Solar arrays fully deployed and generating adequate wattage. Battery banks balanced.".to_string();
+
+    let battery = rec.battery_voltage.unwrap_or(13.8);
+    let solar = rec.solar_panel_output.unwrap_or(100.0);
+    if battery < 11.5 {
+        power_status = "DEGRADED".to_string();
+        power_score = 60;
+        power_details = format!("Battery voltage low: {}V. Solar generating: {}W.", battery, solar);
+        recommendations.push("Charge cycle optimization: Disable secondary payloads to reduce battery strain.".to_string());
+        life_expectancy -= 300.0;
+    }
+    if battery < 10.5 || solar == 0.0 {
+        power_status = "FAILED".to_string();
+        power_score = 20;
+        power_details = "Battery under-voltage lockout threshold reached or solar array generation failure.".to_string();
+        recommendations.push("Emergency power mode: Shed all non-vital systems immediately.".to_string());
+        life_expectancy -= 1000.0;
+    }
+
+    // Thermal Subsystem Assessment
+    let mut thermal_status = "NOMINAL".to_string();
+    let mut thermal_score = 100;
+    let mut thermal_details = "Radiators operating within design bounds. Internal temperatures nominal.".to_string();
+
+    let temp = rec.temperature.unwrap_or(25.0);
+    if temp > 75.0 {
+        thermal_status = "DEGRADED".to_string();
+        thermal_score = 55;
+        thermal_details = format!("Thermal radiator capacity constrained. Component temperature: {}°C.", temp);
+        recommendations.push("Yaw satellite to align radiator arrays with cold space.".to_string());
+        life_expectancy -= 200.0;
+    }
+    if temp > 90.0 {
+        thermal_status = "FAILED".to_string();
+        thermal_score = 10;
+        thermal_details = format!("Critical hardware thermal limit exceeded: {}°C. Risk of immediate chip fusion.", temp);
+        recommendations.push("Immediate reboot and deep power saving to prevent silicon decay.".to_string());
+        life_expectancy -= 800.0;
+    }
+
+    // ADCS Assessment
+    let mut adcs_status = "NOMINAL".to_string();
+    let mut adcs_score = 100;
+    let mut adcs_details = "Attitude control holding target star lock. Reaction wheel torque minimal.".to_string();
+
+    let pitch = rec.orientation_pitch.unwrap_or(0.0);
+    if pitch.abs() > 10.0 {
+        adcs_status = "DEGRADED".to_string();
+        adcs_score = 65;
+        adcs_details = format!("Attitude drift detected. Star tracker lock unstable. Pitch error: {:.1}°.", pitch);
+        recommendations.push("Trigger magnetorquer alignment sequence to dump reaction wheel momentum.".to_string());
+        life_expectancy -= 150.0;
+    }
+
+    // Communications Assessment
+    let mut comm_status = "NOMINAL".to_string();
+    let mut comm_score = 100;
+    let mut comm_details = "Uplink and downlink carriers locked. Bit error rate at standard noise floor.".to_string();
+
+    let ploss = rec.packet_loss.unwrap_or(0.0);
+    if ploss > 10.0 {
+        comm_status = "DEGRADED".to_string();
+        comm_score = 70;
+        comm_details = format!("Uplink jitter detected. Packet loss: {:.1}%. Link margin tight.", ploss);
+        recommendations.push("Increase transmitter power or schedule passes with high-gain ground station arrays.".to_string());
+    }
+
+    // Propulsion Assessment
+    let mut prop_status = "NOMINAL".to_string();
+    let mut prop_score = 100;
+    let mut prop_details = "Fuel levels adequate for scheduled orbital maintenance maneuvers.".to_string();
+
+    let fuel = rec.fuel_remaining.unwrap_or(100.0);
+    if fuel < 20.0 {
+        prop_status = "DEGRADED".to_string();
+        prop_score = 40;
+        prop_details = format!("Propellant supply depleted: {:.1}%. Maneuver window constrained.", fuel);
+        recommendations.push("Transition to high-efficiency sparse burns. Plan orbit decay path.".to_string());
+        life_expectancy -= 500.0;
+    }
+
+    // Payload Assessment
+    let mut pay_status = "NOMINAL".to_string();
+    let mut pay_score = 100;
+    let mut pay_details = "Payload instrument telemetry streams active. Calibration logs clean.".to_string();
+
+    if rec.payload_active.unwrap_or(false) && rec.payload_power_draw.unwrap_or(0.0) < 2.0 {
+        pay_status = "DEGRADED".to_string();
+        pay_score = 50;
+        pay_details = "Payload active but drawing minimal power. Sensor integration loop suspended.".to_string();
+        recommendations.push("Perform payload diagnostics self-test.".to_string());
+    }
+
+    let projection = TwinHealthProjection {
+        satellite_id: satellite,
+        timestamp: chrono::Utc::now(),
+        subsystems: SubsystemsHealthProjection {
+            power: SubsystemState { status: power_status, score: power_score, details: power_details },
+            thermal: SubsystemState { status: thermal_status, score: thermal_score, details: thermal_details },
+            adcs: SubsystemState { status: adcs_status, score: adcs_score, details: adcs_details },
+            communications: SubsystemState { status: comm_status, score: comm_score, details: comm_details },
+            payload: SubsystemState { status: pay_status, score: pay_score, details: pay_details },
+            propulsion: SubsystemState { status: prop_status, score: prop_score, details: prop_details },
+        },
+        life_expectancy_days: life_expectancy.max(0.0),
+        recommendations,
+    };
+
+    Ok(Json(projection))
+}
+
+async fn get_twin_timeline(
+    State(state): State<Arc<AppState>>,
+    Path(satellite): Path<String>,
+) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, Json<serde_json::Value>)> {
+    let rows = sqlx::query("SELECT timestamp, event_type, severity, message, details FROM events WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 50")
+        .bind(&satellite)
+        .fetch_all(&state.db_pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    let events = rows.into_iter().map(|row| {
+        let ts: chrono::DateTime<chrono::Utc> = row.get("timestamp");
+        serde_json::json!({
+            "timestamp": ts,
+            "event_type": row.get::<String, _>("event_type"),
+            "severity": row.get::<String, _>("severity"),
+            "message": row.get::<String, _>("message"),
+            "details": row.get::<Option<serde_json::Value>, _>("details")
+        })
+    }).collect();
+
+    Ok(Json(events))
+}
+
+async fn simulate_failure(
+    State(state): State<Arc<AppState>>,
+    Path(satellite): Path<String>,
+    Json(req): Json<SimulateFailureRequest>,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    let sub = req.subsystem.to_lowercase();
+    if !["power", "thermal", "adcs", "communications", "propulsion"].contains(&sub.as_str()) {
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid subsystem specified" }))));
+    }
+
+    state.simulated_failures.entry(satellite.clone()).or_insert_with(Vec::new).push(sub.clone());
+
+    // Publish timeline failure event
+    let timeline_payload = serde_json::json!({
+        "timestamp": chrono::Utc::now(),
+        "event_id": Uuid::new_v4(),
+        "source": "DIGITAL_TWIN",
+        "satellite_id": satellite,
+        "event_type": format!("SIMULATED_FAILURE_{}", sub.to_uppercase()),
+        "severity": "CRITICAL",
+        "message": format!("Digital twin simulated failure injected on subsystem: {}", sub.to_uppercase()),
+        "details": {
+            "subsystem": sub
+        }
+    });
+
+    if let Ok(payload) = serde_json::to_string(&timeline_payload) {
+        let record = FutureRecord::to(&state.timeline_topic)
+            .key(&satellite)
+            .payload(&payload);
+        let _ = state.kafka_producer.send(record, Duration::from_secs(5)).await;
+    }
+
+    Ok(StatusCode::OK)
+}

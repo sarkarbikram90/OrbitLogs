@@ -1,6 +1,6 @@
-# Open SpaceOps 🚀
+# OrbitLogs 🚀
 
-[![Open SpaceOps CI/CD](https://github.com/sarkarbikram90/Open-SpaceOps/actions/workflows/ci.yml/badge.svg)](https://github.com/sarkarbikram90/Open-SpaceOps/actions/workflows/ci.yml)
+[![OrbitLogs CI/CD](https://github.com/sarkarbikram90/Open-SpaceOps/actions/workflows/ci.yml/badge.svg)](https://github.com/sarkarbikram90/Open-SpaceOps/actions/workflows/ci.yml)
 [![Language: Rust](https://img.shields.io/badge/Language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript-blue.svg)](https://www.typescriptlang.org/)
 [![Database: TimescaleDB](https://img.shields.io/badge/Database-TimescaleDB-blue.svg)](https://www.timescale.com/)
@@ -13,18 +13,18 @@
 [![License: Apache](https://img.shields.io/badge/License-Apache-green.svg)](LICENSE)
 
 
-![Open SpaceOps Mission Control Console](docs/images/open_spaceops_dashboard.png)
+![OrbitLogs Realistic Satellite Orbit Visualization](docs/images/satellite_orbit.png)
+
 
 > **Real-Time Spacecraft Telemetry & Mission Control Observability Platform**
 
-Open SpaceOps is a production-grade, highly performant real-time satellite telemetry ingestion, processing, replay, and visualization platform. Built entirely with Rust, React, and TypeScript, and designed with decoupled event-driven principles, it demonstrates how contemporary SRE, platform, and observability frameworks can monitor, troubleshoot, and analyze large-scale satellite fleets orbiting Earth.
+OrbitLogs is a production-grade, highly performant real-time satellite telemetry ingestion, processing, replay, and visualization platform. Built entirely with Rust, React, and TypeScript, and designed with decoupled event-driven principles, it demonstrates how contemporary SRE, platform, and observability frameworks can monitor, troubleshoot, and analyze large-scale satellite fleets orbiting Earth.
 
 ---
 
 ## 🌌 Core Philosophy & Significance
 
-Traditional satellite ground segment systems have historically relied on monolithic, closed-source, or outdated legacy monitoring software. Open SpaceOps bridges the gap between modern cloud-native software engineering and aerospace operations by applying **Site Reliability Engineering (SRE)** and **Observability Engineering** principles to space missions:
-
+Traditional satellite ground segment systems have historically relied on monolithic, closed-source, or outdated legacy monitoring software. OrbitLogs bridges the gap between modern cloud-native software engineering and aerospace operations by applying **Site Reliability Engineering (SRE)** and **Observability Engineering** principles to space missions:
 *   **Subsystem-Level Observability**: Satellites are not treated as black boxes. Telemetry is parsed, processed, and tracked at the individual spacecraft subsystem level.
 *   **Time-Series Replay ("What Happened?")**: Operators can scrub back through timeline history at up to 100x speed to analyze complex failure cascades and conduct postmortems.
 *   **Space-to-Ground Physics Modulations**: Communications latency, signal strength, and packet loss are dynamically simulated using real-world link budgets, weather states, and ground segment health parameters.
@@ -34,7 +34,7 @@ Traditional satellite ground segment systems have historically relied on monolit
 
 ## 🛠️ System Architecture
 
-The decoupled, event-driven architecture of Open SpaceOps enables low-latency telemetry processing and high scalability.
+The decoupled, event-driven architecture of OrbitLogs enables low-latency telemetry processing and high scalability.
 
 ```mermaid
 graph TD
@@ -127,7 +127,9 @@ graph TD
 
 ---
 
-## 🚀 Key Technical Features
+## 🚀 Key Technical Features & Services
+
+OrbitLogs 2.0 introduces a decentralized suite of async Rust microservices and premium visualization panels representing a complete telemetry, command, and diagnostics ground operations architecture.
 
 ### 1. Onboard Spacecraft Subsystems Modeling
 *   Emits independent telemetry streams from **7 core subsystems**:
@@ -141,28 +143,60 @@ graph TD
 *   Physical side-effects are dynamically propagated across subsystems (e.g., thermal spikes trigger CPU throttling, causing ADCS control degradation; battery depletion causes payload safety shutdowns).
 
 ### 2. Ground Station Link Modulator
-*   Simulates four main ground stations: **Svalbard (GS-0001)**, **Troll (GS-0002)**, **Kiruna (GS-0003)**, and **McMurdo (GS-0004)**.
+*   Simulates four main polar ground stations: **Svalbard (GS-0001)**, **Troll (GS-0002)**, **Kiruna (GS-0003)**, and **McMurdo (GS-0004)**.
 *   Injects real-time orbital pass factors including signal degradation, antenna mechanical faults, backhaul network congestion, and atmospheric weather states (storms, heavy snow).
 
 ### 3. CCSDS-Inspired Binary Telemetry Layer
 *   Uses [crates/spaceops-packets](crates/spaceops-packets) to enforce structured binary serialization (`application/octet-stream`).
 *   Implements a custom **CRC-16-CCITT checksum validation** to reject corrupt packets during ground segment uplink, maintaining a JSON fallback endpoint for open integrations.
 
-### 4. Mission Replay & Playback Controller
-*   Supports historical telemetry range queries through [apps/mission-replay-engine](apps/mission-replay-engine).
-*   Streams events using Server-Sent Events (SSE) at **1x, 5x, 10x, 50x, or 100x speed**.
-*   Supports pause, resume, and instant timeline scrubbing (seeking).
+### 4. Space Schema Registry (`crates/space-schema-registry`)
+*   Manages version compatibility checking (Backward, Forward, Full) for spacecraft telemetry payloads.
+*   Supports runtime schema validation for **V1 (Legacy)**, **V2 (Standard)**, and **V3 (Extended)** telemetry packets, ensuring seamless data format migrations without ingestion outages.
 
-### 5. 3D Mission Control Console
-*   A premium React/TypeScript client console ([apps/mission-control-ui](apps/mission-control-ui)) built with Vanilla CSS (HSL dark system themes).
-*   **3D Earth & Orbit Tracking**: Uses Three.js to render a sleek, cybernetic wireframe globe with live satellite positions, orbital inclinations, and active color-coded communication beams showing ground station connections. Includes standard OrbitControls for dynamic camera rotations.
-*   **Subsystem Diagnostic Panels**: Real-time diagnostic cards for all 7 subsystems, ground network load monitors, and a structured events log filterable by severity level (INFO, WARNING, CRITICAL).
+### 5. Fleet Health Engine (`crates/fleet-health`)
+*   Aggregates health states across all active assets.
+*   Calculates key operations indicators:
+    *   **Fleet Readiness**: Mission-readiness percentages based on active payload schedules.
+    *   **Subsystem Availability**: Redundant equipment state analysis.
+    *   **Risk Score**: Cumulative degradation scoring incorporating thermal stress and battery aging.
+    *   **Capacity & Utilization**: Propellant reserves and flight computer throughput metrics.
+
+### 6. Space OTel Collector (`crates/space-otel-collector`)
+*   Consumes raw telemetry, commands, and ground station logs from Kafka streams.
+*   Converts events into unified OpenTelemetry Metrics, Spans, and Logs. Exposes a standard Prometheus scrape endpoint `/metrics` on port `8091`.
+
+### 7. Mission Command Service (`apps/mission-command-service`)
+*   Exposes secure endpoints (Port `8085`) to create, approve, queue, and execute spacecraft commands.
+*   Enforces Role-Based Access Control (RBAC):
+    *   **Operator**: Can create commands, queue them, and trigger transmissions.
+    *   **Flight Director**: Gated authorization required to approve critical commands (e.g., safe mode, orbit burns).
+*   Tracks full execution lifecycle: `CREATED` -> `APPROVED` -> `QUEUED` -> `TRANSMITTED` -> `RECEIVED` -> `VERIFIED`/`FAILED`.
+*   Publishes audit trails linked directly to OpenTelemetry Trace IDs.
+
+### 8. Digital Twin Engine (`apps/digital-twin-engine`)
+*   Maintains synchronized in-memory virtual states (Port `8086`) for the entire constellation by consuming `telemetry.processed`.
+*   Calculates predictive diagnostics and expected hardware lifecycle durations.
+*   Features a **Failure Simulator** allowing operators to inject artificial subsystem faults (e.g., ADCS guidance drift, solar panel blockages) to evaluate operator response times and RAG automated diagnoses.
+
+### 9. Mission Timeline (`apps/mission-timeline`)
+*   Consolidates events, state transitions, and anomaly logs into a TimescaleDB unified table (Port `8087`).
+*   Exposes high-speed historical search, severity filtering, and correlation analysis APIs.
+
+### 10. AI Incident Commander (`apps/ai-incident-commander`)
+*   AI Operations Assistant (Port `8088`) integrating Gemini/OpenAI RAG.
+*   Correlates real-time telemetry anomalies, past command audits, and operational manuals to compile incident postmortems, root-cause analyses, and recommended recovery procedures.
+*   Includes a robust, local rule-based diagnostic engine fallback if external LLM APIs are offline.
+
+### 11. Constellation Simulator (`apps/constellation-simulator`)
+*   High-efficiency constellation loop (Port `8089`) capable of generating concurrent states for up to **5,000 satellites**.
+*   Simulates orbit degradation, battery capacity decay, and hardware failures.
 
 ---
 
 ## ⚡ Recent Production & Security Hardening
 
-To elevate Open SpaceOps to mission-grade standard, the core platform has been hardened with the following enterprise features:
+To elevate OrbitLogs to mission-grade standard, the core platform has been hardened with the following enterprise features:
 
 *   **Kafka KRaft Migration**: Migrated Kafka deployment from Zookeeper (deprecated) to native KRaft mode, reducing local/CI memory footprints by **~256MB** and accelerating boot times.
 *   **Distributed Trace context Propagation**: Implemented W3C text map propagation over Kafka. Request trace spans span from edge HTTP endpoints through Kafka raw topics to the telemetry consumers and final DB persistence.
@@ -175,21 +209,27 @@ To elevate Open SpaceOps to mission-grade standard, the core platform has been h
 
 ---
 
-## 🔌 Port Mapping & Ecosystem Endpoints
+## 🔌 Port Mapping & Endpoints
 
 Once fully initialized, the platform exposes the following developer interfaces:
 
-| Interface / Service | Host Port | Protocol | Description |
+| Service / Interface | Port | Protocol | Description |
 | :--- | :--- | :--- | :--- |
-| **Mission Control Console** | `3000` | HTTP | Live Operations & 3D Orbit tracking console |
-| **Telemetry Collector API** | `8080` | HTTP/WS | Telemetry binary/JSON ingestion & WS streaming |
+| **Mission Control Console** | `3000` | HTTP | Live operations frontend & 3D orbit visualization |
+| **Telemetry Ingestion API** | `8080` | HTTP/WS | Telemetry binary/JSON ingestion & live WS streams |
 | **Telemetry Simulator** | `8081` | HTTP | Simulator telemetry generator metrics |
 | **Mission Health Engine** | `8082` | HTTP | Health score rules metrics exporter |
 | **Ground Station Simulator** | `8083` | HTTP | Link budget metrics exporter |
 | **Mission Replay Engine** | `8084` | HTTP/SSE | Replay controls and Server-Sent Events stream |
-| **Grafana** | `3005` | HTTP | Operational metrics dashboards (`admin` / `admin`) |
+| **Mission Command Service** | `8085` | HTTP | RBAC command lifecycle control |
+| **Digital Twin Engine** | `8086` | HTTP | Virtual satellite states & failure injector |
+| **Mission Timeline Engine** | `8087` | HTTP | Event aggregator and timeline database search |
+| **AI Incident Commander** | `8088` | HTTP | Operations Gemini RAG co-pilot |
+| **Constellation Simulator** | `8089` | HTTP | High-efficiency constellation state loop |
+| **Space OTel Collector** | `8091` | HTTP | OpenTelemetry metrics mapping scraper |
+| **TimescaleDB (Postgres)** | `5432` | TCP | Hypertable telemetry, command audits, and events |
 | **Prometheus** | `9090` | HTTP | Ingestion metrics database & scrapers |
-| **TimescaleDB (Postgres)** | `5432` | TCP | Time-series database containing telemetry & alerts |
+| **Grafana** | `3005` | HTTP | Fleet and SRE infrastructure dashboard |
 | **Jaeger UI** | `16686` | HTTP | Distributed tracing dashboard |
 
 ---
@@ -198,7 +238,7 @@ Once fully initialized, the platform exposes the following developer interfaces:
 
 ### Prerequisites
 *   **Docker** & **Docker Compose**
-*   **Node.js (v20+)** (for local UI development)
+*   **Node.js (v20+ )** (for local UI development)
 *   **Rust (v1.82+)** (for local backend compilation)
 
 ### Initial Launch & Bootstrap
@@ -222,7 +262,7 @@ Verify system-wide health and constraints by running the integrated Rust test su
 
 ```bash
 # Run unit and integration tests across all workspace crates
-cargo test
+cargo test --all
 ```
 
 For frontend client verification:
@@ -236,7 +276,7 @@ npm run build
 
 ## 🛡️ Production Hardening (SRE Profile)
 
-Open SpaceOps has been engineered to comply with enterprise-grade reliability and security audits:
+OrbitLogs has been engineered to comply with enterprise-grade reliability and security audits:
 
 *   **Non-Root Execution**: Every service container runs under a dedicated system user `spaceops` with UID/GID `10001` (complying with standard Kubernetes security policies).
 *   **At-Least-Once Database Guarantee**: The processor commits Kafka offsets manually only after successful batch insertion into TimescaleDB or writing to the Dead Letter Queue (DLQ).
@@ -254,4 +294,14 @@ Open SpaceOps has been engineered to comply with enterprise-grade reliability an
 - [x] **Phase 5**: Mission Replay playback engine with SSE streams.
 - [x] **Phase 6**: React/TypeScript Mission Control console.
 - [x] **Phase 7**: Three.js 3D earth track and communication beams visualization.
-- [ ] **Phase 8**: AI Incident Commander (automated incident summaries, root cause timelines, and recovery runbooks via LLMs).
+- [x] **Phase 8**: AI Incident Commander (RAG operational co-pilot using Gemini).
+- [x] **Phase 9**: Space Schema Registry (V1, V2, V3 compatibility check).
+- [x] **Phase 10**: Fleet Health calculations (Readiness, Availability, Risk).
+- [x] **Phase 11**: Space OTel Collector metrics mapping loop.
+- [x] **Phase 12**: Axum Mission Command Service & RBAC authorizations.
+- [x] **Phase 13**: Digital Twin Engine Virtual State & failure simulator.
+- [x] **Phase 14**: Mission Timeline TimescaleDB aggregator.
+- [x] **Phase 15**: Constellation Simulator mass fleet test (5,000+ assets).
+- [x] **Phase 16**: ISS Orbit and TLE orbital propagator adapters.
+- [x] **Phase 17**: Ground Station Simulator weather/backhaul network attenuation.
+- [x] **Phase 18**: Advanced sidebar navigation layout & integrated sub-dashboards.

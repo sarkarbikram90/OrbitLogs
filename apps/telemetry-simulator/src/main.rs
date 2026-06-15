@@ -13,6 +13,7 @@ use tracing::{debug, error, info};
 mod config;
 mod generator;
 mod scenario;
+mod adapters;
 
 use config::Config;
 use generator::{GroundStationState, SatelliteSimulator};

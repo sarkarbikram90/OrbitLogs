@@ -25,6 +25,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "ai-incident-commander"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "spaceops-models",
+ "sqlx",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -409,6 +434,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
+name = "constellation-simulator"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "rand 0.8.6",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "spaceops-models",
+ "spaceops-packets",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -535,6 +580,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "digital-twin-engine"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "clap",
+ "dashmap",
+ "dotenvy",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "spaceops-models",
+ "sqlx",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -613,6 +684,14 @@ name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
+
+[[package]]
+name = "fleet-health"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "flume"
@@ -1441,6 +1520,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "mission-command-service"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "spaceops-models",
+ "sqlx",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "mission-health-engine"
 version = "1.0.0"
 dependencies = [
@@ -1487,6 +1591,31 @@ dependencies = [
  "tokio-stream",
  "tower 0.5.3",
  "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "mission-timeline"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "spaceops-models",
+ "sqlx",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
 ]
@@ -2454,16 +2583,58 @@ dependencies = [
 ]
 
 [[package]]
-name = "spaceops-models"
+name = "space-otel-collector"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "lazy_static",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "prometheus",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "spaceops-models",
+ "tokio",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "space-schema-registry"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
+name = "spaceops-models"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
  "rdkafka",
  "serde",
  "serde_json",
  "sqlx",
  "tokio",
  "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
  "uuid",
 ]
 
@@ -3108,6 +3279,22 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+dependencies = [
+ "bitflags 2.12.1",
+ "bytes",
+ "http 1.4.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]
