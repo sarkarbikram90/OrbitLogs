@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.2.0] - 2026-06-15
+
+### Added
+- **SpaceX Flight Operations Login Screen**: Created a high-fidelity access control credentials modal in [App.tsx](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-control-ui/src/App.tsx) to dynamically request the console passkey and operator role context without baking credentials into compiled client-side assets.
+- **Dynamic JWT Authentication Rotation**: Configured background JWT key rotation in [CommandCenter.tsx](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-control-ui/src/components/CommandCenter.tsx) to dispatch token signing handshakes automatically when operators transition roles.
+- **Console Disconnect Controller**: Added a "Disconnect" control button to the UI header to clear `sessionStorage` and reload access state.
+- **Containerization Support**: Created 5 new Dockerfiles for `mission-command-service`, `digital-twin-engine`, `ai-incident-commander`, `constellation-simulator`, and `mission-timeline` matching production requirements.
+- **Command Service Unit Tests**: Added unit tests inside [apps/mission-command-service/src/main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-command-service/src/main.rs) validating constant-time comparison, role parsing, and JWT signature verification.
+
+### Changed
+- **RBAC Cryptographic Validation**: Replaced plaintext `X-User-Role` headers with securely signed JSON Web Tokens (JWT) verifying permissions in the `mission-command-service`.
+- **Bearer Token Security Headers**: Configured state-modifying POST requests across `CommandCenter`, `DigitalTwinViewer`, and `AiCopilot` to authorize requests using Bearer headers.
+- **15-Member Docker Caching**: Updated all 10 Rust service Dockerfiles to copy all 15 workspace member `Cargo.toml` files and pre-compile dummy sources, caching cargo dependencies effectively.
+- **CORS Restriction**: Configured CORS origin restrictions on `mission-command-service` locked to the `CORS_ALLOWED_ORIGIN` environment variable.
+- **Graceful Shutdowns**: Implemented SIGINT/SIGTERM handlers for Axum servers and consumer loops across all 10 backend services to ensure clean process exits.
+
+### Fixed
+- **TimescaleDB Schema Alignment**: Synced telemetry schema columns (`DROP NOT NULL`) to align with Rust `Option<>` structures, added payload metrics columns, and synced initial migrations.
+- **Compiler Warnings & Errors**: Fixed loop break types and async return parameters in `mission-timeline` and `constellation-simulator` compilation scopes.
+
 ## [2.1.0] - 2026-06-15
 
 ### Added
