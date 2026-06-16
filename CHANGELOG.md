@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.3.0] - 2026-06-16
+
+### Added
+- **Request Timeout Protection**: Added a 30-second request timeout layer via `tower_http::timeout::TimeoutLayer` to Axum routers in `mission-command-service`, `mission-replay-engine`, `digital-twin-engine`, and `ai-incident-commander` to protect handler chains from slow DB/network connections.
+
+### Changed
+- **Standardized Lazy Initialization**: Replaced all usages of the third-party `lazy_static` macro with native `std::sync::LazyLock` (stabilized in Rust 1.80) across all services, fully purging `lazy_static` from workspace dependencies.
+- **Production Structured Logging**: Enabled structured JSON logging format (`tracing_subscriber::fmt().json()`) across all backend services (including those using OpenTelemetry initialization under `init_telemetry`).
+- **Collector Performance Enhancement**: Upgraded the telemetry collector to use the O(1) `lru` crate for telemetry history and replaced mutex-wrapped lists with lock-free `DashMap` concurrency.
+- **Credentials Sanitization**: Removed all default PostgreSQL and API key secrets from `.env.example`, substituting them with explicit placeholders.
+
+### Fixed
+- **Clippy Lints & Clean Build**: Resolved all `clippy::manual_range_contains` occurrences with `!(min..=max).contains(&val)` checks.
+- **Unused Warning Sanitization**: Cleaned up all unused imports, unused variables, unnecessary mutable definitions, and redundant match arms across the entire workspace to ensure a clean compilation under strict `-- -D warnings` mode.
+
 ## [2.2.0] - 2026-06-15
 
 ### Added
