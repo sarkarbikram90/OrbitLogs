@@ -1,4 +1,4 @@
-#![allow(clippy::manual_range_contains)]
+
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -102,7 +102,7 @@ impl TelemetryRecord {
         }
 
         if let Some(battery_voltage) = self.battery_voltage {
-            if battery_voltage < 0.0 || battery_voltage > 100.0 {
+            if !(0.0..=100.0).contains(&battery_voltage) {
                 errors.push(format!(
                     "battery_voltage must be between 0 and 100, got {}",
                     battery_voltage
@@ -111,7 +111,7 @@ impl TelemetryRecord {
         }
 
         if let Some(cpu_usage) = self.cpu_usage {
-            if cpu_usage < 0.0 || cpu_usage > 100.0 {
+            if !(0.0..=100.0).contains(&cpu_usage) {
                 errors.push(format!(
                     "cpu_usage must be between 0 and 100, got {}",
                     cpu_usage
@@ -120,7 +120,7 @@ impl TelemetryRecord {
         }
 
         if let Some(memory_usage) = self.memory_usage {
-            if memory_usage < 0.0 || memory_usage > 100.0 {
+            if !(0.0..=100.0).contains(&memory_usage) {
                 errors.push(format!(
                     "memory_usage must be between 0 and 100, got {}",
                     memory_usage
@@ -129,7 +129,7 @@ impl TelemetryRecord {
         }
 
         if let Some(fuel_remaining) = self.fuel_remaining {
-            if fuel_remaining < 0.0 || fuel_remaining > 100.0 {
+            if !(0.0..=100.0).contains(&fuel_remaining) {
                 errors.push(format!(
                     "fuel_remaining must be between 0 and 100, got {}",
                     fuel_remaining
@@ -138,7 +138,7 @@ impl TelemetryRecord {
         }
 
         if let Some(packet_loss) = self.packet_loss {
-            if packet_loss < 0.0 || packet_loss > 100.0 {
+            if !(0.0..=100.0).contains(&packet_loss) {
                 errors.push(format!(
                     "packet_loss must be between 0 and 100, got {}",
                     packet_loss
@@ -147,7 +147,7 @@ impl TelemetryRecord {
         }
 
         if let Some(orientation_pitch) = self.orientation_pitch {
-            if orientation_pitch < -360.0 || orientation_pitch > 360.0 {
+            if !(-360.0..=360.0).contains(&orientation_pitch) {
                 errors.push(format!(
                     "orientation_pitch must be between -360 and 360, got {}",
                     orientation_pitch
@@ -156,7 +156,7 @@ impl TelemetryRecord {
         }
 
         if let Some(orientation_roll) = self.orientation_roll {
-            if orientation_roll < -360.0 || orientation_roll > 360.0 {
+            if !(-360.0..=360.0).contains(&orientation_roll) {
                 errors.push(format!(
                     "orientation_roll must be between -360 and 360, got {}",
                     orientation_roll
@@ -165,7 +165,7 @@ impl TelemetryRecord {
         }
 
         if let Some(orientation_yaw) = self.orientation_yaw {
-            if orientation_yaw < -360.0 || orientation_yaw > 360.0 {
+            if !(-360.0..=360.0).contains(&orientation_yaw) {
                 errors.push(format!(
                     "orientation_yaw must be between -360 and 360, got {}",
                     orientation_yaw

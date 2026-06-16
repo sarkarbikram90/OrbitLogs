@@ -8,11 +8,12 @@ macro_rules! merge_opt_fields {
     };
 }
 
+use dashmap::DashMap;
 use rdkafka::client::ClientContext;
 use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, StreamConsumer};
 use rdkafka::message::Message;
 use sqlx::PgPool;
-use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
@@ -66,54 +67,13 @@ pub struct ConsumerConfig {
     pub ssl_ca_location: Option<String>,
 }
 
-struct LruCache {
-    map: HashMap<String, TelemetryRecord>,
-    order: std::collections::VecDeque<String>,
-    capacity: usize,
-}
-
-impl LruCache {
-    fn new(capacity: usize) -> Self {
-        Self {
-            map: HashMap::new(),
-            order: std::collections::VecDeque::new(),
-            capacity,
-        }
-    }
-
-    fn get(&mut self, key: &str) -> Option<&TelemetryRecord> {
-        if self.map.contains_key(key) {
-            if let Some(pos) = self.order.iter().position(|k| k == key) {
-                self.order.remove(pos);
-            }
-            self.order.push_back(key.to_string());
-            self.map.get(key)
-        } else {
-            None
-        }
-    }
-
-    fn insert(&mut self, key: String, value: TelemetryRecord) {
-        if self.map.contains_key(&key) {
-            if let Some(pos) = self.order.iter().position(|k| *k == key) {
-                self.order.remove(pos);
-            }
-        } else if self.map.len() >= self.capacity {
-            if let Some(oldest) = self.order.pop_front() {
-                self.map.remove(&oldest);
-            }
-        }
-        self.order.push_back(key.clone());
-        self.map.insert(key, value);
-    }
-}
 
 pub struct TelemetryConsumer {
     config: ConsumerConfig,
     db_pool: PgPool,
     kafka_producer: KafkaProducer,
-    cache: Mutex<LruCache>,
-    anomaly_cooldowns: Mutex<HashMap<(String, String), Instant>>,
+    cache: Mutex<lru::LruCache<String, TelemetryRecord>>,
+    anomaly_cooldowns: DashMap<(String, String), Instant>,
 }
 
 impl TelemetryConsumer {
@@ -122,8 +82,8 @@ impl TelemetryConsumer {
             config,
             db_pool,
             kafka_producer,
-            cache: Mutex::new(LruCache::new(10000)),
-            anomaly_cooldowns: Mutex::new(HashMap::new()),
+            cache: Mutex::new(lru::LruCache::new(NonZeroUsize::new(10000).unwrap())),
+            anomaly_cooldowns: DashMap::new(),
         }
     }
 
@@ -395,7 +355,7 @@ impl TelemetryConsumer {
         // 5. Save back to cache
         {
             let mut cache = self.cache.lock().await;
-            cache.insert(sat_id.clone(), merged.clone());
+            cache.put(sat_id.clone(), merged.clone());
         }
 
         Ok(merged)
@@ -455,15 +415,14 @@ impl TelemetryConsumer {
     }
 
     async fn should_alert(&self, satellite_id: &str, anomaly_type: &str) -> bool {
-        let mut cooldowns = self.anomaly_cooldowns.lock().await;
         let now = Instant::now();
         let key = (satellite_id.to_string(), anomaly_type.to_string());
-        if let Some(&last_alert) = cooldowns.get(&key) {
-            if now.duration_since(last_alert) < Duration::from_secs(60) {
+        if let Some(last_alert) = self.anomaly_cooldowns.get(&key) {
+            if now.duration_since(*last_alert) < Duration::from_secs(60) {
                 return false;
             }
         }
-        cooldowns.insert(key, now);
+        self.anomaly_cooldowns.insert(key, now);
         true
     }
 

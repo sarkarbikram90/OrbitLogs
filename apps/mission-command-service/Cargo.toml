@@ -23,7 +23,7 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 spaceops-models = { workspace = true }
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.5", features = ["cors", "timeout"] }
 jsonwebtoken = { workspace = true }
 subtle = { workspace = true }
 

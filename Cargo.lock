@@ -895,7 +895,6 @@ dependencies = [
  "chrono",
  "clap",
  "dotenvy",
- "lazy_static",
  "prometheus",
  "rand 0.8.6",
  "rdkafka",
@@ -968,6 +967,8 @@ version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
+ "allocator-api2",
+ "equivalent",
  "foldhash",
 ]
 
@@ -1492,6 +1493,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
 
 [[package]]
+name = "lru"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "234cf4f4a04dc1f57e24b96cc0cd600cf2af460d4161ac5ecdd0af8e1f3b2a38"
+dependencies = [
+ "hashbrown 0.15.5",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1582,7 +1592,6 @@ dependencies = [
  "clap",
  "dashmap",
  "dotenvy",
- "lazy_static",
  "prometheus",
  "rdkafka",
  "serde",
@@ -1607,7 +1616,6 @@ dependencies = [
  "dashmap",
  "dotenvy",
  "futures-util",
- "lazy_static",
  "prometheus",
  "serde",
  "serde_json",
@@ -1618,6 +1626,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tower 0.5.3",
+ "tower-http",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -2679,7 +2688,6 @@ dependencies = [
  "chrono",
  "clap",
  "dotenvy",
- "lazy_static",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -3076,7 +3084,7 @@ dependencies = [
  "dotenvy",
  "http-body-util",
  "hyper 1.10.1",
- "lazy_static",
+ "lru",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -3106,7 +3114,6 @@ dependencies = [
  "clap",
  "dashmap",
  "dotenvy",
- "lazy_static",
  "prometheus",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
@@ -3431,6 +3438,7 @@ dependencies = [
  "http-body 1.0.1",
  "http-body-util",
  "pin-project-lite",
+ "tokio",
  "tower-layer",
  "tower-service",
 ]

@@ -45,7 +45,6 @@ fleet-health = { path = "crates/fleet-health" }
 subtle = "2.5"
 dashmap = "5.5"
 axum = { version = "0.7.9" }
-lazy_static = "1.4"
 jsonwebtoken = "9.3"
 tokio-util = "0.7"
 

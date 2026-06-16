@@ -15,7 +15,6 @@ reqwest = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 prometheus = { workspace = true }
-lazy_static = "1.4"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 dotenvy = { workspace = true }

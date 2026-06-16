@@ -1,5 +1,5 @@
 use clap::Parser;
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::net::SocketAddr;
@@ -49,41 +49,47 @@ struct Cli {
     kafka_ssl_ca_location: Option<String>,
 }
 
-lazy_static! {
-    pub static ref REGISTRY: Registry = Registry::new();
-    pub static ref GS_STATUS: GaugeVec = GaugeVec::new(
+pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
+pub static GS_STATUS: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new(
             "ground_station_status",
             "Status score of the ground station (1.0 = ONLINE, 0.5 = DEGRADED, 0.0 = OUTAGE)"
         ),
         &["station_id"]
     )
-    .expect("ground_station_status metric must be created");
-    pub static ref GS_ANTENNA_HEALTH: GaugeVec = GaugeVec::new(
+    .expect("ground_station_status metric must be created")
+});
+pub static GS_ANTENNA_HEALTH: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new(
             "ground_station_antenna_health",
             "Antenna hardware health percentage (0-100)"
         ),
         &["station_id"]
     )
-    .expect("ground_station_antenna_health metric must be created");
-    pub static ref GS_LATENCY: GaugeVec = GaugeVec::new(
+    .expect("ground_station_antenna_health metric must be created")
+});
+pub static GS_LATENCY: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new(
             "ground_station_latency",
             "Ground station uplink/downlink network latency (ms)"
         ),
         &["station_id"]
     )
-    .expect("ground_station_latency metric must be created");
-    pub static ref GS_BANDWIDTH: GaugeVec = GaugeVec::new(
+    .expect("ground_station_latency metric must be created")
+});
+pub static GS_BANDWIDTH: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new(
             "ground_station_bandwidth",
             "Available ground station downlink bandwidth (Mbps)"
         ),
         &["station_id"]
     )
-    .expect("ground_station_bandwidth metric must be created");
-}
+    .expect("ground_station_bandwidth metric must be created")
+});
 
 fn register_metrics() {
     REGISTRY.register(Box::new(GS_STATUS.clone())).unwrap();

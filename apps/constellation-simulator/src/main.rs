@@ -1,6 +1,5 @@
 use clap::Parser;
 use rdkafka::producer::{FutureProducer, FutureRecord};
-use serde_json::json;
 use spaceops_models::kafka::KafkaConfigBuilder;
 use spaceops_models::TelemetryRecord;
 use std::sync::Arc;
@@ -113,7 +112,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let battery_v = 12.0 + (sun_exposure * 1.8) * (sat.battery_capacity / 100.0);
             let packet_loss = if signal < -95.0 { 15.0 } else { 0.1 };
 
-            let mut rec = TelemetryRecord {
+            let rec = TelemetryRecord {
                 satellite_id: sat.id.clone(),
                 subsystem_id: "unified".to_string(),
                 mission_id: if sat.faulty { "MISSION-CRITICAL".to_string() } else { "MISSION-CONSTELLATION".to_string() },
@@ -139,7 +138,7 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             // Encode binary CCSDS frame
-            if let Ok(bytes) = spaceops_packets::encode_record_to_frame(&rec, ticks as u16) {
+            if let Ok(_bytes) = spaceops_packets::encode_record_to_frame(&rec, ticks as u16) {
                 let key = format!("MISSION-CONSTELLATION:{}", sat.id);
                 if let Ok(json_payload) = serde_json::to_string(&rec) {
                     let producer_clone = Arc::clone(&producer);

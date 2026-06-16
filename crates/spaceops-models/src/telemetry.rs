@@ -25,7 +25,7 @@ pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), any
 
     Registry::default()
         .with(env_filter)
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().json())
         .with(telemetry_layer)
         .init();
 

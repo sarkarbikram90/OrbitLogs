@@ -17,7 +17,7 @@ mod adapters;
 
 use config::Config;
 use generator::{GroundStationState, SatelliteSimulator};
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 use rdkafka::client::ClientContext;
 use rdkafka::consumer::ConsumerContext;
 use rdkafka::consumer::{Consumer, StreamConsumer};
@@ -61,32 +61,38 @@ fn get_linked_ground_station(satellite_id: &str) -> String {
     "GS-0001".to_string()
 }
 
-lazy_static! {
-    pub static ref REGISTRY: Registry = Registry::new();
-    pub static ref TELEMETRY_GENERATED_TOTAL: IntCounter = IntCounter::new(
+pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
+pub static TELEMETRY_GENERATED_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
+    IntCounter::new(
         "telemetry_generated_total",
         "Total number of satellite telemetry records simulated"
     )
-    .unwrap();
-    pub static ref TELEMETRY_POST_SUCCESS_TOTAL: IntCounter = IntCounter::new(
+    .unwrap()
+});
+pub static TELEMETRY_POST_SUCCESS_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
+    IntCounter::new(
         "telemetry_post_success_total",
         "Total successful HTTP posts to collector"
     )
-    .unwrap();
-    pub static ref TELEMETRY_POST_FAILURE_TOTAL: IntCounter = IntCounter::new(
+    .unwrap()
+});
+pub static TELEMETRY_POST_FAILURE_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
+    IntCounter::new(
         "telemetry_post_failure_total",
         "Total failed HTTP posts to collector"
     )
-    .unwrap();
-    pub static ref KAFKA_CONSUMER_LAG: prometheus::GaugeVec = prometheus::GaugeVec::new(
+    .unwrap()
+});
+pub static KAFKA_CONSUMER_LAG: LazyLock<prometheus::GaugeVec> = LazyLock::new(|| {
+    prometheus::GaugeVec::new(
         prometheus::Opts::new(
             "kafka_consumer_lag",
             "Lag of the Kafka consumer group (offsets behind high watermark)"
         ),
         &["topic", "partition"]
     )
-    .unwrap();
-}
+    .unwrap()
+});
 
 fn register_metrics() {
     REGISTRY

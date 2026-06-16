@@ -7,7 +7,7 @@ pub async fn establish_db_connection(
     max_connections: u32,
 ) -> Result<PgPool, sqlx::Error> {
     info!("Connecting to TimescaleDB with retry logic...");
-    let mut retries = 5;
+    let mut retries: u32 = 5;
     loop {
         match PgPoolOptions::new()
             .max_connections(max_connections)
@@ -22,14 +22,14 @@ pub async fn establish_db_connection(
                 return Ok(pool);
             }
             Err(e) => {
+                if retries == 0 {
+                    return Err(e);
+                }
                 retries -= 1;
                 error!(
                     "TimescaleDB connection failed. Retries left: {}. Error: {}",
                     retries, e
                 );
-                if retries <= 0 {
-                    return Err(e);
-                }
                 tokio::time::sleep(Duration::from_secs(3)).await;
             }
         }

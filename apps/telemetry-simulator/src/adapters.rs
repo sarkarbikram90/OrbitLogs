@@ -50,7 +50,7 @@ impl OrbitAdapters {
     }
 
     /// TLE (Two-Line Element) Adapter: Simulates orbital propagation based on TLE parameters
-    pub fn propagate_tle(tle_line1: &str, tle_line2: &str, epoch_offset_sec: f64) -> (f64, f64, f64) {
+    pub fn propagate_tle(_tle_line1: &str, tle_line2: &str, epoch_offset_sec: f64) -> (f64, f64, f64) {
         // Basic Keplerian propagation derived from TLE line parses
         // Extracts mean motion (revs per day) from line 2
         let mean_motion = if tle_line2.len() >= 68 {
@@ -77,6 +77,7 @@ impl OrbitAdapters {
     }
 
     /// SatNOGS Adapter: Mocks querying SatNOGS DB for transmitter details and frequency allocations
+    #[allow(dead_code)]
     pub fn query_satnogs_metadata(satellite_id: &str) -> serde_json::Value {
         serde_json::json!({
             "satellite_id": satellite_id,
@@ -98,6 +99,7 @@ impl OrbitAdapters {
     }
 
     /// N2YO Adapter: Calculates ground station passes (azimuth/elevation) for satellite tracking
+    #[allow(dead_code)]
     pub fn calculate_passes(
         sat_lat: f64,
         sat_lon: f64,

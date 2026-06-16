@@ -139,6 +139,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Initialize structured logging
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .json()
         .init();
 
     let mut cli = Cli::parse();

@@ -65,7 +65,6 @@ struct AppState {
     command_topic: String,
     timeline_topic: String,
     api_key: String,
-    cors_allowed_origin: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -260,7 +259,6 @@ async fn main() -> Result<(), anyhow::Error> {
         command_topic: cli.command_events_topic,
         timeline_topic: cli.timeline_events_topic,
         api_key,
-        cors_allowed_origin: cli.cors_allowed_origin.clone(),
     });
 
     let cors = if let Ok(origin_val) = cli.cors_allowed_origin.parse::<axum::http::HeaderValue>() {
@@ -286,6 +284,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .route("/api/commands/:id/queue", post(queue_command))
         .route("/api/commands/:id/execute", post(execute_command))
         .layer(cors)
+        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(30)))
         .with_state(app_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));

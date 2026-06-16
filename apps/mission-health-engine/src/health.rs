@@ -1,8 +1,7 @@
 #![allow(
     clippy::upper_case_acronyms,
     clippy::wrong_self_convention,
-    clippy::inherent_to_string,
-    clippy::manual_range_contains
+    clippy::inherent_to_string
 )]
 
 use chrono::{DateTime, Utc};
@@ -81,7 +80,7 @@ pub fn assess_satellite_health(
     // 1. Assess Power Subsystem
     let power = {
         let v = record.battery_voltage.unwrap_or(13.8);
-        if v < 10.0 || v > 16.0 {
+        if !(10.0..=16.0).contains(&v) {
             let score = if v < 10.0 {
                 lerp(v, 8.0, 10.0, 0.0, 24.0) as i32
             } else {
@@ -116,7 +115,7 @@ pub fn assess_satellite_health(
     // 2. Assess Thermal Subsystem
     let thermal = {
         let t = record.temperature.unwrap_or(25.0);
-        if t < -20.0 || t > 85.0 {
+        if !(-20.0..=85.0).contains(&t) {
             let score = if t < -20.0 {
                 lerp(t, -40.0, -20.0, 0.0, 24.0) as i32
             } else {
@@ -127,7 +126,7 @@ pub fn assess_satellite_health(
                 score,
                 explanation: format!("Critical temperature: {:.2}°C", t),
             }
-        } else if t < 0.0 || t > 60.0 {
+        } else if !(0.0..=60.0).contains(&t) {
             let score = if t < 0.0 {
                 lerp(t, -20.0, 0.0, 25.0, 74.0) as i32
             } else {

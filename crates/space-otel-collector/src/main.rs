@@ -5,59 +5,85 @@ use rdkafka::message::Message;
 use spaceops_models::kafka::KafkaConfigBuilder;
 use spaceops_models::TelemetryRecord;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::Duration;
-use tracing::{error, info, warn, Span};
+use tracing::{error, info};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
-lazy_static::lazy_static! {
-    pub static ref REGISTRY: Registry = Registry::new();
+use std::sync::LazyLock;
 
-    pub static ref BATTERY_VOLTAGE: GaugeVec = GaugeVec::new(
+pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
+
+pub static BATTERY_VOLTAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("battery_voltage", "Spacecraft battery voltage (V)"),
-        &["satellite_id"]
-    ).unwrap();
+        &["satellite_id"],
+    )
+    .unwrap()
+});
 
-    pub static ref BATTERY_CURRENT: GaugeVec = GaugeVec::new(
+pub static BATTERY_CURRENT: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("battery_current", "Spacecraft battery current (A)"),
-        &["satellite_id"]
-    ).unwrap();
+        &["satellite_id"],
+    )
+    .unwrap()
+});
 
-    pub static ref SOLAR_OUTPUT: GaugeVec = GaugeVec::new(
+pub static SOLAR_OUTPUT: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("solar_output", "Solar array electrical power output (W)"),
-        &["satellite_id"]
-    ).unwrap();
+        &["satellite_id"],
+    )
+    .unwrap()
+});
 
-    pub static ref CPU_USAGE: GaugeVec = GaugeVec::new(
+pub static CPU_USAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("cpu_usage", "Flight computer CPU usage (%)"),
-        &["satellite_id"]
-    ).unwrap();
+        &["satellite_id"],
+    )
+    .unwrap()
+});
 
-    pub static ref MEMORY_USAGE: GaugeVec = GaugeVec::new(
+pub static MEMORY_USAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("memory_usage", "Flight computer memory usage (%)"),
-        &["satellite_id"]
-    ).unwrap();
+        &["satellite_id"],
+    )
+    .unwrap()
+});
 
-    pub static ref FUEL_REMAINING: GaugeVec = GaugeVec::new(
+pub static FUEL_REMAINING: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("fuel_remaining", "Propellant remaining percentage (%)"),
-        &["satellite_id"]
-    ).unwrap();
+        &["satellite_id"],
+    )
+    .unwrap()
+});
 
-    pub static ref SIGNAL_STRENGTH: GaugeVec = GaugeVec::new(
+pub static SIGNAL_STRENGTH: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("signal_strength", "RF signal strength (dBm)"),
-        &["satellite_id", "station_id"]
-    ).unwrap();
+        &["satellite_id", "station_id"],
+    )
+    .unwrap()
+});
 
-    pub static ref PACKET_LOSS: GaugeVec = GaugeVec::new(
+pub static PACKET_LOSS: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("packet_loss", "Link packet loss percentage (%)"),
-        &["satellite_id", "station_id"]
-    ).unwrap();
+        &["satellite_id", "station_id"],
+    )
+    .unwrap()
+});
 
-    pub static ref LINK_LATENCY: GaugeVec = GaugeVec::new(
+pub static LINK_LATENCY: LazyLock<GaugeVec> = LazyLock::new(|| {
+    GaugeVec::new(
         Opts::new("link_latency", "Downlink / uplink latency (ms)"),
-        &["satellite_id", "station_id"]
-    ).unwrap();
-}
+        &["satellite_id", "station_id"],
+    )
+    .unwrap()
+});
 
 fn register_metrics() {
     REGISTRY.register(Box::new(BATTERY_VOLTAGE.clone())).unwrap();

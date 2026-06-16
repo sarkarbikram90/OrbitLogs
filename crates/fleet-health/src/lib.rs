@@ -60,7 +60,7 @@ impl FleetHealthEngine {
             match sat.overall_state.as_str() {
                 "GREEN" => green += 1,
                 "YELLOW" => yellow += 1,
-                "RED" | _ => red += 1,
+                _ => red += 1,
             }
             sum_fuel += sat.fuel_remaining;
             sum_cpu += sat.cpu_usage;

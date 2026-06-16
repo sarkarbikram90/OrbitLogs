@@ -16,8 +16,7 @@ use sqlx::{PgPool, Row};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tower_http::cors::{Any, CorsLayer};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use uuid::Uuid;
 use subtle::ConstantTimeEq;
 use tokio_util::sync::CancellationToken;
@@ -274,7 +273,6 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     });
 
-    let state_trigger = Arc::clone(&state);
     tokio::spawn(async move {
         shutdown_signal().await;
         info!("Shutdown signal received. Cancelling background digital twin tasks...");
@@ -290,6 +288,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .route("/api/twin/:satellite/timeline", get(get_twin_timeline))
         .nest("/api/twin", state_routes)
         .layer(axum::middleware::from_fn_with_state(state.clone(), cors_middleware))
+        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(30)))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
