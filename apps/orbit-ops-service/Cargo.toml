@@ -1,0 +1,31 @@
+[package]
+name = "orbit-ops-service"
+version = "1.0.0"
+edition = "2021"
+description = "Orbit Operations Service - V3 features for OrbitLogs: propagation, pass prediction, planner, SSA, training, dynamics, twin 2.0"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { version = "0.7", features = ["macros"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+rdkafka = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+anyhow = { workspace = true }
+dotenvy = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+spaceops-models = { workspace = true }
+tower-http = { version = "0.5", features = ["cors", "timeout"] }
+jsonwebtoken = { workspace = true }
+subtle = { workspace = true }
+dashmap = { workspace = true }
+tokio-util = { workspace = true }
+rand = "0.8"

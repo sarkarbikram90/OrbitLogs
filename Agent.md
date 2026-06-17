@@ -1,540 +1,596 @@
-# Open Orbitlogs 2.0 – OpenTelemetry-Native Mission Operations Platform
+# OrbitLogs V3 – Satellite Mission Operations Platform
 
-You are a Principal Software Engineer at SpaceX responsible for designing mission operations platforms that can operate and monitor thousands of spacecraft simultaneously.
+You are a Staff Level engineer at SpaceX Starlink.
 
-Your task is to evolve the existing Open Orbitlogs codebase into a production-grade, open-source Orbitlogs platform that combines:
+## Mission
 
-* Mission Operations
-* Satellite Fleet Management
-* OpenTelemetry
-* Observability
-* Distributed Systems
-* AI-Assisted Incident Response
-* Ground Station Monitoring
-* Digital Twins
-* Constellation Operations
+OrbitLogs currently provides:
 
-The existing codebase already contains:
-
-* Rust microservices
-* Kafka event streaming
-* TimescaleDB
-* OpenTelemetry
-* Jaeger
-* Prometheus
-* Grafana
-* Mission Replay Engine
-* Telemetry Simulator
+* Satellite telemetry simulation
+* CCSDS packet generation
+* Kafka streaming
+* Mission Health Engine
 * Ground Station Simulator
-* Three.js Mission Control Console
+* Mission Timeline
+* Mission Replay
+* Mission Command Service
+* Digital Twin
+* OpenTelemetry
+* AI Incident Commander
+* Grafana Dashboards
+* Three.js Mission Control UI
 
-DO NOT replace existing architecture.
+These systems are production-ready and MUST remain unchanged.
 
-Build on top of the current architecture.
+The objective of V3 is to evolve OrbitLogs into a realistic Mission Operations Platform used by satellite operators, Earth Observation companies, Space Situational Awareness providers, and mission control centers.
 
----
+All additions must be implemented as new services and modules.
 
-# Product Vision
-
-Traditional observability platforms understand:
-
-* Applications
-* Containers
-* Kubernetes
-* Databases
-
-Open SpaceOps should understand:
-
-* Satellites
-* Ground Stations
-* Telemetry
-* Commands
-* Payloads
-* Constellations
-* Mission Events
-* Orbital Assets
-
-Open Orbitlogs becomes:
-
-Datadog + Grafana + ServiceNow + OpenTelemetry + Mission Control for Space Systems.
+Do not remove or rewrite existing functionality.
 
 ---
 
-# Core Design Principles
+# FEATURE GROUP 1
 
-1. OpenTelemetry Native
-2. Rust First
-3. Event Driven
-4. Cloud Native
-5. Mission Operations Focused
-6. Fleet Scale Architecture
-7. AI Assisted Operations
-8. Extensible Plugin Framework
+ORBITAL MECHANICS ENGINE
 
----
+Create a dedicated Orbit Propagation Service.
 
-# Phase 8: Space OpenTelemetry Collector
+Responsibilities:
 
-Create:
-
-crates/space-otel-collector
-
-Purpose:
-
-Convert spacecraft telemetry into standard OpenTelemetry signals.
-
-Input Sources:
-
-* Satellite Telemetry
-* Ground Station Events
-* Command Events
-* Mission Events
-* Digital Twin State Changes
-
-Output:
-
-Metrics:
-
-* battery_voltage
-* battery_current
-* solar_output
-* cpu_usage
-* memory_usage
-* fuel_remaining
-* signal_strength
-* packet_loss
-* link_latency
-
-Logs:
-
-* subsystem_failures
-* payload_events
-* thermal_events
-* communication_events
-
-Traces:
-
-* command_lifecycle
-* payload_operations
-* mission_sequences
-
-Requirements:
-
-* Async Rust
-* Tokio
-* OTLP Exporters
-* Prometheus Exporters
-* Kafka Integration
-* Zero-copy processing where possible
-* High throughput design
-
----
-
-# Phase 9: Mission Command Service
-
-Create:
-
-apps/mission-command-service
-
-Purpose:
-
-Model real spacecraft command workflows.
-
-Features:
-
-* Command Creation
-* Command Validation
-* Approval Workflow
-* Scheduling
-* Execution Tracking
-* Audit Trail
-
-Command Lifecycle:
-
-CREATED
-APPROVED
-QUEUED
-TRANSMITTED
-RECEIVED
-EXECUTED
-VERIFIED
-FAILED
-
-Every lifecycle transition must generate:
-
-* OTel Trace
-* OTel Event
-* Kafka Event
-* Timeline Event
-
-Implement RBAC:
-
-Roles:
-
-* Operator
-* Flight Director
-* Mission Manager
-* Administrator
-
----
-
-# Phase 10: Digital Twin Engine
-
-Create:
-
-apps/digital-twin-engine
-
-Purpose:
-
-Maintain a virtual spacecraft representation.
-
-Model:
-
-Satellite
-Subsystems
-Power
-Thermal
-ADCS
-Communications
-Payload
-Propulsion
-
-Capabilities:
-
-* State Synchronization
-* Health Projection
-* Failure Simulation
-* Historical Reconstruction
-
-Expose APIs:
-
-GET /twin/{satellite}
-GET /twin/{satellite}/health
-GET /twin/{satellite}/timeline
-
----
-
-# Phase 11: Fleet Health Engine
-
-Create:
-
-crates/fleet-health
-
-Purpose:
-
-Evaluate fleet-wide health.
-
-Metrics:
-
-Fleet Availability
-Fleet Risk Score
-Fleet Utilization
-Fleet Capacity
-Fleet Readiness
-
-Dashboard:
-
-Healthy
-Warning
-Critical
-
-Scalable to:
-
-10 satellites
-100 satellites
-1000 satellites
-10000 satellites
-
----
-
-# Phase 12: Mission Timeline Engine
-
-Create:
-
-apps/mission-timeline
-
-Purpose:
-
-Store every operational event.
-
-Sources:
-
-Telemetry
-Commands
-Alerts
-Incidents
-Ground Station Events
-Digital Twin Events
-
-Timeline Example:
-
-12:01 Battery Warning
-
-12:03 Alert Generated
-
-12:05 Operator Acknowledged
-
-12:07 Payload Disabled
-
-12:09 Thermal Recovery
-
-Features:
-
-* Event Correlation
-* Search
-* Replay Integration
-* RCA Support
-
----
-
-# Phase 13: AI Incident Commander
-
-Create:
-
-apps/ai-incident-commander
-
-Purpose:
-
-Provide mission intelligence.
-
-Capabilities:
-
-Incident Summaries
-Root Cause Analysis
-Anomaly Explanations
-Recovery Recommendations
-Mission Briefings
-
-Example Queries:
-
-Why is SAT-101 unhealthy?
-
-What changed before anomaly detection?
-
-Summarize the last 24 hours.
-
-Generate postmortem report.
-
-Generate operator handoff notes.
-
-Supported Models:
-
-OpenAI
-Anthropic
-Gemini
-
-Implement RAG:
-
-Knowledge Sources:
-
-* Mission Events
-* Telemetry
-* Command History
-* Runbooks
-* Incidents
-* Timeline Events
-
----
-
-# Phase 14: Space Schema Registry
-
-Create:
-
-crates/space-schema-registry
-
-Purpose:
-
-Version telemetry schemas.
+* Parse TLE files
+* Orbit propagation
+* Future position prediction
+* Ground track generation
+* Visibility calculations
 
 Support:
 
-Telemetry V1
-Telemetry V2
-Telemetry V3
+* SGP4
+* TLE ingestion
+* Orbit updates
 
-Features:
+APIs:
 
-Schema Validation
-Compatibility Checking
-Migration Support
-Version Tracking
+GET /orbit/{satellite}
 
----
+GET /orbit/{satellite}/future
 
-# Phase 15: Real Data Sources
+GET /orbit/{satellite}/ground-track
 
-Keep simulator.
+Store:
 
-Add adapters.
+* current position
+* velocity vectors
+* orbital elements
 
-Implement:
-
-ISS Adapter
-TLE Adapter
-SatNOGS Adapter
-N2YO Adapter
-
-Architecture:
-
-Source Adapter
-↓
-Normalization Layer
-↓
-Space OTel Collector
-↓
-Kafka
-↓
-Storage
+Display orbit path on Mission Control UI.
 
 ---
 
-# Phase 16: Constellation Simulator
+# FEATURE GROUP 2
 
-Create:
+PASS PREDICTION ENGINE
 
-apps/constellation-simulator
+Implement realistic pass prediction.
 
-Capabilities:
+Calculate:
 
-100
-500
-1000
-5000
+* Next pass
+* AOS
+* LOS
+* Duration
+* Maximum elevation
 
-simulated satellites.
+Ground stations:
 
-Simulate:
+* Svalbard
+* Troll
+* Kiruna
+* McMurdo
 
-Battery Aging
-Thermal Drift
-Orbit Changes
-Ground Station Failures
-Payload Failures
-Network Congestion
+Additional:
 
----
+* Bangalore
+* Hyderabad
+* Delhi
+* Siliguri
 
-# Phase 17: Ground Station Operations
+Output:
 
-Enhance existing ground station simulator.
+{
+"station":"Bangalore",
+"aos":"timestamp",
+"los":"timestamp",
+"duration":"minutes",
+"max_elevation":"degrees"
+}
 
-Add:
+Expose APIs.
 
-Antenna Health
-Backhaul Network Health
-Weather Effects
-Hardware Failures
-Maintenance Windows
-
-Metrics:
-
-Availability
-Latency
-Packet Loss
-Signal Quality
+Visualize upcoming passes.
 
 ---
 
-# Phase 18: Space Observability Platform
+# FEATURE GROUP 3
 
-Support all four pillars:
+GROUND STATION OPERATIONS
 
-Metrics
-Logs
-Traces
-Profiles
+Create Ground Operations Center.
 
-Integrations:
+Track:
 
-Prometheus
-Loki
-Tempo
-Mimir
-Jaeger
-
-Build a unified observability view.
-
----
-
-# Frontend Enhancements
-
-Enhance Mission Control Console.
-
-Add:
-
-Fleet Overview
-Constellation Health
-Mission Timeline
-Ground Station Dashboard
-Command Center
-Incident Center
-AI Copilot Chat
-Digital Twin Viewer
-
-Three.js Enhancements:
-
-Live Orbits
-Ground Coverage
-Communication Beams
-Collision Warnings
-Orbital Paths
-
----
-
-# Rust Engineering Standards
-
-Use:
-
-Tokio
-Axum
-Serde
-Tracing
-OpenTelemetry
-SQLx
-
-Requirements:
-
-100% async services
-
-Structured logging
-
-Graceful shutdown
-
-Health endpoints
-
-Metrics endpoints
-
-OpenAPI specs
-
-Integration tests
-
-Property tests
-
-Load tests
-
-Benchmark suite
-
----
-
-# Documentation
+* antenna availability
+* RF utilization
+* contact windows
+* uplink success
+* downlink success
 
 Generate:
 
-Architecture Diagrams
-Sequence Diagrams
-Data Flow Diagrams
-ADR Documents
-API Specifications
-Operational Runbooks
+GROUND_CONTACT_STARTED
+
+GROUND_CONTACT_ENDED
+
+UPLINK_FAILURE
+
+DOWNLINK_FAILURE
+
+CONTACT_MISSED
+
+Store all events.
 
 ---
 
-# Long-Term Goal
+# FEATURE GROUP 4
 
-Open Orbitlogs should become:
+MISSION PLANNER
 
-The OpenTelemetry-Native Operating System for Space Missions.
+Create planning system.
 
-A platform capable of operating, monitoring, troubleshooting, replaying, and analyzing thousands of spacecraft and ground stations while providing AI-assisted mission operations.
+Users should schedule:
 
-Preserve all existing functionality and evolve the platform incrementally with backward compatibility.
+* payload activation
+* image capture
+* software update
+* orbit maneuver
+* command execution
+
+Workflow:
+
+Draft
+
+Review
+
+Approved
+
+Scheduled
+
+Executed
+
+Cancelled
+
+Provide calendar-style UI.
+
+---
+
+# FEATURE GROUP 5
+
+SPACE SITUATIONAL AWARENESS
+
+Create SSA Service.
+
+Simulate:
+
+* debris objects
+* neighboring satellites
+* conjunction events
+
+Features:
+
+Collision probability
+
+Nearest object
+
+Conjunction warnings
+
+Distance calculations
+
+Generate:
+
+CONJUNCTION_ALERT
+
+HIGH_RISK_CONJUNCTION
+
+Store history.
+
+Display risk score.
+
+---
+
+# FEATURE GROUP 6
+
+FLIGHT DYNAMICS SERVICE
+
+Calculate:
+
+* orbital drift
+* altitude decay
+* fuel consumption
+* maneuver effectiveness
+
+Create recommendations.
+
+Example:
+
+"Satellite ORB-001 requires station keeping within 5 days."
+
+Provide APIs.
+
+---
+
+# FEATURE GROUP 7
+
+AUTONOMOUS MISSION OPERATIONS
+
+Create AI Mission Director.
+
+Responsibilities:
+
+Analyze:
+
+Telemetry
+
+Ground station state
+
+Commands
+
+Incidents
+
+Anomalies
+
+Timeline
+
+Recommend actions.
+
+Examples:
+
+"Battery degradation detected."
+
+"Recommend safe mode."
+
+"Recommend contact with Bangalore station."
+
+"Recommend thermal subsystem inspection."
+
+Use RAG architecture.
+
+---
+
+# FEATURE GROUP 8
+
+COMMAND EXECUTION WORKFLOW
+
+Upgrade command service.
+
+Current:
+
+Operator -> Command
+
+New:
+
+Operator
+
+↓
+
+Flight Controller
+
+↓
+
+Mission Director
+
+↓
+
+Approval
+
+↓
+
+Uplink
+
+↓
+
+Execution
+
+↓
+
+Verification
+
+↓
+
+Mission Timeline
+
+Track:
+
+command latency
+
+success rate
+
+verification status
+
+---
+
+# FEATURE GROUP 9
+
+DIGITAL TWIN 2.0
+
+Enhance Digital Twin.
+
+Twin should model:
+
+battery
+
+solar panels
+
+thermal state
+
+communications
+
+payload state
+
+orbit state
+
+fuel state
+
+Commanding twin should impact future telemetry.
+
+Failures should propagate realistically.
+
+---
+
+# FEATURE GROUP 10
+
+MISSION EVENT BUS
+
+Create dedicated events.
+
+Topics:
+
+mission.events
+
+mission.timeline
+
+mission.commands
+
+mission.contacts
+
+mission.alerts
+
+mission.incidents
+
+mission.anomalies
+
+mission.planning
+
+mission.ssa
+
+mission.flight_dynamics
+
+Standardize schemas.
+
+---
+
+# FEATURE GROUP 11
+
+OPERATOR TRAINING MODE
+
+Create simulator mode.
+
+Inject:
+
+battery failure
+
+thermal runaway
+
+communication outage
+
+attitude drift
+
+ground station outage
+
+payload malfunction
+
+Operators must respond.
+
+Track:
+
+response time
+
+corrective actions
+
+recovery success
+
+Generate scorecard.
+
+---
+
+# FEATURE GROUP 12
+
+SPACECRAFT HEALTH SCORING
+
+Create composite health score.
+
+Subsystems:
+
+Power
+
+Thermal
+
+ADCS
+
+Comms
+
+Payload
+
+Flight Computer
+
+Propulsion
+
+Output:
+
+0-100 health score
+
+Health trend
+
+Remaining useful life
+
+Failure prediction
+
+---
+
+# FEATURE GROUP 13
+
+MISSION POSTMORTEM GENERATOR
+
+After incident:
+
+Automatically generate:
+
+Timeline
+
+Root Cause
+
+Impacted Systems
+
+Commands Executed
+
+Telemetry Summary
+
+Recommended Fixes
+
+Use AI Incident Commander.
+
+Export PDF.
+
+---
+
+# FEATURE GROUP 14
+
+ORBITLOGS KNOWLEDGE GRAPH
+
+Create graph relationships.
+
+Satellite
+
+Ground Station
+
+Command
+
+Alert
+
+Incident
+
+Operator
+
+Mission
+
+Anomaly
+
+Use graph database.
+
+Support impact analysis.
+
+Examples:
+
+"What incidents affected ORB-001?"
+
+"What commands preceded anomaly A-123?"
+
+---
+
+# FEATURE GROUP 15
+
+MISSION CONTROL UI V3
+
+Create screens:
+
+Fleet Overview
+
+Mission Planner
+
+Ground Operations
+
+Pass Schedule
+
+SSA Dashboard
+
+Flight Dynamics
+
+Mission Timeline
+
+Incident Center
+
+Command Center
+
+Digital Twin
+
+Training Simulator
+
+AI Mission Director
+
+Provide executive dashboard and operator dashboard.
+
+---
+
+# NON-FUNCTIONAL REQUIREMENTS
+
+Maintain:
+
+Rust
+
+Kafka
+
+TimescaleDB
+
+OpenTelemetry
+
+Prometheus
+
+Grafana
+
+Jaeger
+
+React
+
+Docker
+
+Kubernetes
+
+GitHub Actions
+
+All new services must be observable.
+
+All services must emit:
+
+Metrics
+
+Logs
+
+Traces
+
+All workflows must appear in Mission Timeline.
+
+All services must support local development and Docker Compose deployment.
+
+Goal:
+
+OrbitLogs should resemble a modern commercial Mission Operations Center capable of operating thousands of satellites while demonstrating expertise in:
+
+* Satellite Operations
+* Ground Segment Operations
+* Flight Dynamics
+* Orbital Mechanics
+* Space Situational Awareness
+* Distributed Systems
+* Observability
+* AI-Assisted Operations
+* Rust Engineering

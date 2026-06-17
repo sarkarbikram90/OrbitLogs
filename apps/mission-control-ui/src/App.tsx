@@ -9,6 +9,13 @@ import { CommandCenter } from './components/CommandCenter';
 import { MissionTimelineView } from './components/MissionTimelineView';
 import { DigitalTwinViewer } from './components/DigitalTwinViewer';
 import { AiCopilot } from './components/AiCopilot';
+import { MissionPlanner } from './components/MissionPlanner';
+import { GroundOperations } from './components/GroundOperations';
+import { PassSchedule } from './components/PassSchedule';
+import { SsaDashboard } from './components/SsaDashboard';
+import { FlightDynamics } from './components/FlightDynamics';
+import { TrainingSimulator } from './components/TrainingSimulator';
+import { AiMissionDirector } from './components/AiMissionDirector';
 import type { Satellite, GroundStation, EventLog, ReplaySession, SatelliteHealth, TelemetryRecord } from './types';
 
 const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
@@ -36,7 +43,8 @@ export default function App() {
   const [apiKey, setApiKey] = useState<string>(getInitialApiKey());
   const [jwtToken, setJwtToken] = useState<string>(getInitialJwtToken());
   const [mode, setMode] = useState<'LIVE' | 'REPLAY'>('LIVE');
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'COMMANDS' | 'TIMELINE' | 'TWIN' | 'AI'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'COMMANDS' | 'PLANNER' | 'GROUND_OPS' | 'PASSES' | 'SSA' | 'FLIGHT_DYNAMICS' | 'TWIN' | 'TRAINING' | 'AI_DIRECTOR' | 'TIMELINE' | 'AI'>('DASHBOARD');
+  const [dashboardMode, setDashboardMode] = useState<'OPERATOR' | 'EXECUTIVE'>('OPERATOR');
   const [selectedSatId, setSelectedSatId] = useState<string | null>('SAT-0001');
   const [utcTime, setUtcTime] = useState(new Date().toISOString().replace('T', ' ').substring(0, 19));
 
@@ -404,6 +412,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to control playback:', err);
     }
+  };
   if (!apiKey || !jwtToken) {
     return (
       <LoginScreen
@@ -425,29 +434,37 @@ export default function App() {
         </div>
 
         {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: '8px', margin: '0 32px' }}>
+        <div style={{ display: 'flex', gap: '4px', margin: '0 16px', overflowX: 'auto', maxWidth: 'calc(100% - 600px)' }}>
           {([
             ['DASHBOARD', 'DASHBOARD'],
-            ['COMMANDS', 'COMMAND CENTER'],
+            ['COMMANDS', 'COMMANDS'],
+            ['PLANNER', 'PLANNER'],
+            ['GROUND_OPS', 'GROUND OPS'],
+            ['PASSES', 'PASSES'],
+            ['SSA', 'SSA'],
+            ['FLIGHT_DYNAMICS', 'DYNAMICS'],
+            ['TWIN', 'TWIN'],
+            ['TRAINING', 'TRAINING'],
+            ['AI_DIRECTOR', 'DIRECTOR'],
             ['TIMELINE', 'TIMELINE'],
-            ['TWIN', 'DIGITAL TWIN'],
-            ['AI', 'AI COPILOT'],
+            ['AI', 'COPILOT'],
           ] as const).map(([tabId, label]) => (
             <button
               key={tabId}
               onClick={() => setActiveTab(tabId)}
               style={{
-                padding: '6px 12px',
+                padding: '4px 8px',
                 backgroundColor: activeTab === tabId ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
                 color: activeTab === tabId ? '#38bdf8' : '#94a3b8',
                 border: activeTab === tabId ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
                 borderRadius: '4px',
-                fontSize: '11px',
+                fontSize: '10px',
                 fontWeight: 'bold',
                 fontFamily: 'var(--font-display)',
-                letterSpacing: '1px',
+                letterSpacing: '0.5px',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap'
               }}
             >
               {label}
@@ -455,11 +472,30 @@ export default function App() {
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <div className="header-status">
             <span>UTC: {utcTime}</span>
+            <select
+              value={dashboardMode}
+              onChange={(e) => setDashboardMode(e.target.value as any)}
+              style={{
+                backgroundColor: '#07090e',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '10px',
+                fontFamily: 'var(--font-display)',
+                cursor: 'pointer',
+                outline: 'none',
+                fontWeight: 'bold'
+              }}
+            >
+              <option value="OPERATOR">OPERATOR VIEW</option>
+              <option value="EXECUTIVE">EXECUTIVE VIEW</option>
+            </select>
             <div className={`mode-badge ${mode === 'LIVE' ? 'live' : 'replay'}`}>
-              {mode === 'LIVE' ? '● LIVE CONSOLE' : '▼ REPLAY CONSOLE'}
+              {mode === 'LIVE' ? '● LIVE' : '▼ REPLAY'}
             </div>
             <button
               onClick={() => {
@@ -495,11 +531,70 @@ export default function App() {
       <main 
         className="main-content" 
         style={{
-          display: activeTab === 'DASHBOARD' ? 'grid' : 'block',
+          display: activeTab === 'DASHBOARD' && dashboardMode === 'OPERATOR' ? 'grid' : 'block',
           height: '100%',
         }}
       >
-        {activeTab === 'DASHBOARD' && (
+        {activeTab === 'DASHBOARD' && dashboardMode === 'EXECUTIVE' && (
+          <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr', gap: '20px', height: '100%', width: '100%', color: '#f8fafc', padding: '20px', overflowY: 'auto' }} className="glass-panel">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+              <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)' }}>CONSTELLATION READINESS</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
+                  {((satellites.filter(s => s.state === 'GREEN').length / satellites.length) * 100).toFixed(0)}%
+                </div>
+              </div>
+              <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)' }}>ACTIVE ORBITAL ASSETS</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0ea5e9', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
+                  {satellites.length}
+                </div>
+              </div>
+              <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)' }}>ACTIVE GROUND STATIONS</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
+                  {groundStations.length}
+                </div>
+              </div>
+              <div style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)' }}>FLEET RISK SCORE</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: satellites.some(s => s.state === 'RED') ? '#ef4444' : '#10b981', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
+                  {satellites.filter(s => s.state === 'RED').length > 0 ? 'HIGH' : satellites.filter(s => s.state === 'YELLOW').length > 0 ? 'ELEVATED' : 'LOW'}
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '13px', fontFamily: 'var(--font-display)', color: '#38bdf8', marginBottom: '12px' }}>CONSTELLATION FLEET INVENTORY</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: '#38bdf8', textAlign: 'left' }}>
+                    <th style={{ padding: '8px' }}>Spacecraft ID</th>
+                    <th style={{ padding: '8px' }}>Operational Mode</th>
+                    <th style={{ padding: '8px' }}>Subsystem Health Score</th>
+                    <th style={{ padding: '8px' }}>Telemetry Link Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {satellites.map(sat => (
+                    <tr key={sat.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{sat.id}</td>
+                      <td style={{ padding: '12px 8px' }}>{sat.state === 'GREEN' ? 'NOMINAL' : sat.state === 'YELLOW' ? 'DEGRADED' : 'SAFE MODE'}</td>
+                      <td style={{ padding: '12px 8px', color: sat.state === 'GREEN' ? '#10b981' : sat.state === 'YELLOW' ? '#f59e0b' : '#ef4444' }}>
+                        {sat.score}/100
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <span className={`status-indicator ${sat.state === 'GREEN' ? 'green' : sat.state === 'YELLOW' ? 'yellow' : 'red'}`} style={{ marginRight: '6px' }} />
+                        {sat.state === 'GREEN' ? 'Telemetry Locked' : 'Degraded Signal'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'DASHBOARD' && dashboardMode === 'OPERATOR' && (
           <>
             {/* Left Column: Fleet Listing & Ground Stations */}
             <div style={{ display: 'grid', gridTemplateRows: '1fr 260px', gap: '16px', height: '100%', overflow: 'hidden' }}>
@@ -546,15 +641,57 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'TIMELINE' && (
+        {activeTab === 'PLANNER' && (
           <div style={{ height: '100%' }}>
-            <MissionTimelineView selectedSatId={selectedSatId} />
+            <MissionPlanner />
+          </div>
+        )}
+
+        {activeTab === 'GROUND_OPS' && (
+          <div style={{ height: '100%' }}>
+            <GroundOperations />
+          </div>
+        )}
+
+        {activeTab === 'PASSES' && (
+          <div style={{ height: '100%' }}>
+            <PassSchedule selectedSatId={selectedSatId} />
+          </div>
+        )}
+
+        {activeTab === 'SSA' && (
+          <div style={{ height: '100%' }}>
+            <SsaDashboard selectedSatId={selectedSatId} />
+          </div>
+        )}
+
+        {activeTab === 'FLIGHT_DYNAMICS' && (
+          <div style={{ height: '100%' }}>
+            <FlightDynamics selectedSatId={selectedSatId} />
           </div>
         )}
 
         {activeTab === 'TWIN' && (
           <div style={{ height: '100%' }}>
             <DigitalTwinViewer selectedSatId={selectedSatId} apiKey={apiKey} />
+          </div>
+        )}
+
+        {activeTab === 'TRAINING' && (
+          <div style={{ height: '100%' }}>
+            <TrainingSimulator selectedSatId={selectedSatId} />
+          </div>
+        )}
+
+        {activeTab === 'AI_DIRECTOR' && (
+          <div style={{ height: '100%' }}>
+            <AiMissionDirector selectedSatId={selectedSatId} />
+          </div>
+        )}
+
+        {activeTab === 'TIMELINE' && (
+          <div style={{ height: '100%' }}>
+            <MissionTimelineView selectedSatId={selectedSatId} />
           </div>
         )}
 

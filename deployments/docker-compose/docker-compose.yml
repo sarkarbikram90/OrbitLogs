@@ -48,7 +48,7 @@ services:
       \ kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions\
       \ 3 --replication-factor 3 --topic groundstation.health && \\\n      kafka-topics\
       \ --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor\
-      \ 3 --topic telemetry.dlq && \\\n      echo 'Kafka topics created successfully!';"
+      \ 3 --topic telemetry.dlq && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor 3 --topic timeline.events && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor 3 --topic command.events && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor 3 --topic contact.events && \\\n      echo 'Kafka topics created successfully!';"
     deploy:
       resources:
         limits:
@@ -295,6 +295,41 @@ services:
     secrets:
     - database_url
     - api_key
+    restart: unless-stopped
+  orbit-ops-service:
+    build:
+      context: ../../
+      dockerfile: apps/orbit-ops-service/Dockerfile
+    container_name: spaceops-orbit-ops
+    ports:
+    - 8095:8095
+    environment:
+    - RUST_LOG=info,orbit_ops_service=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    - PORT=8095
+    - PROCESSED_TOPIC=telemetry.processed
+    - TIMELINE_EVENTS_TOPIC=timeline.events
+    - COMMAND_EVENTS_TOPIC=command.events
+    - CONTACT_EVENTS_TOPIC=contact.events
+    - GROUP_ID=orbit-ops-group
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
     restart: unless-stopped
   mission-control-ui:
     build:

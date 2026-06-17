@@ -1913,6 +1913,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "orbit-ops-service"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "clap",
+ "dashmap",
+ "dotenvy",
+ "jsonwebtoken",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "rand 0.8.6",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "spaceops-models",
+ "sqlx",
+ "subtle",
+ "tokio",
+ "tokio-util",
+ "tower-http",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "ordered-float"
 version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

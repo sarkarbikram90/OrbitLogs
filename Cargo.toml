@@ -11,6 +11,7 @@ members = [
     "apps/mission-timeline",
     "apps/ai-incident-commander",
     "apps/constellation-simulator",
+    "apps/orbit-ops-service",
     "crates/spaceops-models",
     "crates/spaceops-packets",
     "crates/space-schema-registry",
