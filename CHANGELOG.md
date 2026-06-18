@@ -11,7 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 
 ### Added
-- **SpaceX Starlink Staff Engineer Review**: Added `SpaceX-Starlink-Engineer-Review.md` — a comprehensive staff-level production readiness review scoring the platform across 10 engineering dimensions (Architecture, Code Quality, Security, Testing, Observability, Data Layer, Deployment, Documentation, Production Hardening, Hiring Signal). Published ratings: 6.5/10 production deployment readiness, 8.5/10 hiring signal.
+- **OrbitLogs Review Report**: Added [Orbitlogs-review-report.md](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/Orbitlogs-review-report.md) — a detailed, production-grade platform review report detailing the system architecture, microservices/crates breakdown, space tech domain applicability, security/architectural hardening remediations, shortcomings, and future improvement scope.
+- **SpaceX Starlink Staff Engineer Review**: Added [SpaceX-Starlink-Engineer-Review.md](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/SpaceX-Starlink-Engineer-Review.md) — a comprehensive staff-level production readiness review scoring the platform across 10 engineering dimensions (Architecture, Code Quality, Security, Testing, Observability, Data Layer, Deployment, Documentation, Production Hardening, Hiring Signal). Published ratings: 6.5/10 production deployment readiness, 8.5/10 hiring signal.
 
 ### Changed
 - **CHANGELOG Rebuilt from Full Git History**: Completely replaced the previous CHANGELOG.md with a comprehensive version traced from every git commit since the initial commit (`909c3f5`) through v3.0.0 (`595100b`). All versions (`v0.1.0` through `v3.0.0`) now have detailed Added / Changed / Fixed / Removed entries derived from actual `git show --stat` output rather than manual summaries.
