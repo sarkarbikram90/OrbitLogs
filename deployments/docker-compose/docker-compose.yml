@@ -26,10 +26,18 @@ services:
     secrets:
     - postgres_password
     restart: unless-stopped
+  certs-generator:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: spaceops-certs-generator
+    volumes:
+      - ./secrets:/secrets
+      - ./scripts:/scripts
+    entrypoint: [ "bash", "/scripts/generate_kafka_certs.sh" ]
   kafka-init:
     image: confluentinc/cp-kafka:7.4.0
     container_name: spaceops-kafka-init
     depends_on:
+    - certs-generator
     - kafka-1
     - kafka-2
     - kafka-3
@@ -37,18 +45,18 @@ services:
     - bash
     - -c
     - "\n      echo 'Waiting for Kafka to be ready...';\n      cub kafka-ready -b\
-      \ kafka-1:29092,kafka-2:29094,kafka-3:29096 3 60 && \\\n      kafka-topics --create\
-      \ --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor\
+      \ kafka-1:9092,kafka-2:9094,kafka-3:9096 3 60 && \\\n      kafka-topics --create\
+      \ --if-not-exists --bootstrap-server kafka-1:9092 --partitions 3 --replication-factor\
       \ 3 --topic telemetry.raw && \\\n      kafka-topics --create --if-not-exists\
-      \ --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor 3 --topic\
+      \ --bootstrap-server kafka-1:9092 --partitions 3 --replication-factor 3 --topic\
       \ telemetry.processed && \\\n      kafka-topics --create --if-not-exists --bootstrap-server\
-      \ kafka-1:29092 --partitions 3 --replication-factor 3 --topic telemetry.invalid\
-      \ && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092\
+      \ kafka-1:9092 --partitions 3 --replication-factor 3 --topic telemetry.invalid\
+      \ && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:9092\
       \ --partitions 3 --replication-factor 3 --topic mission.health && \\\n     \
-      \ kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions\
+      \ kafka-topics --create --if-not-exists --bootstrap-server kafka-1:9092 --partitions\
       \ 3 --replication-factor 3 --topic groundstation.health && \\\n      kafka-topics\
-      \ --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor\
-      \ 3 --topic telemetry.dlq && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor 3 --topic timeline.events && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor 3 --topic command.events && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:29092 --partitions 3 --replication-factor 3 --topic contact.events && \\\n      echo 'Kafka topics created successfully!';"
+      \ --create --if-not-exists --bootstrap-server kafka-1:9092 --partitions 3 --replication-factor\
+      \ 3 --topic telemetry.dlq && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:9092 --partitions 3 --replication-factor 3 --topic timeline.events && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:9092 --partitions 3 --replication-factor 3 --topic command.events && \\\n      kafka-topics --create --if-not-exists --bootstrap-server kafka-1:9092 --partitions 3 --replication-factor 3 --topic contact.events && \\\n      echo 'Kafka topics created successfully!';"
     deploy:
       resources:
         limits:
@@ -143,6 +151,8 @@ services:
     container_name: spaceops-collector
     ports:
     - 8080:8080
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
     environment:
     - RUST_LOG=info,telemetry_collector=debug
     - DATABASE_URL_FILE=/run/secrets/database_url
@@ -151,6 +161,10 @@ services:
     - HTTP_PORT=8080
     - API_KEY_FILE=/run/secrets/api_key
     - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -177,6 +191,8 @@ services:
     container_name: spaceops-simulator
     ports:
     - 8081:8081
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
     environment:
     - RUST_LOG=info,telemetry_simulator=debug
     - COLLECTOR_URL=http://telemetry-collector:8080/telemetry
@@ -187,6 +203,10 @@ services:
     - HEALTH_TOPIC=groundstation.health
     - API_KEY_FILE=/run/secrets/api_key
     - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
     depends_on:
       telemetry-collector:
         condition: service_started
@@ -212,6 +232,8 @@ services:
     container_name: spaceops-health-engine
     ports:
     - 8082:8082
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
     environment:
     - RUST_LOG=info,mission_health_engine=debug
     - DATABASE_URL_FILE=/run/secrets/database_url
@@ -222,6 +244,10 @@ services:
     - GROUP_ID=mission-health-group
     - METRICS_PORT=8082
     - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -247,6 +273,8 @@ services:
     container_name: spaceops-ground-station-simulator
     ports:
     - 8083:8083
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
     environment:
     - RUST_LOG=info,ground_station_simulator=debug
     - DATABASE_URL_FILE=/run/secrets/database_url
@@ -255,6 +283,10 @@ services:
     - METRICS_PORT=8083
     - SIM_FREQUENCY_SEC=2
     - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -303,6 +335,8 @@ services:
     container_name: spaceops-orbit-ops
     ports:
     - 8095:8095
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
     environment:
     - RUST_LOG=info,orbit_ops_service=debug
     - DATABASE_URL_FILE=/run/secrets/database_url
@@ -314,6 +348,10 @@ services:
     - COMMAND_EVENTS_TOPIC=command.events
     - CONTACT_EVENTS_TOPIC=contact.events
     - GROUP_ID=orbit-ops-group
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -352,15 +390,23 @@ services:
     container_name: spaceops-kafka-1
     ports:
     - 9092:9092
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
-      KAFKA_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka-1:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: SSL://kafka-1:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka-1:9093
+      KAFKA_ADVERTISED_LISTENERS: SSL://kafka-1:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,SSL:SSL,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: SSL
+      KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka-1.keystore.jks
+      KAFKA_SSL_KEYSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_KEY_PASSWORD: spaceopspass
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-1.truststore.jks
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_CLIENT_AUTH: required
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
@@ -368,10 +414,13 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - kafka-topics --bootstrap-server kafka-1:29092 --list
+      - kafka-topics --bootstrap-server localhost:9092 --list
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      certs-generator:
+        condition: service_completed_successfully
     deploy:
       resources:
         limits:
@@ -383,15 +432,23 @@ services:
     container_name: spaceops-kafka-2
     ports:
     - 9094:9094
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
     environment:
       KAFKA_NODE_ID: 2
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
-      KAFKA_LISTENERS: PLAINTEXT://kafka-2:29094,PLAINTEXT_HOST://0.0.0.0:9094,CONTROLLER://kafka-2:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:29094,PLAINTEXT_HOST://localhost:9094
+      KAFKA_LISTENERS: SSL://kafka-2:29094,PLAINTEXT_HOST://0.0.0.0:9094,CONTROLLER://kafka-2:9093
+      KAFKA_ADVERTISED_LISTENERS: SSL://kafka-2:29094,PLAINTEXT_HOST://localhost:9094
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,SSL:SSL,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: SSL
+      KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka-2.keystore.jks
+      KAFKA_SSL_KEYSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_KEY_PASSWORD: spaceopspass
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-2.truststore.jks
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_CLIENT_AUTH: required
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
@@ -399,10 +456,13 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - kafka-topics --bootstrap-server kafka-2:29094 --list
+      - kafka-topics --bootstrap-server localhost:9094 --list
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      certs-generator:
+        condition: service_completed_successfully
     deploy:
       resources:
         limits:
@@ -414,15 +474,23 @@ services:
     container_name: spaceops-kafka-3
     ports:
     - 9096:9096
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
     environment:
       KAFKA_NODE_ID: 3
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
-      KAFKA_LISTENERS: PLAINTEXT://kafka-3:29096,PLAINTEXT_HOST://0.0.0.0:9096,CONTROLLER://kafka-3:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:29096,PLAINTEXT_HOST://localhost:9096
+      KAFKA_LISTENERS: SSL://kafka-3:29096,PLAINTEXT_HOST://0.0.0.0:9096,CONTROLLER://kafka-3:9093
+      KAFKA_ADVERTISED_LISTENERS: SSL://kafka-3:29096,PLAINTEXT_HOST://localhost:9096
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,SSL:SSL,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: SSL
+      KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka-3.keystore.jks
+      KAFKA_SSL_KEYSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_KEY_PASSWORD: spaceopspass
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-3.truststore.jks
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_CLIENT_AUTH: required
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
@@ -430,10 +498,13 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - kafka-topics --bootstrap-server kafka-3:29096 --list
+      - kafka-topics --bootstrap-server localhost:9096 --list
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      certs-generator:
+        condition: service_completed_successfully
     deploy:
       resources:
         limits:

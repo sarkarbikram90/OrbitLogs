@@ -208,6 +208,11 @@ async fn main() -> Result<(), anyhow::Error> {
                 sasl_password,
                 ssl_ca_location,
             )
+            .with_ssl(
+                spaceops_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
+                spaceops_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
+                spaceops_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
+            )
             .build();
         client_config
             .set(

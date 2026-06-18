@@ -104,6 +104,11 @@ impl KafkaProducer {
                 sasl_password.map(|s| s.to_string()),
                 ssl_ca_location.map(|s| s.to_string()),
             )
+            .with_ssl(
+                spaceops_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
+                spaceops_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
+                spaceops_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
+            )
             .build();
         config
             .set("message.timeout.ms", "5000")

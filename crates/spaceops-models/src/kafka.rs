@@ -8,9 +8,19 @@ pub struct KafkaConfigBuilder {
     pub sasl_username: Option<String>,
     pub sasl_password: Option<String>,
     pub ssl_ca_location: Option<String>,
+    pub ssl_certificate_location: Option<String>,
+    pub ssl_key_location: Option<String>,
+    pub ssl_key_password: Option<String>,
 }
 
 impl KafkaConfigBuilder {
+    pub fn gen_config(brokers: String) -> Self {
+        Self {
+            brokers,
+            ..Default::default()
+        }
+    }
+
     pub fn new(brokers: String) -> Self {
         Self {
             brokers,
@@ -27,6 +37,9 @@ impl KafkaConfigBuilder {
             sasl_username: load_secret("KAFKA_SASL_USERNAME"),
             sasl_password: load_secret("KAFKA_SASL_PASSWORD"),
             ssl_ca_location: load_secret("KAFKA_SSL_CA_LOCATION"),
+            ssl_certificate_location: load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
+            ssl_key_location: load_secret("KAFKA_SSL_KEY_LOCATION"),
+            ssl_key_password: load_secret("KAFKA_SSL_KEY_PASSWORD"),
         }
     }
 
@@ -43,6 +56,18 @@ impl KafkaConfigBuilder {
         self.sasl_username = sasl_username;
         self.sasl_password = sasl_password;
         self.ssl_ca_location = ssl_ca_location;
+        self
+    }
+
+    pub fn with_ssl(
+        mut self,
+        ssl_certificate_location: Option<String>,
+        ssl_key_location: Option<String>,
+        ssl_key_password: Option<String>,
+    ) -> Self {
+        self.ssl_certificate_location = ssl_certificate_location;
+        self.ssl_key_location = ssl_key_location;
+        self.ssl_key_password = ssl_key_password;
         self
     }
 
@@ -64,6 +89,15 @@ impl KafkaConfigBuilder {
         }
         if let Some(ref ca) = self.ssl_ca_location {
             config.set("ssl.ca.location", ca);
+        }
+        if let Some(ref cert) = self.ssl_certificate_location {
+            config.set("ssl.certificate.location", cert);
+        }
+        if let Some(ref key) = self.ssl_key_location {
+            config.set("ssl.key.location", key);
+        }
+        if let Some(ref key_pass) = self.ssl_key_password {
+            config.set("ssl.key.password", key_pass);
         }
 
         config

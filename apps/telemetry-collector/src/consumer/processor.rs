@@ -97,6 +97,11 @@ impl TelemetryConsumer {
                     self.config.sasl_password.clone(),
                     self.config.ssl_ca_location.clone(),
                 )
+                .with_ssl(
+                    spaceops_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
+                    spaceops_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
+                    spaceops_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
+                )
                 .build();
         client_config
             .set("group.id", &self.config.group_id)
