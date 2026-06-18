@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Removed
 - **`SpaceX-level-review.md`**: Deleted outdated interim review document (127 lines) that was superseded by the new comprehensive `SpaceX-Starlink-Engineer-Review.md`. Prior review artifacts (`SpaceX Engineer level review.md`, `SpaceX-Staff-review.md`, `SpaceX-Engineer-Review-Gemini.md`, etc.) had already been removed in v1.2.0.
+- **Outdated Review Documents**: Deleted outdated `Orbitlogs-review-report.md` and legacy `SpaceX-Starlink-Engineer-Review.md` files, which have been consolidated and superseded by the updated `SpaceX-Starlink-Review.md` evaluating the v4.0.0 codebase.
 
 ---
 
