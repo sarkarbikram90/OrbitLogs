@@ -240,7 +240,7 @@ pub async fn execute_command(
         ));
     }
 
-    // Execute state flow simulation
+    // Execute state flow simulation - transition to TRANSMITTED
     let prev_status = cmd.status.clone();
     cmd.status = "TRANSMITTED".to_string();
     cmd.executed_at = Some(chrono::Utc::now());
@@ -255,41 +255,6 @@ pub async fn execute_command(
     log_audit(&state, id, Some(&prev_status), "TRANSMITTED", &operator, "Uplink carrier lock confirmed, command transmitted").await?;
     publish_command_event(&state, &cmd).await;
     publish_timeline_event(&state, &cmd, "INFO", "Command transmitted to satellite").await;
-
-    // Simulate async execution success/failure transition
-    let state_clone = Arc::clone(&state);
-    let operator_clone = operator.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        let mut cur_cmd = match fetch_command_by_id(&state_clone, id).await {
-            Ok(c) => c,
-            _ => return,
-        };
-
-        // Transition: RECEIVED
-        let t_prev = cur_cmd.status.clone();
-        cur_cmd.status = "RECEIVED".to_string();
-        let _ = sqlx::query("UPDATE commands SET status = 'RECEIVED' WHERE id = $1").bind(id).execute(&state_clone.db_pool).await;
-        let _ = log_audit(&state_clone, id, Some(&t_prev), "RECEIVED", &operator_clone, "Spacecraft acknowledged execution start").await;
-        publish_command_event(&state_clone, &cur_cmd).await;
-
-        tokio::time::sleep(Duration::from_secs(2)).await;
-
-        // Transition: EXECUTED -> VERIFIED or FAILED
-        let is_fail = cur_cmd.parameters.get("should_fail").and_then(|v| v.as_bool()).unwrap_or(false);
-        let final_status = if is_fail { "FAILED" } else { "VERIFIED" };
-
-        let t_prev2 = cur_cmd.status.clone();
-        cur_cmd.status = final_status.to_string();
-        let _ = sqlx::query("UPDATE commands SET status = $1 WHERE id = $2").bind(final_status).bind(id).execute(&state_clone.db_pool).await;
-
-        let notes = if is_fail { "Command execution failed: validation bounds exceeded on payload" } else { "Command execution completed and verified via telemetry feedback loops" };
-        let severity = if is_fail { "CRITICAL" } else { "INFO" };
-
-        let _ = log_audit(&state_clone, id, Some(&t_prev2), final_status, &operator_clone, notes).await;
-        publish_command_event(&state_clone, &cur_cmd).await;
-        publish_timeline_event(&state_clone, &cur_cmd, severity, notes).await;
-    });
 
     Ok(Json(cmd))
 }

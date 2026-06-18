@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spaceops-timeline
+  namespace: spaceops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spaceops-timeline
+  template:
+    metadata:
+      labels:
+        app: spaceops-timeline
+    spec:
+      containers:
+      - name: spaceops-timeline
+        image: spaceops/spaceops-timeline:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8087
+        env:
+        - name: RUST_LOG
+          value: "info,mission_timeline=debug"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: spaceops-secrets
+              key: database_url
+        - name: RUN_MIGRATIONS
+          value: "false"
+        - name: KAFKA_BROKERS
+          value: "spaceops-kafka-headless:9092"
+        - name: PORT
+          value: "8087"
+        - name: TIMELINE_EVENTS_TOPIC
+          value: "timeline.events"
+        - name: HEALTH_TOPIC
+          value: "mission.health"
+        - name: GROUP_ID
+          value: "mission-timeline-group"
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: spaceops-secrets
+              key: api_key
+        - name: CORS_ALLOWED_ORIGIN
+          value: "http://localhost:3000"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spaceops-timeline
+  namespace: spaceops
+spec:
+  ports:
+  - port: 8087
+    targetPort: 8087
+  selector:
+    app: spaceops-timeline

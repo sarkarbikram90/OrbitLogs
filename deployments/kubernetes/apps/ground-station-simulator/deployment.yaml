@@ -27,6 +27,8 @@ spec:
             secretKeyRef:
               name: spaceops-secrets
               key: database_url
+        - name: RUN_MIGRATIONS
+          value: "false"
         - name: KAFKA_BROKERS
           value: "spaceops-kafka-headless:9092" 
         resources:

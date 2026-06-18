@@ -18,12 +18,18 @@ pub async fn establish_db_connection(
             .await
         {
             Ok(pool) => {
-                info!("TimescaleDB connection pool established successfully. Running database migrations...");
-                if let Err(e) = sqlx::migrate!("../../migrations").run(&pool).await {
-                    error!("Database migration failed: {}", e);
-                    return Err(sqlx::Error::Configuration(e.into()));
+                info!("TimescaleDB connection pool established successfully.");
+                let run_migrations = std::env::var("RUN_MIGRATIONS").unwrap_or_else(|_| "true".to_string()) == "true";
+                if run_migrations {
+                    info!("Running database migrations...");
+                    if let Err(e) = sqlx::migrate!("../../migrations").run(&pool).await {
+                        error!("Database migration failed: {}", e);
+                        return Err(sqlx::Error::Configuration(e.into()));
+                    }
+                    info!("Database migrations applied successfully.");
+                } else {
+                    info!("Database migrations skipped (RUN_MIGRATIONS=false).");
                 }
-                info!("Database migrations applied successfully.");
                 return Ok(pool);
             }
             Err(e) => {

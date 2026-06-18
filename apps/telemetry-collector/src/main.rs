@@ -80,6 +80,8 @@ enum Commands {
     RunConsumer,
     /// Run both the HTTP server and the Consumer concurrently (default)
     RunAll,
+    /// Run database migrations and exit
+    RunMigrations,
 }
 
 use spaceops_models::load_secret;
@@ -147,7 +149,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // DB Connection Pool configuration (configured with fallback retries for self-bootstrapping Compose setups)
     // Only connect to DB if we need consumer or health checking
     let db_pool = match run_mode {
-        Commands::RunConsumer | Commands::RunAll | Commands::RunServer => {
+        Commands::RunConsumer | Commands::RunAll | Commands::RunServer | Commands::RunMigrations => {
             info!("Configuring database connection pool...");
             match spaceops_models::db::establish_db_connection(&cli.database_url, 20).await {
                 Ok(p) => Some(p),
@@ -164,6 +166,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Run matching commands
     match run_mode {
+        Commands::RunMigrations => {
+            if db_pool.is_some() {
+                info!("Database migrations run/check completed successfully.");
+            } else {
+                return Err(anyhow::anyhow!("Database migration failed: could not connect to database"));
+            }
+        }
         Commands::RunServer => {
             let app_state = AppState {
                 kafka_producer,

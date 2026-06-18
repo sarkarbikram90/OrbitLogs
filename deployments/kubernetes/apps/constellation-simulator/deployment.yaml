@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spaceops-constellation-simulator
+  namespace: spaceops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spaceops-constellation-simulator
+  template:
+    metadata:
+      labels:
+        app: spaceops-constellation-simulator
+    spec:
+      containers:
+      - name: spaceops-constellation-simulator
+        image: spaceops/spaceops-constellation-simulator:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: RUST_LOG
+          value: "info,constellation_simulator=debug"
+        - name: KAFKA_BROKERS
+          value: "spaceops-kafka-headless:9092"
+        - name: FLEET_SIZE
+          value: "500"
+        - name: TICK_INTERVAL_MS
+          value: "5000"
+        - name: RAW_TOPIC
+          value: "telemetry.raw"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

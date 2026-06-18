@@ -27,6 +27,8 @@ spec:
             secretKeyRef:
               name: spaceops-secrets
               key: database_url
+        - name: RUN_MIGRATIONS
+          value: "false"
         - name: PORT
           value: "8084" 
         - name: API_KEY

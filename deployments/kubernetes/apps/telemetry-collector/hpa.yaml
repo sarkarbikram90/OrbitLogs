@@ -11,9 +11,10 @@ spec:
   minReplicas: 2
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
+  - type: External
+    external:
+      metric:
+        name: consumer_lag_messages
       target:
-        type: Utilization
-        averageUtilization: 70
+        type: Value
+        averageValue: 10000

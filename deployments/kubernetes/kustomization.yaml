@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - secrets.yaml
   - infrastructure/timescaledb/statefulset.yaml
+  - infrastructure/timescaledb/migrations-job.yaml
   - infrastructure/kafka/statefulset.yaml
   - apps/telemetry-collector/deployment.yaml
   - apps/telemetry-collector/hpa.yaml
@@ -14,3 +15,9 @@ resources:
   - apps/ground-station-simulator/deployment.yaml
   - apps/mission-replay-engine/deployment.yaml
   - apps/mission-control-ui/deployment.yaml
+  - apps/orbit-ops-service/deployment.yaml
+  - apps/mission-command-service/deployment.yaml
+  - apps/digital-twin-engine/deployment.yaml
+  - apps/ai-incident-commander/deployment.yaml
+  - apps/mission-timeline/deployment.yaml
+  - apps/constellation-simulator/deployment.yaml

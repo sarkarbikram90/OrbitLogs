@@ -21,6 +21,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [4.0.0] - 2026-06-18
 
 ### Added
+- **Production Hardening & Scale Readiness**:
+  - Implemented **TimescaleDB Continuous Aggregates** (`20260101000011_continuous_aggregates.sql`) to pre-calculate hourly averages of telemetry metrics (battery, solar output, CPU, temperature, altitude) to prevent CPU exhaustion.
+  - Added a dedicated Kubernetes **Job** (`spaceops-db-migrations`) to execute database migrations sequentially on startup, preventing horizontal scaling pods from triggering concurrent schema lock contentions.
+  - Hardened Horizontal Pod Autoscaling (HPAs) for telemetry ingestion proxies (`telemetry-collector`) and analytics consumers (`mission-health-engine`) to scale dynamically using external metric queues (`consumer_lag_messages` > 10,000) rather than generic CPU usage thresholds.
+  - Resolved command verification lifecycle race conditions by removing legacy mock sleep timers in `mission-command-service` and relying strictly on closed-loop telemetry updates from `orbit-ops-service`.
+  - Added a new `run-migrations` subcommand in the `telemetry-collector` CLI to support clean, isolated run-to-completion database bootstrap.
 - **OrbitLogs Review Report**: Added [Orbitlogs-review-report.md](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/Orbitlogs-review-report.md) — a detailed, production-grade platform review report detailing the system architecture, microservices/crates breakdown, space tech domain applicability, security/architectural hardening remediations, shortcomings, and future improvement scope.
 - **SpaceX Starlink Staff Engineer Review (v2.3.0)**: Added [SpaceX-Starlink-Engineer-Review.md](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/SpaceX-Starlink-Engineer-Review.md) — a comprehensive staff-level production readiness review scoring the platform across 10 engineering dimensions based on the legacy codebase. Published ratings: 6.5/10 production deployment readiness, 8.5/10 hiring signal.
 - **SpaceX Starlink Audit Report (v4.0.0)**: Added [SpaceX-Starlink-Review.md](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/SpaceX-Starlink-Review.md) — a comprehensive staff-level production readiness review evaluating the hardened v4.0.0 platform architecture, mTLS networking, SHA-256 secure comparison, and geodetic TLE pass prediction calculations. Published ratings: 8.5/10 production deployment readiness, 9.5/10 hiring signal.

@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spaceops-db-migrations
+  namespace: spaceops
+spec:
+  template:
+    metadata:
+      labels:
+        app: spaceops-db-migrations
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: migrations
+        image: spaceops/spaceops-collector:latest
+        imagePullPolicy: IfNotPresent
+        args: ["run-migrations"]
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: spaceops-secrets
+              key: database_url
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: spaceops-secrets
+              key: api_key
+        - name: RUN_MIGRATIONS
+          value: "true"
