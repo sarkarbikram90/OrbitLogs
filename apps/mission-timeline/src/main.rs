@@ -15,7 +15,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info};
 use uuid::Uuid;
-use subtle::ConstantTimeEq;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Parser, Debug)]
@@ -87,14 +86,7 @@ struct TimelineQuery {
     limit: Option<i64>,
 }
 
-pub fn secure_compare(provided: &str, expected: &str) -> bool {
-    if provided.len() != expected.len() {
-        let _ = expected.as_bytes().ct_eq(expected.as_bytes());
-        false
-    } else {
-        provided.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() == 1
-    }
-}
+
 
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,
@@ -121,7 +113,7 @@ async fn auth_middleware(
     }
 
     let authenticated = match token_opt {
-        Some(ref t) => secure_compare(t, &state.api_key),
+        Some(ref t) => spaceops_models::auth::secure_compare(t, &state.api_key),
         None => false,
     };
 

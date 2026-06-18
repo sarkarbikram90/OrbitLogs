@@ -18,7 +18,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info};
 use uuid::Uuid;
-use subtle::ConstantTimeEq;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Parser, Debug)]
@@ -105,14 +104,7 @@ struct SimulateFailureRequest {
     subsystem: String, // e.g. "thermal", "power", "adcs", "communications", "propulsion"
 }
 
-pub fn secure_compare(provided: &str, expected: &str) -> bool {
-    if provided.len() != expected.len() {
-        let _ = expected.as_bytes().ct_eq(expected.as_bytes());
-        false
-    } else {
-        provided.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() == 1
-    }
-}
+
 
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,
@@ -139,7 +131,7 @@ async fn auth_middleware(
     }
 
     let authenticated = match token_opt {
-        Some(ref t) => secure_compare(t, &state.api_key),
+        Some(ref t) => spaceops_models::auth::secure_compare(t, &state.api_key),
         None => false,
     };
 
@@ -388,12 +380,7 @@ async fn get_twin(
     }
 }
 
-async fn get_twin_health(
-    State(state): State<Arc<AppState>>,
-    Path(satellite): Path<String>,
-) -> Result<Json<TwinHealthProjection>, StatusCode> {
-    let rec = state.twins.get(&satellite).ok_or(StatusCode::NOT_FOUND)?.clone();
-
+fn project_twin_health(satellite: String, rec: &TelemetryRecord) -> TwinHealthProjection {
     // Formulate a dynamic projection based on twin metrics
     let mut recommendations = Vec::new();
     let mut life_expectancy: f64 = 1800.0; // nominal 5 years
@@ -494,7 +481,7 @@ async fn get_twin_health(
         recommendations.push("Perform payload diagnostics self-test.".to_string());
     }
 
-    let projection = TwinHealthProjection {
+    TwinHealthProjection {
         satellite_id: satellite,
         timestamp: chrono::Utc::now(),
         subsystems: SubsystemsHealthProjection {
@@ -507,8 +494,15 @@ async fn get_twin_health(
         },
         life_expectancy_days: life_expectancy.max(0.0),
         recommendations,
-    };
+    }
+}
 
+async fn get_twin_health(
+    State(state): State<Arc<AppState>>,
+    Path(satellite): Path<String>,
+) -> Result<Json<TwinHealthProjection>, StatusCode> {
+    let rec = state.twins.get(&satellite).ok_or(StatusCode::NOT_FOUND)?.clone();
+    let projection = project_twin_health(satellite, &rec);
     Ok(Json(projection))
 }
 
@@ -570,4 +564,126 @@ async fn simulate_failure(
     }
 
     Ok(StatusCode::OK)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mock_nominal_telemetry() -> TelemetryRecord {
+        TelemetryRecord {
+            satellite_id: "STARLINK-9999".to_string(),
+            subsystem_id: "AOCS".to_string(),
+            mission_id: "STARLINK-V2".to_string(),
+            timestamp: chrono::Utc::now(),
+            battery_voltage: Some(13.8),
+            battery_current: Some(1.2),
+            solar_panel_output: Some(120.0),
+            cpu_usage: Some(15.0),
+            memory_usage: Some(30.0),
+            temperature: Some(25.0),
+            orientation_pitch: Some(0.0),
+            orientation_roll: Some(0.0),
+            orientation_yaw: Some(0.0),
+            velocity: Some(7.6),
+            altitude: Some(550.0),
+            fuel_remaining: Some(85.0),
+            communication_latency: Some(25.0),
+            packet_loss: Some(0.1),
+            signal_strength: Some(-65.0),
+            payload_power_draw: Some(15.0),
+            payload_active: Some(true),
+            event_id: Uuid::new_v4(),
+        }
+    }
+
+    #[test]
+    fn test_nominal_health_projection() {
+        let rec = mock_nominal_telemetry();
+        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+
+        assert_eq!(proj.satellite_id, "STARLINK-9999");
+        assert_eq!(proj.subsystems.power.status, "NOMINAL");
+        assert_eq!(proj.subsystems.power.score, 100);
+        assert_eq!(proj.subsystems.thermal.status, "NOMINAL");
+        assert_eq!(proj.subsystems.thermal.score, 100);
+        assert_eq!(proj.subsystems.adcs.status, "NOMINAL");
+        assert_eq!(proj.subsystems.adcs.score, 100);
+        assert_eq!(proj.subsystems.communications.status, "NOMINAL");
+        assert_eq!(proj.subsystems.communications.score, 100);
+        assert_eq!(proj.subsystems.propulsion.status, "NOMINAL");
+        assert_eq!(proj.subsystems.propulsion.score, 100);
+        assert_eq!(proj.subsystems.payload.status, "NOMINAL");
+        assert_eq!(proj.subsystems.payload.score, 100);
+        assert_eq!(proj.life_expectancy_days, 1800.0);
+        assert!(proj.recommendations.is_empty());
+    }
+
+    #[test]
+    fn test_degraded_battery_voltage() {
+        let mut rec = mock_nominal_telemetry();
+        rec.battery_voltage = Some(11.2); // < 11.5
+
+        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        assert_eq!(proj.subsystems.power.status, "DEGRADED");
+        assert_eq!(proj.subsystems.power.score, 60);
+        assert!(proj.recommendations.iter().any(|r| r.contains("Charge cycle optimization")));
+        assert_eq!(proj.life_expectancy_days, 1800.0 - 300.0);
+    }
+
+    #[test]
+    fn test_failed_battery_voltage_and_solar() {
+        let mut rec = mock_nominal_telemetry();
+        rec.battery_voltage = Some(10.2); // < 10.5
+        rec.solar_panel_output = Some(0.0);
+
+        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        assert_eq!(proj.subsystems.power.status, "FAILED");
+        assert_eq!(proj.subsystems.power.score, 20);
+        assert!(proj.recommendations.iter().any(|r| r.contains("Emergency power mode")));
+        assert_eq!(proj.life_expectancy_days, 1800.0 - 300.0 - 1000.0);
+    }
+
+    #[test]
+    fn test_degraded_and_failed_thermal_spike() {
+        let mut rec = mock_nominal_telemetry();
+        rec.temperature = Some(78.0); // > 75.0
+
+        let proj1 = project_twin_health("STARLINK-9999".to_string(), &rec);
+        assert_eq!(proj1.subsystems.thermal.status, "DEGRADED");
+        assert_eq!(proj1.subsystems.thermal.score, 55);
+        assert!(proj1.recommendations.iter().any(|r| r.contains("Yaw satellite to align radiator")));
+        assert_eq!(proj1.life_expectancy_days, 1800.0 - 200.0);
+
+        rec.temperature = Some(92.0); // > 90.0
+        let proj2 = project_twin_health("STARLINK-9999".to_string(), &rec);
+        assert_eq!(proj2.subsystems.thermal.status, "FAILED");
+        assert_eq!(proj2.subsystems.thermal.score, 10);
+        assert!(proj2.recommendations.iter().any(|r| r.contains("Immediate reboot")));
+        assert_eq!(proj2.life_expectancy_days, 1800.0 - 200.0 - 800.0);
+    }
+
+    #[test]
+    fn test_degraded_adcs_pitch() {
+        let mut rec = mock_nominal_telemetry();
+        rec.orientation_pitch = Some(12.5); // > 10.0
+
+        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        assert_eq!(proj.subsystems.adcs.status, "DEGRADED");
+        assert_eq!(proj.subsystems.adcs.score, 65);
+        assert!(proj.recommendations.iter().any(|r| r.contains("Trigger magnetorquer alignment")));
+        assert_eq!(proj.life_expectancy_days, 1800.0 - 150.0);
+    }
+
+    #[test]
+    fn test_degraded_propulsion_fuel() {
+        let mut rec = mock_nominal_telemetry();
+        rec.fuel_remaining = Some(15.0); // < 20.0
+
+        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        assert_eq!(proj.subsystems.propulsion.status, "DEGRADED");
+        assert_eq!(proj.subsystems.propulsion.score, 40);
+        assert!(proj.recommendations.iter().any(|r| r.contains("Transition to high-efficiency sparse burns")));
+        assert_eq!(proj.life_expectancy_days, 1800.0 - 500.0);
+    }
 }

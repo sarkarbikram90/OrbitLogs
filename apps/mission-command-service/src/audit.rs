@@ -1,0 +1,33 @@
+use axum::http::StatusCode;
+use axum::Json;
+use uuid::Uuid;
+use tracing::Span;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+use opentelemetry::trace::TraceContextExt;
+use crate::AppState;
+
+pub async fn log_audit(
+    state: &AppState,
+    command_id: Uuid,
+    from: Option<&str>,
+    to: &str,
+    by: &str,
+    notes: &str,
+) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+    let trace_id = Span::current().context().span().span_context().trace_id().to_string();
+    sqlx::query(
+        "INSERT INTO command_audit_trail (command_id, transition_from, transition_to, changed_by, trace_id, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)"
+    )
+    .bind(command_id)
+    .bind(from)
+    .bind(to)
+    .bind(by)
+    .bind(trace_id)
+    .bind(notes)
+    .execute(&state.db_pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    Ok(())
+}

@@ -18,7 +18,12 @@ pub async fn establish_db_connection(
             .await
         {
             Ok(pool) => {
-                info!("TimescaleDB connection pool established successfully.");
+                info!("TimescaleDB connection pool established successfully. Running database migrations...");
+                if let Err(e) = sqlx::migrate!("../../migrations").run(&pool).await {
+                    error!("Database migration failed: {}", e);
+                    return Err(sqlx::Error::Configuration(e.into()));
+                }
+                info!("Database migrations applied successfully.");
                 return Ok(pool);
             }
             Err(e) => {

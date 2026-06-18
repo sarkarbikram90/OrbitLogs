@@ -19,4 +19,6 @@ opentelemetry_sdk = { workspace = true }
 opentelemetry-otlp = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 anyhow = { workspace = true }
+subtle = { workspace = true }
+sha2 = { workspace = true }
 

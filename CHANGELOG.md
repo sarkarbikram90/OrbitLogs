@@ -21,6 +21,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [3.1.0] - 2026-06-17
+
+### Added
+- **High Consumer Lag Prometheus Alerting**: Introduced a new alert rule `HighConsumerLag` in [rules.yml](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/deployments/prometheus/rules.yml) which triggers when the consumer lag on any Kafka topic exceeds 1000 messages for 5 minutes.
+- **Digital Twin Projection Unit Tests**: Implemented comprehensive unit tests under a new `tests` module in [apps/digital-twin-engine/src/main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/digital-twin-engine/src/main.rs) validating nominal, degraded, and failed battery, thermal, ADCS pitch drift, and propulsion propellant depletion thresholds.
+- **Centralized Secure String Comparison**: Implemented constant-time secure string comparison `secure_compare` in the shared model crate [crates/spaceops-models/src/auth.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/crates/spaceops-models/src/auth.rs) utilizing SHA-256 to hash inputs to equal size and eliminate the timing/length oracle vulnerability.
+
+### Changed
+- **Modularization of Mission Command Service**: Modularized the monolithic [main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-command-service/src/main.rs) by splitting its core operations into dedicated submodules:
+  - [auth.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-command-service/src/auth.rs) for authorization, RBAC role hierarchy, and login rate limiting.
+  - [commands.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-command-service/src/commands.rs) for listing, creation, and execution command lifecycles.
+  - [audit.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-command-service/src/audit.rs) for command event audit trailing.
+- **Digital Twin Refactoring**: Extracted pure health projection calculations from `get_twin_health` route handler to `project_twin_health` in [apps/digital-twin-engine/src/main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/digital-twin-engine/src/main.rs) to enable mock-free unit testing.
+- **Connection Pool Refactoring**: Upgraded `spaceops-models` to execute programmatic SQLx database migrations in `establish_db_connection`.
+- **JWT Key Separation**: Decoupled JWT signing keys from the shared service API keys across the command service configuration.
+- **Login Rate Limiter**: Added client IP-based rate limiting on the `/api/auth/login` endpoint using `DashMap` in the command service.
+- **Commands API Pagination**: Added limit/offset parameters and explicit column selection to `/api/commands`.
+- **Incident Commander Connection Sharing**: Refactored the `ai-incident-commander` state to initialize and share a single `reqwest::Client` to avoid socket/file descriptor exhaustion, and integrated prompt injection guardrails.
+
+### Fixed
+- **Timing Vulnerabilities**: Replaced timing side-channel oracle string comparisons with secure centralized `spaceops_models::auth::secure_compare` across 6 services.
+- **Pinned TimescaleDB Version**: Replaced the non-deterministic `latest` tag with the fixed `timescale/timescaledb:2.15.0-pg15` container tag across Compose and CI config files.
+
+---
+
 ## [3.0.0] - 2026-06-17
 
 ### Added

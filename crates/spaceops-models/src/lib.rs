@@ -220,6 +220,7 @@ pub fn load_secret(env_var: &str) -> Option<String> {
     }
     None
 }
+pub mod auth;
 pub mod db;
 pub mod kafka;
 pub mod telemetry;

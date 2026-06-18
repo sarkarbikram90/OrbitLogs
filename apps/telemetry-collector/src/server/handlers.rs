@@ -32,16 +32,7 @@ pub struct AppState {
     pub rate_limiter: std::sync::Arc<dashmap::DashMap<String, std::sync::Mutex<TokenBucket>>>,
 }
 
-use subtle::ConstantTimeEq;
 
-pub fn secure_compare(provided: &str, expected: &str) -> bool {
-    if provided.len() != expected.len() {
-        let _ = expected.as_bytes().ct_eq(expected.as_bytes());
-        false
-    } else {
-        provided.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() == 1
-    }
-}
 
 #[derive(Serialize)]
 pub struct IngestionResponse {
@@ -374,7 +365,7 @@ pub async fn ws_handler(
     let mut authenticated = false;
 
     if let Some(ref tok) = params.token {
-        if secure_compare(tok, &state.api_key) {
+        if spaceops_models::auth::secure_compare(tok, &state.api_key) {
             authenticated = true;
         }
     }
@@ -382,7 +373,7 @@ pub async fn ws_handler(
     if !authenticated {
         if let Some(auth_val) = headers.get("Authorization").and_then(|h| h.to_str().ok()) {
             let token = auth_val.strip_prefix("Bearer ").unwrap_or(auth_val);
-            if secure_compare(token, &state.api_key) {
+            if spaceops_models::auth::secure_compare(token, &state.api_key) {
                 authenticated = true;
             }
         }

@@ -64,3 +64,12 @@ groups:
         annotations:
           summary: "High telemetry processing latency"
           description: "P95 processing latency exceeds 100ms. Check system load and Kafka broker health."
+
+      - alert: HighConsumerLag
+        expr: sum(kafka_consumer_lag) by (topic) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Kafka consumer lag detected"
+          description: "Kafka consumer lag for topic {{ $labels.topic }} has exceeded 1000 messages for 5 minutes. Pipeline may be bottlenecked."
