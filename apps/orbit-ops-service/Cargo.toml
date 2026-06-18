@@ -6,7 +6,8 @@ description = "Orbit Operations Service - V3 features for OrbitLogs: propagation
 
 [dependencies]
 tokio = { workspace = true }
-axum = { version = "0.7", features = ["macros"] }
+axum = { version = "0.7", features = ["macros", "ws"] }
+sgp4 = { version = "0.2" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }

@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 use axum::{
@@ -56,7 +56,7 @@ pub async fn generate_postmortem(
          WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 30"
     )
     .bind(&satellite)
-    .fetch_all(&state.db_pool)
+    .fetch_all(&state.postmortem.db_pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -73,7 +73,7 @@ pub async fn generate_postmortem(
          WHERE satellite_id = $1 ORDER BY created_at DESC LIMIT 20"
     )
     .bind(&satellite)
-    .fetch_all(&state.db_pool)
+    .fetch_all(&state.postmortem.db_pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

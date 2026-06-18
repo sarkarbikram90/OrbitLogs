@@ -1,11 +1,10 @@
 use serde::{Serialize, Deserialize};
 use dashmap::DashMap;
 use chrono::{DateTime, Utc};
-use std::sync::Arc;
-use uuid::Uuid;
+use sqlx::PgPool;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::time::Duration;
-use tracing::{error, info};
+use tracing::error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroundStationOps {
@@ -28,18 +27,24 @@ pub struct GroundOpsManager {
     kafka_producer: FutureProducer,
     timeline_topic: String,
     contacts_topic: String,
+    db_pool: PgPool,
 }
 
 impl GroundOpsManager {
-    pub fn new(kafka_producer: FutureProducer, timeline_topic: String, contacts_topic: String) -> Self {
+    pub fn new(
+        db_pool: PgPool,
+        kafka_producer: FutureProducer,
+        timeline_topic: String,
+        contacts_topic: String,
+    ) -> Self {
         let manager = Self {
             states: DashMap::new(),
             kafka_producer,
             timeline_topic,
             contacts_topic,
+            db_pool,
         };
 
-        // Initialize standard ground stations
         let stations = vec![
             ("GS-0001", "Svalbard"),
             ("GS-0002", "Troll"),
@@ -74,13 +79,13 @@ impl GroundOpsManager {
         manager
     }
 
-    pub async fn update_ticks(&self) {
-        // Randomly simulate RF utilization shifts and antenna state checks
+    pub async fn update_ticks(&self, active_satellites: &[String], time: DateTime<Utc>) {
+        let stations = crate::orbit::get_ground_stations();
+        
         for mut entry in self.states.iter_mut() {
             let ops = entry.value_mut();
             
-            // Randomly toggle antenna availability (e.g. maintenance window)
-            if rand::random::<f64>() < 0.01 {
+            if rand::random::<f64>() < 0.005 {
                 ops.antenna_available = !ops.antenna_available;
                 if !ops.antenna_available {
                     self.publish_event(
@@ -101,58 +106,7 @@ impl GroundOpsManager {
                 }
             }
 
-            // Simulate satellite passes and RF shifts
-            if ops.antenna_available {
-                if ops.active_satellite.is_some() {
-                    // 90% chance to stay connected, 10% chance to lose contact
-                    if rand::random::<f64>() < 0.10 {
-                        let sat = ops.active_satellite.take().unwrap();
-                        ops.rf_utilization = 0.0;
-                        ops.contact_window_start = None;
-                        ops.contact_window_end = None;
-                        
-                        self.publish_event(
-                            &ops.station_id,
-                            "GROUND_CONTACT_ENDED",
-                            "INFO",
-                            &format!("Pass ended for satellite {} with station {}.", sat, ops.name),
-                            Some(&sat)
-                        ).await;
-                    } else {
-                        // Dynamic RF utilization during contact
-                        ops.rf_utilization = 65.0 + rand::random::<f64>() * 20.0;
-                        ops.total_downlinks += 1;
-                        if rand::random::<f64>() < 0.01 {
-                            ops.failed_downlinks += 1;
-                            self.publish_event(
-                                &ops.station_id,
-                                "DOWNLINK_FAILURE",
-                                "WARNING",
-                                &format!("Brief signal fade. Downlink packet drop on station {}.", ops.name),
-                                ops.active_satellite.as_deref()
-                            ).await;
-                        }
-                    }
-                } else {
-                    // Chance to acquire new satellite pass
-                    if rand::random::<f64>() < 0.15 {
-                        let sat_id = format!("SAT-{:04}", 1 + rand::random::<usize>() % 10);
-                        ops.active_satellite = Some(sat_id.clone());
-                        ops.rf_utilization = 80.0;
-                        ops.contact_window_start = Some(Utc::now());
-                        ops.contact_window_end = Some(Utc::now() + chrono::Duration::minutes(10));
-                        ops.total_uplinks += 1;
-
-                        self.publish_event(
-                            &ops.station_id,
-                            "GROUND_CONTACT_STARTED",
-                            "INFO",
-                            &format!("AOS (Acquisition of Signal) for {} on station {}.", sat_id, ops.name),
-                            Some(&sat_id)
-                        ).await;
-                    }
-                }
-            } else {
+            if !ops.antenna_available {
                 ops.rf_utilization = 0.0;
                 if let Some(sat) = ops.active_satellite.take() {
                     ops.missed_contacts += 1;
@@ -163,6 +117,113 @@ impl GroundOpsManager {
                         &format!("Contact missed for satellite {} due to station {} antenna outage.", sat, ops.name),
                         Some(&sat)
                     ).await;
+                }
+                continue;
+            }
+
+            // Find all satellites currently visible (elevation > 5.0)
+            let mut visible_sats = Vec::new();
+            let gs_info = stations.iter().find(|s| s.name == ops.name);
+            if let Some(gs) = gs_info {
+                for sat_id in active_satellites {
+                    let (line1, line2) = crate::orbit::generate_default_tle(sat_id);
+                    if let Ok(state) = crate::orbit::propagate_tle_sgp4(sat_id, &line1, &line2, time) {
+                        let el = crate::orbit::calculate_elevation(state.latitude, state.longitude, state.altitude, gs);
+                        if el > 5.0 {
+                            visible_sats.push((sat_id.clone(), el));
+                        }
+                    }
+                }
+            }
+
+            let current_active = ops.active_satellite.clone();
+            
+            if visible_sats.is_empty() {
+                if let Some(sat) = current_active {
+                    ops.active_satellite = None;
+                    ops.rf_utilization = 0.0;
+                    ops.contact_window_start = None;
+                    ops.contact_window_end = None;
+                    self.publish_event(
+                        &ops.station_id,
+                        "GROUND_CONTACT_ENDED",
+                        "INFO",
+                        &format!("Pass ended for satellite {} with station {}.", sat, ops.name),
+                        Some(&sat)
+                    ).await;
+                }
+            } else {
+                let mut best_sat = None;
+                if let Some(ref cur) = current_active {
+                    if visible_sats.iter().any(|(s, _)| s == cur) {
+                        best_sat = Some(cur.clone());
+                    }
+                }
+
+                if best_sat.is_none() {
+                    visible_sats.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                    best_sat = Some(visible_sats[0].0.clone());
+                }
+
+                if let Some(sat) = best_sat {
+                    if Some(sat.clone()) != current_active {
+                        ops.active_satellite = Some(sat.clone());
+                        ops.contact_window_start = Some(time);
+                        
+                        let mut los_est = time + chrono::Duration::minutes(10);
+                        if let Some(gs) = gs_info {
+                            let (line1, line2) = crate::orbit::generate_default_tle(&sat);
+                            for min in 1..25 {
+                                let t_check = time + chrono::Duration::minutes(min);
+                                if let Ok(state) = crate::orbit::propagate_tle_sgp4(&sat, &line1, &line2, t_check) {
+                                    let el = crate::orbit::calculate_elevation(state.latitude, state.longitude, state.altitude, gs);
+                                    if el <= 5.0 {
+                                        los_est = t_check;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        ops.contact_window_end = Some(los_est);
+                        ops.total_uplinks += 1;
+                        self.publish_event(
+                            &ops.station_id,
+                            "GROUND_CONTACT_STARTED",
+                            "INFO",
+                            &format!("AOS (Acquisition of Signal) for {} on station {}.", sat, ops.name),
+                            Some(&sat)
+                        ).await;
+
+                        let reservation_id = uuid::Uuid::new_v4();
+                        let _ = sqlx::query(
+                            "INSERT INTO contact_schedules (id, satellite_id, station_id, window_type, start_time, end_time, priority, status)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+                        )
+                        .bind(reservation_id)
+                        .bind(&sat)
+                        .bind(&ops.station_id)
+                        .bind("TELEMETRY")
+                        .bind(time)
+                        .bind(los_est)
+                        .bind("ROUTINE")
+                        .bind("EXECUTED")
+                        .execute(&self.db_pool)
+                        .await;
+                    }
+
+                    ops.rf_utilization = 65.0 + rand::random::<f64>() * 20.0;
+                    ops.total_downlinks += 1;
+                    
+                    if rand::random::<f64>() < 0.01 {
+                        ops.failed_downlinks += 1;
+                        self.publish_event(
+                            &ops.station_id,
+                            "DOWNLINK_FAILURE",
+                            "WARNING",
+                            &format!("Brief signal fade. Downlink packet drop on station {}.", ops.name),
+                            Some(&sat)
+                        ).await;
+                    }
                 }
             }
         }
@@ -177,7 +238,7 @@ impl GroundOpsManager {
 
         let timeline_payload = serde_json::json!({
             "timestamp": Utc::now(),
-            "event_id": Uuid::new_v4(),
+            "event_id": uuid::Uuid::new_v4(),
             "source": "GROUND_STATION",
             "satellite_id": sat_id,
             "event_type": event_type,
@@ -191,12 +252,16 @@ impl GroundOpsManager {
             let record = FutureRecord::to(&self.timeline_topic)
                 .key(key)
                 .payload(&payload);
-            let _ = self.kafka_producer.send(record, Duration::from_secs(5)).await;
+            if let Err(e) = self.kafka_producer.send(record, Duration::from_secs(5)).await {
+                error!("Failed to publish timeline event in ground station manager: {:?}", e);
+            }
 
             let contact_record = FutureRecord::to(&self.contacts_topic)
                 .key(station_id)
                 .payload(&payload);
-            let _ = self.kafka_producer.send(contact_record, Duration::from_secs(5)).await;
+            if let Err(e) = self.kafka_producer.send(contact_record, Duration::from_secs(5)).await {
+                error!("Failed to publish contact event in ground station manager: {:?}", e);
+            }
         }
     }
 }

@@ -1931,6 +1931,7 @@ dependencies = [
  "rdkafka",
  "serde",
  "serde_json",
+ "sgp4",
  "spaceops-models",
  "sqlx",
  "subtle",
@@ -2607,6 +2608,17 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "sgp4"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b67f506a9e697f3209e27cfb878c7167c96cb1c9d283698212ecfedf9d08739"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

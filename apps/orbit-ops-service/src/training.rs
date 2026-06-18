@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -41,11 +41,6 @@ pub struct StartTrainingRequest {
     pub operator_name: String,
     pub scenario_name: String, // 'BATTERY_FAILURE', 'THERMAL_RUNAWAY', 'COMMS_OUTAGE', 'ATTITUDE_DRIFT'
     pub satellite_id: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ResolveTrainingRequest {
-    pub operator_name: String,
 }
 
 pub struct TrainingManager {
@@ -186,7 +181,7 @@ pub async fn resolve_training(
     .bind(score)
     .bind(&actions_json)
     .bind(passed)
-    .execute(&state.db_pool)
+    .execute(&state.training.db_pool)
     .await;
 
     // Send timeline resolution notice

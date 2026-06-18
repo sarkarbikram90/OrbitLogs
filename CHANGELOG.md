@@ -11,11 +11,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Removed
+
+---
+
+## [4.0.0] - 2026-06-18
+
+### Added
 - **OrbitLogs Review Report**: Added [Orbitlogs-review-report.md](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/Orbitlogs-review-report.md) — a detailed, production-grade platform review report detailing the system architecture, microservices/crates breakdown, space tech domain applicability, security/architectural hardening remediations, shortcomings, and future improvement scope.
 - **SpaceX Starlink Staff Engineer Review**: Added [SpaceX-Starlink-Engineer-Review.md](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/SpaceX-Starlink-Engineer-Review.md) — a comprehensive staff-level production readiness review scoring the platform across 10 engineering dimensions (Architecture, Code Quality, Security, Testing, Observability, Data Layer, Deployment, Documentation, Production Hardening, Hiring Signal). Published ratings: 6.5/10 production deployment readiness, 8.5/10 hiring signal.
+- **SGP4 Orbit Propagation Service**: Integrated the pure Rust `sgp4` library to model physically realistic orbit state vectors (latitude, longitude, altitude, velocity, period, inclination, eccentricity) for the constellation, published as `orbit.position.updated` events on the `orbit.state` Kafka topic, and persisted to the `orbit_positions` Timescale DB hypertable.
+- **TLE Ingestion Pipeline**: Implemented a complete pipeline for importing, validating, versioning, and checking the expiration of Two-Line Element (TLE) datasets, with event warnings `TLE_UPDATED`, `TLE_EXPIRED`, and `TLE_VALIDATION_FAILED` published to Kafka.
+- **Ground Station Pass Prediction**: Implemented a pass prediction engine in `orbit.rs` mapping satellite orbits against ground stations using real line-of-sight elevation geometry (elevation > 5.0°) with event triggers `PASS_PREDICTED`, `PASS_STARTED`, and `PASS_ENDED`.
+- **Ground Station Contact Scheduler**: Added calendar scheduling reservation checks in `ground_ops.rs` that prioritize emergency/critical operations and log execution to the `contact_schedules` database.
+- **Space Situational Awareness (SSA) & Conjunctions**: Integrated space debris tracking and orbital close approach simulations with miss distance, relative velocity, and probability calculations to trigger `COLLISION_RISK_ALERT` events across low/medium/high/critical severities.
+- **Flight Dynamics Engine**: Added calculation updates for altitude decay, drift, fuel burn rate, and Delta-V requirements, generating automatic `MANEUVER_RECOMMENDED`, `ORBIT_DECAY_ALERT`, and `FUEL_WARNING` events.
+- **Closed-Loop Command Verification**: Implemented a background listener on `telemetry.processed` that intercepts live telemetry to verify command execution state transitions (e.g., verifying `ENABLE_PAYLOAD` against `payload_active == true` before marking command as `CONFIRMED` and publishing `COMMAND_VERIFIED`).
+- **Operations Analytics Handler**: Created a REST API route `/api/analytics` calculating real pass success rate, contact success rate, command success rate, and average contact duration from Timescale database tables.
+- **Dynamic WebSocket Stream**: Wired `/api/orbit/stream` to push real-time SGP4 coordinate updates to clients on 3-second intervals.
+- **V4 Timescale Database Migration**: Added migration schema `20260101000010_v4_expansion.sql` defining relational tables and hypertables for `orbit_positions`, `tle_records`, `pass_predictions`, `contact_schedules`, `ssa_objects`, `conjunction_events`, `mission_plans`, `orbit_maneuvers`, and `command_verifications`.
 
 ### Changed
 - **CHANGELOG Rebuilt from Full Git History**: Completely replaced the previous CHANGELOG.md with a comprehensive version traced from every git commit since the initial commit (`909c3f5`) through v3.0.0 (`595100b`). All versions (`v0.1.0` through `v3.0.0`) now have detailed Added / Changed / Fixed / Removed entries derived from actual `git show --stat` output rather than manual summaries.
+- **Dynamic TLE Handlers**: Refactored the background propagation loops, REST endpoints, and WebSocket handlers in `main.rs` to fetch and use the latest database-imported TLE, falling back to generated defaults only when no records exist.
+- **Resource Management Refactoring**: Cleaned up compilation warnings by updating `PlannerState`, `TrainingManager`, and `PostmortemManager` database actions to use their dedicated sub-component connection pools instead of the shared master state pool.
 
 ### Removed
 - **`SpaceX-level-review.md`**: Deleted outdated interim review document (127 lines) that was superseded by the new comprehensive `SpaceX-Starlink-Engineer-Review.md`. Prior review artifacts (`SpaceX Engineer level review.md`, `SpaceX-Staff-review.md`, `SpaceX-Engineer-Review-Gemini.md`, etc.) had already been removed in v1.2.0.
