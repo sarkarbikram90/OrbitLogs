@@ -1,6 +1,7 @@
 # Phase 2: Mission Health Engine Architecture & Design
+### Version: v4.0.0 (Latest)
 
-This document details the architecture, design, health rules, and operational integrations for the Mission Health Engine implemented in Phase 2.
+This document details the architecture, design, health rules, and operational integrations for the Mission Health Engine of **OrbitLogs**.
 
 ---
 
@@ -44,7 +45,7 @@ sequenceDiagram
     Engine->>Engine: Run subsystem rule checks (health.rs)
     Engine->>Engine: Compute overall score (average) & state (minimum)
     Engine->>DB: INSERT satellite_health row (timestamp, status, score, explanation)
-    Engine->>KafkaHealth: Send FutueRecord (Key: satellite_id, Value: HealthAssessment JSON)
+    Engine->>KafkaHealth: Send FutureRecord (Key: satellite_id, Value: HealthAssessment JSON)
     Engine->>Engine: Update in-memory scores map & metrics gauges
     Prometheus->>Engine: Scrape metrics
 ```
@@ -88,9 +89,9 @@ The health state rules map raw telemetry parameters to SRE operational states:
 
 ## 4. Observability & Dashboarding
 
-The engine exposes standard Prometheus gauges at port `8082`:
+The engine exposes Prometheus metrics at `:8082/metrics`:
 - `fleet_health_score`: Real-time Fleet Health Index.
 - `satellite_health_score{satellite_id="..."}`: Per-satellite health score.
 - `subsystem_health_score{satellite_id="...", subsystem_id="..."}`: Per-subsystem health score.
 
-These metrics and the TimescaleDB `satellite_health` table power the **Open SpaceOps - Fleet & Mission Health** Grafana dashboard ([fleet-health.json](file:///c:/Users/bikrams/Open-SpaceOps/Open-SpaceOps/deployments/grafana/dashboards/fleet-health.json)) to allow operators to monitor spacecraft status by operational health, trace incidents chronologically, and drill down on subsystem status.
+These metrics and the TimescaleDB `satellite_health` table power the **OrbitLogs - Fleet & Mission Health** Grafana dashboard to allow operators to monitor spacecraft status by operational health, trace incidents chronologically, and drill down on subsystem status.

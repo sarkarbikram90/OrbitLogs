@@ -1,37 +1,39 @@
-# Open SpaceOps: Telemetry Collector Design
+# OrbitLogs: Telemetry Ingestion Design & Architecture
+### Version: v4.0.0 (Latest)
 
-This document details the design specifications, ingestion routes, schema enforcement strategies, and validation layers of the **Telemetry Collector & Consumer** service.
-
----
-
-## 1. System Goals & Responsibilities
-
-The Telemetry Collector is a dual-purpose high-performance server and daemon designed to:
-- Ingest real-time telemetry packets over high-throughput HTTP endpoints.
-- Enforce strict JSON payload limits, data structures, and range boundaries.
-- Quarantine malformed, invalid, or dangerous payloads immediately to a Dead Letter Topic.
-- Decouple database persistence via Kafka to keep average API response latencies **under 5ms**.
+This document details the design specifications, ingestion routing, schema validation, and quarantine handling logic of the **Telemetry Ingestion API** (`telemetry-collector`).
 
 ---
 
-## 2. Ingestion Routing & Endpoints
+## 1. System Responsibilities
 
-The server exposes three highly optimized Axum endpoints:
+The Telemetry Ingestion tier is the gateway for all space-to-ground downlink feeds. Its goals include:
+*   **Low-Latency Reception**: Handle bursty telemetry transmissions during satellite passes, maintaining response times **under 5ms**.
+*   **Serialization Integrity**: Ingest standard JSON payloads or CCSDS binary frames, verifying binary integrity using CRC-16 checks.
+*   **Schema Safety**: Verify data schema version compatibility using `space-schema-registry` rules.
+*   **Defensive Quarantine**: Instantly route bad data to a Dead-Letter Queue (DLQ) to protect downstream database consumers.
+
+---
+
+## 2. Ingestion Routing & Protocol Handling
+
+The server listens on `:8080` and exposes three endpoints:
 
 ### `POST /telemetry`
-Accepts JSON telemetry streams.
-- **Processing Stage 1: Struct Deserialization**: Ensures types strictly match the expected telemetry model schema.
-- **Processing Stage 2: Bounds Checking**: Evaluates value limits (e.g. CPU $\in [0, 100]\%$, battery voltage $\ge 0.0\text{V}$).
-- **Processing Stage 3: Kafka Produce**: Publishes valid payloads to `telemetry.raw` partitioned by `satellite_id` for in-order downstream execution.
-- **Returns**: HTTP `202 Accepted` with a unique transaction `event_id`.
+Accepts downlink telemetry streams.
+*   **JSON Ingestion**: Enforces strict parsing checks using Serde's `#[serde(deny_unknown_fields)]` to block unmapped parameters.
+*   **CCSDS Binary Ingestion**: When `Content-Type: application/octet-stream` is set, the server decodes binary packets using `spaceops-packets` and validates the **CRC-16-CCITT** checksum.
+*   **CORS & Auth**: Enforces JWT Bearer authentication and locks origins to the `CORS_ALLOWED_ORIGIN` env configuration.
+*   **Rate Limiting**: Employs an IP-partitioned token-bucket rate limiter via `DashMap` to prevent request starvation under load.
+*   **Returns**: HTTP `202 Accepted` with a unique transaction UUID.
 
 ### `GET /health`
-Deep system health evaluation:
-- Performs real-time pings to TimescaleDB and checks active Kafka broker connections.
-- Returns `200 OK` if all services are online; returns `503 Service Unavailable` on database or broker failures.
+Validates connection pools:
+*   Performs real-time checks on TimescaleDB pools and Kafka broker connectivity.
+*   Exposes liveness and readiness states to Kubernetes probes.
 
 ### `GET /metrics`
-Exposes system runtime and database latency statistics formatted for Prometheus scraping.
+Exposes Prometheus-formatted counters and histograms for request validation speeds and database insertion latencies.
 
 ---
 
@@ -54,7 +56,7 @@ Exposes system runtime and database latency statistics formatted for Prometheus 
 ```
 
 When a payload fails validation:
-1. An error log is recorded.
-2. The payload is enveloped in a DLQ JSON wrapper detailing the specific reason for validation rejection and the receipt timestamp.
-3. The enveloped reject is published to the `telemetry.invalid` dead-letter topic.
-4. The client receives an HTTP `400 Bad Request` with a JSON list of detailed validation failure reasons.
+1.  An error log is recorded.
+2.  The payload is enveloped in a DLQ JSON wrapper detailing the specific reason for validation rejection and the receipt timestamp.
+3.  The enveloped reject is published to the `telemetry.invalid` dead-letter topic.
+4.  The client receives an HTTP `400 Bad Request` with a JSON list of detailed validation failure reasons.

@@ -1,32 +1,41 @@
-# Open SpaceOps: System Architecture & Distributed Systems Design
+# 🛰️ OrbitLogs: System Architecture & Distributed Systems Design
+### Version: v4.0.0 (Latest)
 
-This document details the engineering specifications, data flow, failure handling modes, and architectural trade-offs made in the design of the **Open SpaceOps** platform.
+This document details the engineering specifications, data flow, failure handling modes, and architectural decisions of the **OrbitLogs** real-time spacecraft ground segment operations platform.
 
 ---
 
 ## 1. System Topology Overview
 
-Open SpaceOps decouples the real-time high-throughput telemetry ingestion from database persistence through a key-based partitioned **Apache Kafka** event stream. This guarantees that API endpoint spikes never degrade system performance or result in dropped metrics.
+OrbitLogs decouples real-time high-throughput telemetry ingestion from database persistence through a key-based partitioned **Apache Kafka** event stream running on a 3-broker KRaft cluster. In v4.0.0, the architecture is expanded to include a dedicated **Orbit Operations Service** (`orbit-ops-service`) managing SGP4 orbit propagation, TLE records, ground station pass schedules, and collision avoidance dynamics.
 
 ```
-       [ Telemetry Simulator ]
-                  │ (POST /telemetry JSON)
+       [ Telemetry Simulator ] ──(SGP4 Propagated Lat/Lon)
+                  │ (POST /telemetry binary CCSDS or JSON)
                   ▼
-       [ Ingestion Tier (Axum API) ] ──(Spans: Trace Ingress)
+       [ Ingestion Tier (Axum API) ] ──(Spans: Trace Ingress, JWT Authorized)
                   │
-                  ├─(Validation & Enrichment)
+                  ├─(Validation & CRC-16 Checksum Verification)
                   │
                   ▼ (Produce to Keyed Partition)
        [ Kafka Queue (telemetry.raw) ] ──(Partitioned by satellite_id)
                   │
-                  ▼ (Subscribe / Stream Consume)
-     [ Consumer Tier (Tokio Processor) ] ──(Spans: Trace Persistence)
+                  ├─► [ Consumer Tier (Tokio Processor) ]
+                  │          │
+                  │          ├──► (Stateful LRU Merging)
+                  │          ├──► (Run Anomaly Verification)
+                  │          └──► [ TimescaleDB telemetry ]
                   │
-                  ├─(Rule-Based Anomaly Detection)
+                  ▼ (Consumer loop updates)
+       [ Kafka Queue (telemetry.processed) ]
                   │
-                  ├──► (Upsert Anomaly) ──► [ TimescaleDB events ]
+                  ├─► [ Mission Health Engine ] ──► [ TimescaleDB health ]
                   │
-                  └──► (Batch Write)  ──► [ TimescaleDB telemetry ]
+                  └─► [ Orbit Operations Service ]
+                             │
+                             ├─► (Closed-Loop Command Verification)
+                             ├─► (Conjunction Debris Evaluation)
+                             └─► [ TimescaleDB orbit_positions ]
 ```
 
 ---
@@ -34,11 +43,11 @@ Open SpaceOps decouples the real-time high-throughput telemetry ingestion from d
 ## 2. Telemetry Ingestion & Serialization Pipeline
 
 ### Ingestion Flow
-1. **HTTP Ingress**: The Rust Axum server listens on `:8080/telemetry`. It operates in an asynchronous loop, utilizing `tokio` multi-threaded task stealing.
-2. **Payload Validation**: Incoming telemetry is checked against physical parameters (such as limits on battery charges, orientation angles, and timestamps).
-   - If invalid, the payload is immediately serialized as a rejection log and published to `telemetry.invalid` (Dead Letter Queue) for SRE diagnostic analysis.
-3. **Kafka Produce**: Valid payloads are enriched with a processing `received_at` date and a tracking `event_id` UUID, and queued onto the `telemetry.raw` topic using a key-based partition strategy (keyed by `satellite_id`).
-4. **Immediate Acceptance**: The server returns an HTTP `202 Accepted` status with the `event_id` in less than **5ms**, avoiding blocking on downstream writes.
+1.  **Multi-Format Ingress**: The Axum server in [telemetry-collector](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/telemetry-collector/src/main.rs) ingests data on `:8080/telemetry`. It supports JSON payloads and CCSDS-inspired binary packet streams when `Content-Type: application/octet-stream` is specified.
+2.  **CRC-16 Checksum Validation**: Binary packets are parsed via the `spaceops-packets` crate, verifying their CRC-16-CCITT checksums to guarantee integrity over simulated space links.
+3.  **Schema Registry Check**: Validates payloads against V1 (Legacy), V2 (Standard), and V3 (Extended) formats using `space-schema-registry` rules.
+4.  **Kafka Queue**: Valid payloads are enriched and queued onto the `telemetry.raw` topic using a key-based partition strategy (keyed by `satellite_id`).
+5.  **Rejection Quarantine (DLQ)**: Failing payloads are wrapped in a diagnostic JSON envelope and routed to `telemetry.invalid`.
 
 ---
 
@@ -77,8 +86,6 @@ sequenceDiagram
 
 ## 4. Failure Modes & Self-Healing Design
 
-The platform is designed to operate under partial network or database degradation:
-
 ### Database Downtime (Self-Healing Ingester)
 If TimescaleDB becomes unreachable or locked, the consumer loop employs an **exponential backoff retry strategy**:
 - **First Failure**: Retries in 100ms.
@@ -99,4 +106,3 @@ If the Kafka broker cannot keep up with simulator generation speeds:
 
 ### Why key-based partitioning in Kafka?
 - Using `{mission_id}:{satellite_id}` as the message key guarantees that all telemetry for a given satellite in a specific mission will land on the **same partition**. Since Kafka guarantees order within a partition, this ensures that the database ingester parses and inserts telemetry for each satellite in strict chronological sequence, preventing time-drift anomalies. Furthermore, including the `mission_id` in the partition key enables scaling and multi-mission fleet isolation inside the same Kafka cluster, allowing consumers to filter and route by mission or isolate processors.
-

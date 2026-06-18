@@ -1,6 +1,7 @@
-# Open SpaceOps: Observability Design Specifications
+# OrbitLogs: Observability Design Specifications
+### Version: v4.0.0 (Latest)
 
-This document outlines the metrics registries, Prometheus scrape intervals, distributed tracing spans, and Grafana visualization frameworks designed to monitor the spaceops pipeline.
+This document outlines the metrics registries, Prometheus scrape configurations, distributed tracing spans, and Grafana visualization frameworks of **OrbitLogs**.
 
 ---
 
@@ -16,6 +17,7 @@ Every service exposes a standard Prometheus scrape endpoint `/metrics` containin
 | `processing_latency` | Histogram | *None* | Latency of basic HTTP parsing and validation layers |
 | `kafka_publish_latency` | Histogram | *None* | Network latency of publishing raw messages to Kafka |
 | `database_insert_latency` | Histogram | *None* | Latency of batch writing records to TimescaleDB |
+| `consumer_lag_messages` | Gauge | `topic`, `partition` | Partition processing delay (alerts at >1000 messages) |
 
 ---
 
@@ -23,8 +25,8 @@ Every service exposes a standard Prometheus scrape endpoint `/metrics` containin
 
 Distributed tracing is instrumented natively in Rust via **OpenTelemetry**:
 - **Tracer Provider**: Exposes tracing registry using a batch processor, sending traces to the **OTel Collector** via OTLP gRPC (`otel-collector:4317`).
-- **Exporter Backend**: OTel Collector batches and exports spans to **Jaeger** (`jaeger:4317`), providing visual analysis of request lifecycles.
-- **Trace Propagation**: HTTP headers inject and extract `traceparent` parameters, ensuring correlation spans link simulator posts through Kafka to TimescaleDB.
+- **Exporter Backend**: OTel Collector batches and exports spans to **Jaeger** (`jaeger:16686`), providing visual analysis of request lifecycles.
+- **Trace Propagation**: W3C headers inject and extract `traceparent` parameters over Kafka RecordHeaders, ensuring correlation spans link simulator posts through Kafka to TimescaleDB.
 
 ---
 

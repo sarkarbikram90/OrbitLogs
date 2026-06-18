@@ -1,12 +1,13 @@
 # Phase 1: Spacecraft Subsystem Telemetry Architecture & Design
+### Version: v4.0.0 (Latest)
 
-This document details the architecture, design, failure modes, operational runbooks, and troubleshooting guides for the spacecraft subsystem telemetry system implemented in Phase 1.
+This document details the architecture, design, failure modes, operational runbooks, and troubleshooting guides for the spacecraft subsystem telemetry system of **OrbitLogs**.
 
 ---
 
 ## 1. System Architecture
 
-The Open SpaceOps system has been refactored to support concurrent, independent telemetry streams from seven spacecraft subsystems per satellite: Power, Thermal, Communications, Propulsion, ADCS, Payload, and Flight Computer. 
+The OrbitLogs system supports concurrent, independent telemetry streams from seven spacecraft subsystems per satellite: Power (EPS), Thermal (TCS), Communications (TTC), Propulsion (PROP), ADCS, Payload, and Flight Computer (OBC).
 
 ### Component Diagram
 
@@ -43,13 +44,13 @@ graph TD
     PAY -- read/write --> SIM_STATE
     FC -- read/write --> SIM_STATE
 
-    PWR -- JSON Payload --> COLL_SRV
-    THM -- JSON Payload --> COLL_SRV
-    COM -- JSON Payload --> COLL_SRV
-    PRP -- JSON Payload --> COLL_SRV
-    ADC -- JSON Payload --> COLL_SRV
-    PAY -- JSON Payload --> COLL_SRV
-    FC -- JSON Payload --> COLL_SRV
+    PWR -- Payload --> COLL_SRV
+    THM -- Payload --> COLL_SRV
+    COM -- Payload --> COLL_SRV
+    PRP -- Payload --> COLL_SRV
+    ADC -- Payload --> COLL_SRV
+    PAY -- Payload --> COLL_SRV
+    FC -- Payload --> COLL_SRV
 
     COLL_SRV -- telemetry.raw --> KAFKA
     KAFKA -- read partition by sat_id --> CONS_PROC
@@ -63,7 +64,7 @@ graph TD
 
 ## 2. Telemetry Flow & Merging Logic
 
-To support backward compatibility with existing dashboards that query a single flat table (`telemetry`), the collector's consumer runs a stateful merge logic. Since Kafka partitioning guarantees that all events for a specific `satellite_id` are processed sequentially by the same consumer instance, the consumer uses a fast in-memory cache of the latest satellite state, falling back to a database lookup on a cache miss.
+To support backward compatibility with dashboards that query a single flat table (`telemetry`), the collector's consumer runs a stateful merge logic. Since Kafka partitioning guarantees that all events for a specific `satellite_id` are processed sequentially by the same consumer instance, the consumer uses a fast in-memory cache of the latest satellite state (configured via an LRU cache capped at 10,000 entries), falling back to a database lookup on a cache miss.
 
 ### Sequence Diagram
 
@@ -105,7 +106,7 @@ sequenceDiagram
 
 ## 3. Database Schema Design (ER Diagram)
 
-The database schema is updated to add correlation keys (`subsystem_id`, `mission_id`), introduce Payload subsystem metrics, and drop `NOT NULL` constraints on metrics columns to support both unified and sparse telemetry.
+The database schema includes correlation keys (`subsystem_id`, `mission_id`), Payload subsystem metrics, and nullable metrics columns to support both unified and sparse telemetry.
 
 ```mermaid
 erDiagram
@@ -177,16 +178,18 @@ Real spacecraft subsystems are physically coupled. The simulator models these de
 
 ## 5. Operational Runbook
 
-### Deployment Diagram (Docker Compose)
+### Deployment Diagram (Docker Compose with mTLS)
 
 ```mermaid
 graph TD
     timescaledb[timescaledb:5432]
+    certs-generator[certs-generator]
     kafka[kafka:9092]
     collector[telemetry-collector:8080]
     simulator[telemetry-simulator:8081]
-    grafana[grafana:3000]
+    grafana[grafana:3005]
 
+    certs-generator --> kafka
     simulator --> collector
     collector --> kafka
     collector --> timescaledb
@@ -216,7 +219,7 @@ docker-compose ps
 ### Issue 1: High Latency or Database Bottlenecks
 * **Symptoms**: Kafka consumer lag increases on `telemetry.raw` or database insert latency metrics spike.
 * **Diagnosis**: Check the database connection pool settings and execution times of `insert_telemetry` via Prometheus metrics (`database_insert_latency` histogram).
-* **Mitigation**: Ensure the composite index `idx_telemetry_subsystem_mission` and hypertable compression policies are successfully applied. Confirm TimescaleDB has adequate memory.
+* **Mitigation**: Ensure the composite index `idx_telemetry_satellite_time` and hypertable compression policies are successfully applied. Confirm TimescaleDB has adequate memory.
 
 ### Issue 2: Flapping or Duplicate Anomalies in Events Log
 * **Symptoms**: Multiple identical `ANOMALY_BATTERY_DEGRADATION` or `ANOMALY_THERMAL_SPIKE` events are logged within a few seconds.

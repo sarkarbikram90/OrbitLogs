@@ -1,12 +1,13 @@
-# Open SpaceOps: Testing Strategy & Verification Guide
+# OrbitLogs: Testing Strategy & Verification Guide
+### Version: v4.0.0 (Latest)
 
-This document describes the testing layers, integration strategies, validation pipelines, and benchmarking methodologies utilized to guarantee the performance and correctness of the **Open SpaceOps** platform.
+This document describes the testing layers, integration strategies, validation pipelines, and benchmarking methodologies utilized to guarantee the performance and correctness of **OrbitLogs**.
 
 ---
 
 ## 1. Testing Hierarchy
 
-Our verification plan enforces a strict testing hierarchy from isolated units to high-concurrency load benchmarks:
+Our verification plan enforces a strict testing hierarchy from isolated unit tests to high-concurrency load benchmarks:
 
 ```
     ┌──────────────────────────────────────────────┐
@@ -26,33 +27,29 @@ Our verification plan enforces a strict testing hierarchy from isolated units to
 
 ## 2. Unit Testing Layer
 
-Unit tests are written inside the respective crates (`telemetry-simulator` and `telemetry-collector`) to keep feedback loops fast.
-- **Simulator RNG Assertions**:
-  - Validates that two simulator tasks running with identical seeds produce identical pseudo-random telemetry streams.
-  - Ensures scenario state transitions (like linear fuel leakage and temperature spikes) evolve correctly across ticks.
-- **Model Validation Assertions**:
-  - Tests bounds limits on data fields (such as pitch/roll/yaw, voltages, signal strengths).
-  - Asserts that malformed inputs trigger detailed, multi-field validation error collections.
+Unit tests are written inside the respective crates and applications:
+- **Digital Twin Projection Tests**: Inside `digital-twin-engine` ([main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/digital-twin-engine/src/main.rs)), unit tests validate battery, thermal, ADCS drift, and fuel depletion threshold outputs.
+- **RNG State Validation**: Inside `telemetry-simulator`, unit tests confirm that deterministic seeded loops yield matching telemetry streams.
+- **Model Checks**: Inside `spaceops-models`, tests assert range boundaries for pitch/yaw, signal strength, and voltage attributes.
 
-Run the unit tests:
+Run all workspace tests:
 ```bash
-cargo test --lib
+cargo test --all
 ```
 
 ---
 
 ## 3. Integration Testing Layer
 
-Integration tests are defined in [integration_tests.rs](file:///c:/Users/bikrams/Open-SpaceOps/Open-SpaceOps/apps/telemetry-collector/tests/integration_tests.rs):
-- **HTTP Routing & Health**: Verifies that `/health`, `/liveness`, `/readiness`, and `/metrics` respond with correct HTTP status codes and structure.
-- **Ingress Limit Enforcement**: Verifies that payloads exceeding the 10KB limit are immediately rejected with `413 Payload Too Large` without invoking downstream systems.
+Integration tests are defined in the telemetry-collector testing module:
+- **HTTP Endpoint Authentication**: Validates JWT role authorizations and token exclusions.
+- **Ingress Limit Enforcement**: Verifies that payloads exceeding the 10KB limit are immediately rejected with `413 Payload Too Large`.
 - **Ingestion Rate Limiting**: Verifies that requests exceeding 100 requests per second are throttled with `429 Too Many Requests`.
-- **Serde Hardening (Schema Rejection)**: Verifies that JSON payloads containing unknown fields are rejected with `422 Unprocessable Entity` (or parsing failure).
-- **Execution**: Can be run locally alongside standard test routines and executes automatically in the GitHub Actions CI pipeline.
+- **CORS Constraints**: Asserts origin headers align with `CORS_ALLOWED_ORIGIN` variables.
 
-Run the integration tests:
+Run integration tests:
 ```bash
-cargo test --test integration_tests
+cargo test -p telemetry-collector
 ```
 
 ---

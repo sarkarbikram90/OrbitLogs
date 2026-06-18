@@ -1,32 +1,33 @@
-# Open SpaceOps: Operations & Incident Runbook
+# OrbitLogs: Operations & Incident Runbook
+### Version: v4.0.0 (Latest)
 
-This document contains step-by-step troubleshooting procedures, maintenance guides, and mitigation strategies for common operational incidents on the **Open SpaceOps** telemetry platform.
+This document contains step-by-step troubleshooting procedures, maintenance guides, and mitigation strategies for common operational incidents on the **OrbitLogs** telemetry platform.
 
 ---
 
 ## 1. Incident: High Kafka Consumer Lag
 
 ### Symptom
-- PromQL alert triggers: `sum(kafka_consumergroup_lag) > 5000`.
+- PromQL alert triggers: `HighConsumerLag` (triggers when partition lag exceeds 1000 messages for 5 minutes).
 - Telemetry database write timestamps lag behind real-time.
 
 ### Triage Procedures
 1. **Identify Lagging Partitions**:
-   Log into the Kafka container and inspect the partition offsets:
+   Log into a Kafka broker container and inspect consumer group partition states:
    ```bash
-   docker exec -it spaceops-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group telemetry-consumer-group
+   docker exec -it spaceops-kafka-1 kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group orbit-ops-group
    ```
 2. **Review DB Ingestion Health**:
-   Check if the consumer is repeatedly failing database writes and retrying (look for `Database insert attempt X failed` in container logs).
-3. **Check Connection Pools**:
-   Query PG active connections inside the DB container:
+   Verify if consumer loops are throwing persistent DB write errors (look for `Database insert attempt X failed` in logs).
+3. **Verify DB Connections**:
+   Check active connection footprints in the TimescaleDB container:
    ```sql
    SELECT count(*), state FROM pg_stat_activity GROUP BY state;
    ```
 
 ### Mitigations
-- **Vertical Scaling**: Spawn more thread workers in the consumer binary configuration.
-- **Horizontal Scaling**: If lag is across all 3 partitions, spawn up to 3 replica container instances of `telemetry-collector` running in `run-consumer` mode to divide the load.
+*   **Scale Consumer Threads**: Increase thread workers in the consumer binary settings.
+*   **Horizontal Scaling**: If lag is spread across all partitions, scale up the consumer replica count to divide partition allocations.
 
 ---
 
@@ -34,11 +35,11 @@ This document contains step-by-step troubleshooting procedures, maintenance guid
 
 ### Symptom
 - Disk utilization exceeds 90%.
-- Insert latency spikes as writes block on storage limits.
+- Latency spikes as database writes block on disk access limits.
 
 ### Triage Procedures
 1. **Review Hypertable Sizes**:
-   Connect to TimescaleDB and check chunk footprints:
+   Check chunk sizes on active hypertables:
    ```sql
    SELECT chunk_name, pg_size_pretty(total_bytes) FROM chunk_relation_size('telemetry');
    ```
@@ -49,64 +50,38 @@ This document contains step-by-step troubleshooting procedures, maintenance guid
    ```
 
 ### Mitigations
-- **Force Immediate Compression**:
-   Run manual TimescaleDB compression on uncompressed historical chunks:
+*   **Force Manual Compression**:
+   Run manual compression on historical database chunks:
    ```sql
    SELECT compress_chunk(c) FROM show_chunks('telemetry', older_than => INTERVAL '7 days') c;
    ```
-- **Prune Old Data**:
-   If disk space remains critical, temporarily drop telemetry older than 30 days:
+*   **Prune Historical Data**:
+   If disk limits remain critical, temporarily drop telemetry chunks older than 30 days:
    ```sql
    SELECT drop_chunks('telemetry', INTERVAL '30 days');
    ```
 
 ---
 
-## 3. Incident: Analyzing the Dead Letter Queue (DLQ)
+## 3. Incident: TLE Expiration or Expired Pass Predictions
 
 ### Symptom
-- `telemetry_invalid_total` counter increases rapidly.
-- Clients receive `400 Bad Request` responses on POST endpoints.
+- Timeline logs show `TLE_EXPIRED` warnings for active satellites.
+- Real-time ground station pass calculations yield null predictions.
 
 ### Triage Procedures
-1. **Inspect `telemetry.invalid` Messages**:
-   Read quarantined messages from the invalid queue to analyze validation failure reasons:
-   ```bash
-   docker exec -it spaceops-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic telemetry.invalid --from-beginning --max-messages 10
+1. **Query Latest TLE Records**:
+   Check epoch timestamps in the database:
+   ```sql
+   SELECT satellite_id, epoch, created_at FROM tle_records ORDER BY epoch DESC LIMIT 10;
    ```
-2. **Correlate with Logs**:
-   Look for `Validation failed for satellite X` log messages in the `telemetry-collector` container stream. Common failures include future-dated timestamps or parameter bounds violations.
-
----
-
-## 4. Incident: DLQ Publish Failures
-
-### Symptom
-- Prometheus metric `dlq_publish_failures_total` is greater than 0 (`dlq_publish_failures_total > 0`).
-- PromQL alert triggers: `DLQPublishFailures`.
-- Service logs show `DLQ publish failed for satellite X` errors.
-
-### Triage Procedures
-1. **Verify Kafka Broker Connectivity**:
-   Check if the collector service can successfully ping the Kafka brokers.
+2. **Verify TLE Ingestion Pipeline**:
+   Ensure TLE import endpoints are receiving valid data formats:
    ```bash
-   docker exec -it spaceops-collector nc -zv kafka 29092
-   ```
-2. **Check Topic Existence**:
-   Verify that `telemetry.invalid` exists in the Kafka broker.
-   ```bash
-   docker exec -it spaceops-kafka kafka-topics --bootstrap-server localhost:9092 --list | grep telemetry.invalid
-   ```
-3. **Inspect Cluster Health**:
-   Check Kafka's broker status and check for leader election issues on the topic partition.
-   ```bash
-   docker exec -it spaceops-kafka kafka-topics --bootstrap-server localhost:9092 --describe --topic telemetry.invalid
+   curl -i -X POST http://localhost:8095/api/tle/import \
+     -H "Content-Type: application/json" \
+     -d '{"satellite_id": "SAT-0001", "line1": "...", "line2": "..."}'
    ```
 
 ### Mitigations
-- **Auto-Provision Topic**: If `telemetry.invalid` is missing, auto-create it using the Kafka CLI tools.
-- **Restart Kafka/Zookeeper**: If Kafka is in an unhealthy state, restart the containers:
-  ```bash
-  docker compose restart kafka zookeeper
-  ```
-- **Scale Buffers**: If Kafka is experiencing transient traffic spikes, adjust the broker memory or client producer pool settings.
+*   Uplink a fresh TLE set from Space-Track coordinates to trigger the automatic pass scheduler calculations.

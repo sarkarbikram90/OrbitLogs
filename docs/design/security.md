@@ -1,63 +1,59 @@
-# Open SpaceOps: Security Practices & Hardening Guide
+# OrbitLogs: Security Practices & Hardening Guide
+### Version: v4.0.0 (Latest)
 
-This document outlines the security controls, validation architecture, and infrastructure hardening practices implemented across the **Open SpaceOps** real-time satellite telemetry observability platform.
+This document outlines the security controls, validation architecture, and infrastructure hardening practices implemented across **OrbitLogs**.
 
 ---
 
-## 1. Input Validation & Defense-in-Depth
+## 1. Input Validation & Ingress Defense
 
-The API ingestion tier employs strict input validation policies to mitigate threat vectors like malformed telemetry payloads, buffer overflows, and SQL injection.
+The API ingestion tier employs input validation policies to mitigate threat vectors like malformed telemetry payloads, buffer overflows, and SQL injection.
 
 ```mermaid
 flowchart LR
-    Client[Telemetry Simulator] -->|JSON Over HTTP| Ingress[Axum Ingestion Layer]
+    Client[Telemetry Simulator] -->|Binary CCSDS / JSON| Ingress[Axum Ingestion Layer]
     Ingress -->|1. Rate Limiting| RateCheck{Rate <= 100 rps?}
     RateCheck -->|No| Reject429[429 Too Many Requests]
     RateCheck -->|Yes| SizeCheck{Payload < 10KB?}
     SizeCheck -->|No| Reject[413 Payload Too Large]
-    SizeCheck -->|Yes| Parse[Serde Struct Parse]
-    Parse -->|2. Deserialization| ModelCheck{Strict Data Typing?}
+    SizeCheck -->|Yes| Parse[Serde / CCSDS Parse]
+    Parse -->|2. Deserialization| ModelCheck{Strict Data Typing & CRC?}
     ModelCheck -->|No| Reject400[400 Bad Request]
     ModelCheck -->|Yes| Validate[Model Level Rules]
     Validate -->|3. Bounds Checking| DBWrite[Kafka Enqueue]
 ```
 
 ### Ingress Sizing & Rate Constraints
-- **Rate Limiting**: Enforced at the network ingestion point to prevent denial-of-service (DoS) floods. Telemetry ingestion is rate-limited to 100 requests per second using a Tower rate-limiting middleware with an in-memory buffer, returning `429 Too Many Requests` when exceeded.
+- **Rate Limiting**: Enforced at the network ingestion point to prevent denial-of-service (DoS) floods. Telemetry ingestion is rate-limited to 100 requests per second using an IP-partitioned token-bucket rate limiter via `DashMap`, returning `429 Too Many Requests` when exceeded.
 - **Payload Max Limit**: HTTP payloads are limited to **10 KB** at the Axum layer to eliminate memory exhaustion attacks, returning `413 Payload Too Large` when exceeded.
 - **Strict Parsing**: The Axum JSON parser rejects any extra fields or duplicate JSON keys (enforced using Serde's `#[serde(deny_unknown_fields)]` container attribute).
 
-### Multi-Field Range Checks
-Validation checks are implemented inside [lib.rs](file:///c:/Users/bikrams/Open-SpaceOps/Open-SpaceOps/crates/spaceops-models/src/lib.rs):
-- **Satellite ID Regex Rules**: Alphanumeric and dashes only, preventing path traversal or formatting attacks.
-- **Bounds Checking**: Restricts numeric parameters (like `battery_voltage`, `cpu_usage`, and angles) to physical ranges to block anomalous data.
+---
+
+## 2. Authentication, Cryptography & Auth Guardrails
+
+### Timing Side-Channel Defenses
+To prevent timing side-channel attacks that leak secret keys, credentials comparison utilizes a SHA-256 pre-hashing comparison approach:
+*   Credentials are hashed using SHA-256 first, ensuring both inputs to `ct_eq` are exactly 32 bytes, regardless of user input length.
+*   Centralized in `spaceops-models::auth::secure_compare` ([auth.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/crates/spaceops-models/src/auth.rs)).
+
+### JWT-Based Command Permissions
+*   Flight commands require a securely signed JWT Bearer token with Role-Based Access Control (RBAC) validations.
+*   Roles (Operator, Flight Director, Administrator) restrict modification privileges.
+*   HMAC signing secrets are separated from service API keys.
+
+### LLM Prompt Injection Guardrails
+*   The `ai-incident-commander` configures strict system prompt boundaries to prevent malicious operators from injecting inputs that dump database secrets or proprietary runbooks.
 
 ---
 
-## 2. Dependency Auditing & Supply Chain Security
+## 3. Network Transport Security & Container Hardening
 
-To protect our codebase from supply chain attacks (e.g., compromised upstream packages), we implement standard dependency scanning.
+### Mutual TLS (mTLS) Kafka Networking
+*   Internal broker-to-broker and client-to-broker traffic is encrypted using mTLS.
+*   Certificates are generated on boot by a local certificate orchestrator container (`certs-generator`).
 
-### automated Rust Security Checks
-We leverage `cargo-audit` and `cargo-deny` in the pipeline to audit the Cargo dependency tree against the **Rust Sec Advisory Database**:
-- **Pipeline Integration**: The CI pipeline fails if any crate is flagged with active CVEs.
-- **License Checks**: `cargo-deny` checks that all transitively included licenses match standard open-source formats (MIT, Apache-2.0, BSD-3-Clause).
-
----
-
-## 3. Container Hardening
-
-The Docker container builds are highly optimized to minimize the attack surface of running services.
-
-### Alpine Multi-Stage Builds
-- **Builder Segregation**: Compilation packages (GCC, Make, CMake, Musl development libraries) are fully quarantined in the `builder` container stage.
-- **No Shell, No Package Managers**: The runtime image is a minimalistic alpine environment containing only standard certificates and dynamically linked libraries needed to execute.
-- **Non-Root Execution**: Standard containers run as a dedicated `spaceops` system user rather than `root` (UID/GID 10001).
-
----
-
-## 4. Secrets Management Practices
-
-The platform maintains zero-hardcoded secrets. All system configurations are handled via:
-- **Environment Variables**: Managed locally via `.env` files and mapped dynamically in Docker Compose.
-- **TimescaleDB Passwords**: Set via dynamic docker compose variables, ready to be mounted from safe environments (like AWS Secrets Manager, HashiCorp Vault, or GitHub Secrets).
+### Container Isolation
+*   Multi-stage container builds separate compilation dependencies from runtime packages.
+*   Containers execute under a non-root system user `spaceops` (UID/GID 10001) to mitigate escape exploits.
+*   Database passwords and keys are mounted from secure secret files at `/run/secrets/` rather than environment strings.
