@@ -9,6 +9,7 @@ use std::time::Duration;
 use tracing::{error, info};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
+
 use std::sync::LazyLock;
 
 pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
@@ -347,7 +348,8 @@ async fn main() -> Result<(), anyhow::Error> {
             }
             Err(e) => {
                 error!("Error in Space OTel Collector loop: {}", e);
-                tokio::time::sleep(Duration::from_millis(500)).await;
+                // tokio::time::sleep(Duration::from_millis(500)).await;
+                tokio::time::sleep(Duration::from_secs_f64(0.5)).await;
             }
         }
     }
