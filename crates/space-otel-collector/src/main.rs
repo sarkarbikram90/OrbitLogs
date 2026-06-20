@@ -40,7 +40,7 @@ pub static SOLAR_OUTPUT: LazyLock<GaugeVec> = LazyLock::new(|| {
 
 pub static CPU_USAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
-        Opts::new("cpu_usage", "Flight computer CPU usage (%)"),
+        Opts::new("cpu_usage", "Flight computer CPU usage in percentage (%)"),
         &["satellite_id"],
     )
     .unwrap()
@@ -48,7 +48,7 @@ pub static CPU_USAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
 
 pub static MEMORY_USAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
-        Opts::new("memory_usage", "Flight computer memory usage (%)"),
+        Opts::new("memory_usage", "Flight computer memory usage in percentage (%)"),
         &["satellite_id"],
     )
     .unwrap()
@@ -56,7 +56,7 @@ pub static MEMORY_USAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
 
 pub static FUEL_REMAINING: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
-        Opts::new("fuel_remaining", "Propellant remaining percentage (%)"),
+        Opts::new("fuel_remaining", "Propellant remaining in percentage (%)"),
         &["satellite_id"],
     )
     .unwrap()
@@ -72,7 +72,7 @@ pub static SIGNAL_STRENGTH: LazyLock<GaugeVec> = LazyLock::new(|| {
 
 pub static PACKET_LOSS: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
-        Opts::new("packet_loss", "Link packet loss percentage (%)"),
+        Opts::new("packet_loss", "Link packet loss in percentage (%)"),
         &["satellite_id", "station_id"],
     )
     .unwrap()
