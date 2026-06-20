@@ -44,19 +44,45 @@ impl HealthScoringManager {
 
     pub fn calculate_health(&self, sat_id: &str, temp: f64, battery_v: f64, pitch: f64, loss: f64, fuel: f32) {
         // EPS (Power)
-        let power_score = if battery_v > 12.5 { 100 } else if battery_v > 11.0 { 60 + ((battery_v - 11.0) / 1.5 * 40.0) as i32 } else { 20 };
+        let power_score = if battery_v > 12.5 { 
+            100 
+        } else if battery_v > 11.0 { 
+            60 + ((battery_v - 11.0) / 1.5 * 40.0) as i32 
+        } else { 
+            20 
+        };
 
         // TCS (Thermal)
-        let thermal_score = if temp < 45.0 { 100 } else if temp < 75.0 { 100 - ((temp - 45.0) / 30.0 * 40.0) as i32 } else { 20 };
+        let thermal_score = if temp < 45.0 { 
+            100 
+        } else if temp < 75.0 { 
+            100 - ((temp - 45.0) / 30.0 * 40.0) as i32 
+        } else { 
+            20 
+        };
 
         // ADCS (Attitude)
-        let adcs_score = if pitch.abs() < 5.0 { 100 } else if pitch.abs() < 15.0 { 100 - ((pitch.abs() - 5.0) / 10.0 * 50.0) as i32 } else { 30 };
+        let adcs_score = if pitch.abs() < 5.0 { 
+            100 
+        } else if pitch.abs() < 15.0 { 
+            100 - ((pitch.abs() - 5.0) / 10.0 * 50.0) as i32 
+        } else { 
+            30 
+        };
 
         // Comms
-        let comms_score = if loss < 1.0 { 100 } else if loss < 15.0 { 100 - (loss * 3.0) as i32 } else { 40 };
+        let comms_score = if loss < 1.0 { 
+            100 
+        } else if loss < 15.0 { 100 - (loss * 3.0) as i32 
+        } else { 
+            40 
+        };
 
         // Propulsion
-        let prop_score = if fuel > 20.0 { 100 } else { 30 + (fuel * 3.0) as i32 };
+        let prop_score = if fuel > 20.0 { 
+            100 
+        } else { 30 + (fuel * 3.0) as i32 
+        };
 
         // Payload & OBC
         let payload_score = 100;

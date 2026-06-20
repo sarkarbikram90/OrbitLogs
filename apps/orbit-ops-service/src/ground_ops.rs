@@ -252,14 +252,14 @@ impl GroundOpsManager {
             let record = FutureRecord::to(&self.timeline_topic)
                 .key(key)
                 .payload(&payload);
-            if let Err(e) = self.kafka_producer.send(record, Duration::from_secs(5)).await {
+            if let Err(e) = self.kafka_producer.send(record, Duration::from_secs_f64(5.0)).await {
                 error!("Failed to publish timeline event in ground station manager: {:?}", e);
             }
 
             let contact_record = FutureRecord::to(&self.contacts_topic)
                 .key(station_id)
                 .payload(&payload);
-            if let Err(e) = self.kafka_producer.send(contact_record, Duration::from_secs(5)).await {
+            if let Err(e) = self.kafka_producer.send(contact_record, Duration::from_secs_f64(5.0)).await {
                 error!("Failed to publish contact event in ground station manager: {:?}", e);
             }
         }
