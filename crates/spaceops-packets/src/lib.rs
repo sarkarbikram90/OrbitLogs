@@ -119,7 +119,7 @@ impl TelemetryPacket {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PacketError> {
         if bytes.len() < 8 {
             return Err(PacketError::InvalidLength(
-                "Packet too short for minimal header".to_string(),
+                "Packet too short for the minimal header".to_string(),
             ));
         }
 
@@ -139,7 +139,7 @@ impl TelemetryPacket {
         let total_expected_len = 6 + (packet_length as usize) + 1;
         if bytes.len() < total_expected_len {
             return Err(PacketError::InvalidLength(format!(
-                "Packet length mismatch: expected {}, got {}",
+                "Packet length mismatch: expected {} bytes, received {} bytes",
                 total_expected_len,
                 bytes.len()
             )));
@@ -169,7 +169,7 @@ impl TelemetryPacket {
         if sec_header_flag {
             if total_expected_len < 16 {
                 return Err(PacketError::InvalidLength(
-                    "Packet missing secondary header bytes".to_string(),
+                    "Packet missing the secondary header bytes".to_string(),
                 ));
             }
             timestamp_coarse = u32::from_be_bytes([
@@ -234,7 +234,7 @@ impl TelemetryFrame {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PacketError> {
         if bytes.len() < 8 {
             return Err(PacketError::InvalidLength(
-                "Frame too short for header + CRC".to_string(),
+                "Frame too short for the header + CRC".to_string(),
             ));
         }
 
@@ -486,7 +486,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     let data_apid = ud[0] as u16;
     if data_apid != packet.apid {
         return Err(PacketError::SubsystemMismatch(format!(
-            "Payload header apid {} does not match packet apid {}",
+            "The payload header apid {} does not match packet apid {}",
             data_apid, packet.apid
         )));
     }
@@ -675,7 +675,7 @@ mod tests {
         assert!(res.is_err());
         match res.unwrap_err() {
             PacketError::InvalidCrc { .. } => {} // Expected
-            other => panic!("Expected CRC mismatch, got {:?}", other),
+            other => panic!("Expected CRC mismatch, received {:?}", other),
         }
     }
 
