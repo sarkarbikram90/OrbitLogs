@@ -42,7 +42,8 @@ pub async fn establish_db_connection(
                     retries, e
                 );
                 //tokio::time::sleep(Duration::from_secs(3)).await;
-                tokio::time::sleep(Duration::from_millis(3000)).await;
+                //tokio::time::sleep(Duration::from_millis(3000)).await;
+                tokio::time::sleep(Duration::from_secs_f64(3.0)).await;
             }
         }
     }
