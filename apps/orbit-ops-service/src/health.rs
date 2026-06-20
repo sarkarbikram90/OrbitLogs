@@ -90,11 +90,12 @@ impl HealthScoringManager {
 
         let composite = (power_score + thermal_score + adcs_score + comms_score + prop_score + payload_score + fc_score) / 7;
 
-        let trend = if composite < 60 { "DEGRADED".to_string() } 
-        else if composite < 85 { 
-            "WARNING".to_string() } 
-        else 
-        { "STABLE".to_string() 
+        let trend = if composite < 60 { 
+            "DEGRADED".to_string() 
+        } else if composite < 85 { 
+            "WARNING".to_string() 
+        } else { 
+            "STABLE".to_string()
         };
 
         let useful_life = if composite < 50 { 
