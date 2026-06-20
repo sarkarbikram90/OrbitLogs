@@ -41,7 +41,7 @@ pub async fn establish_db_connection(
                     "TimescaleDB connection failed. Retries left: {}. Error: {}",
                     retries, e
                 );
-                // tokio::time::sleep(Duration::from_secs(3)).await;
+                //tokio::time::sleep(Duration::from_secs(3)).await;
                 tokio::time::sleep(Duration::from_millis(3000)).await;
             }
         }
