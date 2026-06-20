@@ -49,7 +49,14 @@ impl FlightDynamicsManager {
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(1);
         
-        let base_decay = if current_altitude < 480.0 { 180.0 } else if current_altitude < 500.0 { 85.0 } else { 35.0 };
+        let base_decay = if current_altitude < 480.0 { 
+            180.0 
+        } else if current_altitude < 500.0 { 
+            85.0 
+        }else { 
+            35.0 
+        };
+
         let decay = base_decay + (idx as f64 * 3.1) % 15.0;
 
         let fuel_burn = 0.01 + (idx as f64 * 0.005) % 0.08;
