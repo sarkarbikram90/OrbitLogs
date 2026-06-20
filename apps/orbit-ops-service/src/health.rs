@@ -90,9 +90,18 @@ impl HealthScoringManager {
 
         let composite = (power_score + thermal_score + adcs_score + comms_score + prop_score + payload_score + fc_score) / 7;
 
-        let trend = if composite < 60 { "DEGRADED".to_string() } else if composite < 85 { "WARNING".to_string() } else { "STABLE".to_string() };
+        let trend = if composite < 60 { "DEGRADED".to_string() } 
+        else if composite < 85 { 
+            "WARNING".to_string() } 
+        else 
+        { "STABLE".to_string() 
+        };
 
-        let useful_life = if composite < 50 { 90 } else if composite < 80 { 730 } else { 1825 }; // 5 years max
+        let useful_life = if composite < 50 { 90 } 
+        else if composite < 80 { 730 } 
+        else 
+        { 1825 
+        }; // 5 years max
 
         let failure_prediction = if composite < 60 {
             Some("Critical battery aging or thermal overload cascade predicted within 7 days.".to_string())
