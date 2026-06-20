@@ -13,7 +13,7 @@ use std::time::Duration;
 use tracing::{error, info};
 
 #[derive(Parser, Debug)]
-#[command(name = "AI Incident Commander")]
+#[command(name = "AI Driven Incident Commander")]
 struct Cli {
     #[arg(long, env = "PORT", default_value = "8088")]
     port: u16,
@@ -236,7 +236,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    info!("AI Incident Commander shut down gracefully.");
+    info!("AI Driven Incident Commander shut down gracefully.");
     Ok(())
 }
 
