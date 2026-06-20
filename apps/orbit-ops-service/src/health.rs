@@ -97,10 +97,12 @@ impl HealthScoringManager {
         { "STABLE".to_string() 
         };
 
-        let useful_life = if composite < 50 { 90 } 
-        else if composite < 80 { 730 } 
-        else 
-        { 1825 
+        let useful_life = if composite < 50 { 
+            90 
+        } else if composite < 80 { 
+            730 
+        } else { 
+            1825 
         }; // 5 years max
 
         let failure_prediction = if composite < 60 {
