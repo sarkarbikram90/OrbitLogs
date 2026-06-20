@@ -247,7 +247,8 @@ impl TelemetryConsumer {
                 }
                 Err(e) => {
                     error!("Kafka consumer receive error: {}", e);
-                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    //tokio::time::sleep(Duration::from_millis(500)).await;
+                    tokio::time::sleep(Duration::from_secs_f64(0.5)).await;
                 }
             }
         }
