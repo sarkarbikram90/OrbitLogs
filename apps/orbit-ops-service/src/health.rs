@@ -73,7 +73,8 @@ impl HealthScoringManager {
         // Comms
         let comms_score = if loss < 1.0 { 
             100 
-        } else if loss < 15.0 { 100 - (loss * 3.0) as i32 
+        } else if loss < 15.0 { 
+            100 - (loss * 3.0) as i32 
         } else { 
             40 
         };
@@ -81,7 +82,8 @@ impl HealthScoringManager {
         // Propulsion
         let prop_score = if fuel > 20.0 { 
             100 
-        } else { 30 + (fuel * 3.0) as i32 
+        } else { 
+            30 + (fuel * 3.0) as i32 
         };
 
         // Payload & OBC
