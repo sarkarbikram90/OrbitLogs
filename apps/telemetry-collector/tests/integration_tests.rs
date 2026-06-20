@@ -177,7 +177,7 @@ fn test_validation_multiple_errors_collected() {
     // Should have errors for: satellite_id, battery_voltage, cpu_usage, memory_usage, fuel_remaining
     assert!(
         errors.len() >= 5,
-        "Expected at least 5 validation errors, got {}: {:?}",
+        "Expected at least 5 validation errors, received {}: {:?}",
         errors.len(),
         errors
     );
