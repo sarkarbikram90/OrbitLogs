@@ -274,7 +274,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
                 Err(e) => {
                     error!("Error receiving from ground station health topic: {}", e);
-                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    //tokio::time::sleep(Duration::from_millis(500)).await;
+                    tokio::time::sleep(Duration::from_secs_f64(0.5)).await;
                 }
             }
         }
@@ -421,7 +422,8 @@ async fn main() -> Result<(), anyhow::Error> {
                         }
                     });
 
-                    sleep(Duration::from_millis(config.frequency_ms)).await;
+                    //sleep(Duration::from_millis(config.frequency_ms)).await;
+                    sleep(Duration::from_secs_f64(config.frequency_ms as f64 / 1000.0)).await;
                 }
             });
 
