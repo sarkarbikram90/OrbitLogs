@@ -18,6 +18,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [4.3.0] - 2026-06-21
+
+### Added
+- **Production Readiness Audit Report**: Created `OrbitLogs-Project-Review-Report.md`, a comprehensive staff-level engineering assessment evaluating the system's production readiness, identifying architectural/security gaps, and defining the mitigation plan.
+- **Service Health Check APIs**: Implemented `/health`, `/liveness`, and `/readiness` HTTP endpoints in `orbit-ops-service` (`apps/orbit-ops-service/src/main.rs`).
+- **Telemetry Collector Health API**: Integrated health router and endpoints (`/health`, `/liveness`, `/readiness`) into the OpenTelemetry collector's metrics server (`crates/space-otel-collector/src/main.rs`), listening on port `8091`.
+- **Hardened Kubernetes Security Contexts**: Configured pod and container-level `securityContext` settings (non-root execution `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, and read-only root filesystems where appropriate) across manifests for `orbit-ops-service`, `space-otel-collector`, and `telemetry-collector`.
+- **Kubernetes Liveness & Readiness Probes**: Added HTTP liveness/readiness probes to the Kubernetes deployment specifications for `orbit-ops-service`, `space-otel-collector`, and `telemetry-collector`.
+- **Collector Containerization**: Created a multi-stage, alpine-based production `Dockerfile` for `space-otel-collector` (`crates/space-otel-collector/Dockerfile`) executing under an unprivileged `spaceops` user context.
+- **Kubernetes space-otel-collector Integration**: Created deployment manifests for `space-otel-collector` and registered the new service under the global `kustomization.yaml`.
+- **Docker Compose space-otel-collector Integration**: Integrated `space-otel-collector` container service inside `docker-compose.yml` for unified local stack orchestration.
+- **Vite Rollup Code Splitting**: Implemented rollup `manualChunks` in `vite.config.ts` for `mission-control-ui` to split third-party `node_modules` dependencies into a dedicated `vendor` chunk, reducing build warning sizes from 826KB to 104KB.
+- **Kubernetes Secrets Safety Warnings**: Prepended security guidelines to `secrets.yaml` detailing production external secrets provider integration patterns.
+
+### Changed
+- **Prometheus Monitoring Scrapes**: Expanded `prometheus.yml` scrape configurations to track targets `orbit-ops-service` (port `8095`) and `space-otel-collector` (port `8091`).
+- **DateTime Imports**: Consolidated `chrono::DateTime` and `Utc` imports in `orbit-ops-service/src/main.rs` to resolve cargo build E0425 compiler identifier errors.
+
+---
+
+
 ## [4.2.0] - 2026-06-21
 
 ### Added
