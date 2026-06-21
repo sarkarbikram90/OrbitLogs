@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 - **Production Readiness Audit Report**: Created `OrbitLogs-Project-Review-Report.md`, a comprehensive staff-level engineering assessment evaluating the system's production readiness, identifying architectural/security gaps, and defining the mitigation plan.
+- **Rust Architecture & Code Review Audit**: Created `Project-Rust-Code-Audit-Review.md` evaluating the codebase against official Rust API Guidelines, covering enums for states, memory layout safety, error suppression patterns, and tokio-mutex and CRC table lookup optimizations.
 - **Service Health Check APIs**: Implemented `/health`, `/liveness`, and `/readiness` HTTP endpoints in `orbit-ops-service` (`apps/orbit-ops-service/src/main.rs`).
 - **Telemetry Collector Health API**: Integrated health router and endpoints (`/health`, `/liveness`, `/readiness`) into the OpenTelemetry collector's metrics server (`crates/space-otel-collector/src/main.rs`), listening on port `8091`.
 - **Hardened Kubernetes Security Contexts**: Configured pod and container-level `securityContext` settings (non-root execution `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, and read-only root filesystems where appropriate) across manifests for `orbit-ops-service`, `space-otel-collector`, and `telemetry-collector`.
