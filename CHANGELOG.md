@@ -18,6 +18,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [4.2.0] - 2026-06-21
+
+### Added
+- **Playwright E2E Visual Canvas Tests**: Deployed a complete Playwright end-to-end visual test suite (`playwright.config.ts` and `visual-canvas.spec.ts`) in `apps/mission-control-ui` to validate 3D Three.js canvas dimensions, responsiveness, WebGL compatibility, and real-time WebSocket communication under load.
+- **Automated TLE Scraping Daemon**: Implemented a background TLE scraping loop in `apps/orbit-ops-service` that automatically polls CelesTrak's live Starlink orbit database, parses standard three-line elements, and keeps satellite coordinates continuously synchronized.
+- **LLM Input/Output Guardrails**: Integrated robust prompt/SQL injection sanitization at the input boundary of `apps/ai-incident-commander` along with sensitive leak scrubbers in the output path to protect internal configurations and database schemas.
+
+### Removed
+- **Obsolete Review Artifacts**: Deleted deprecated review and readiness markdown files from the workspace root to clean up production noise:
+  - `Latest-review.md`
+  - `SpaceX-Starlink-Level-OrbitLogs-Review.md`
+  - `SpaceX-Starlink-Review.md`
+  - `Orbitlogs-Production-Deployment-Readiness.md`
+  - `Orbitlogs-review-report.md`
+
+---
+
+## [4.1.0] - 2026-06-21
+
+### Added
+- **Global Context Propagation**: Registered `TraceContextPropagator` in the shared `spaceops-models` telemetry initialization layer, activating W3C trace context extraction/injection across all asynchronous microservice boundaries.
+- **OTel Resource Merging**: Refactored OpenTelemetry resource generation to merge user-specified metadata with `Resource::default()` to comply with standard specs (language, SDK name, and version).
+- **Graceful Shutdown & Span Flushing**: Integrated SIGINT/SIGTERM handlers and explicit `shutdown_telemetry()` hooks in all Axum servers and processing workers to ensure zero-loss tracing flushes before container termination.
+- **DashMap Metrics Cache**: Introduced global concurrent static caches (`SATELLITE_GAUGES_CACHE`, `GS_GAUGES_CACHE`) in `space-otel-collector` to avoid lock contention on high-cardinality label lookups and eliminate redundant heap allocations.
+
+### Changed
+- **Incident Commander Rebrand**: Refactored `ai-incident-commander` internals to update application name branding to `AI Driven Incident Commander`.
+- **Duration Constructor Standardizations**: Refactored database connection retry loops, simulation frequencies, and network delay sleeps across all crates to leverage double-precision float constructors (`Duration::from_secs_f64`).
+- **Telemetry Ingestion Cleanup**: Deleted the duplicate `telemetry.rs` file in `apps/telemetry-collector/src/` and standardized imports on the workspace models library.
+- **Numeric Precision & Calculations**: Refactored flight dynamics base decay formulas and health scoring algorithms in `orbit-ops-service` to use standard floating point arithmetic.
+
+### Fixed
+- **Integration Test Grammar**: Refined error assertion text and log formatting inside `telemetry-collector` integration tests and the packets crate.
+
+---
+
+
 ## [4.0.0] - 2026-06-18
 
 ### Added
