@@ -2730,6 +2730,7 @@ dependencies = [
  "axum 0.7.9",
  "chrono",
  "clap",
+ "dashmap",
  "dotenvy",
  "opentelemetry",
  "opentelemetry-otlp",

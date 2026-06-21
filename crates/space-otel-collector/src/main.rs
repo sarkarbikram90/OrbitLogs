@@ -8,9 +8,9 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use tracing::{error, info};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-
-
 use std::sync::LazyLock;
+use std::sync::Arc;
+use dashmap::DashMap;
 
 pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
 
@@ -85,6 +85,55 @@ pub static LINK_LATENCY: LazyLock<GaugeVec> = LazyLock::new(|| {
     )
     .unwrap()
 });
+
+pub struct SatelliteGauges {
+    pub battery_voltage: prometheus::Gauge,
+    pub battery_current: prometheus::Gauge,
+    pub solar_output: prometheus::Gauge,
+    pub cpu_usage: prometheus::Gauge,
+    pub memory_usage: prometheus::Gauge,
+    pub fuel_remaining: prometheus::Gauge,
+    pub signal_strength: prometheus::Gauge,
+    pub packet_loss: prometheus::Gauge,
+    pub link_latency: prometheus::Gauge,
+}
+
+impl SatelliteGauges {
+    pub fn new(satellite_id: &str) -> Self {
+        let station_id = "default-station";
+        Self {
+            battery_voltage: BATTERY_VOLTAGE.with_label_values(&[satellite_id]),
+            battery_current: BATTERY_CURRENT.with_label_values(&[satellite_id]),
+            solar_output: SOLAR_OUTPUT.with_label_values(&[satellite_id]),
+            cpu_usage: CPU_USAGE.with_label_values(&[satellite_id]),
+            memory_usage: MEMORY_USAGE.with_label_values(&[satellite_id]),
+            fuel_remaining: FUEL_REMAINING.with_label_values(&[satellite_id]),
+            signal_strength: SIGNAL_STRENGTH.with_label_values(&[satellite_id, station_id]),
+            packet_loss: PACKET_LOSS.with_label_values(&[satellite_id, station_id]),
+            link_latency: LINK_LATENCY.with_label_values(&[satellite_id, station_id]),
+        }
+    }
+}
+
+pub struct GroundStationGauges {
+    pub link_latency: prometheus::Gauge,
+    pub packet_loss: prometheus::Gauge,
+}
+
+impl GroundStationGauges {
+    pub fn new(station_id: &str) -> Self {
+        Self {
+            link_latency: LINK_LATENCY.with_label_values(&["fleet", station_id]),
+            packet_loss: PACKET_LOSS.with_label_values(&["fleet", station_id]),
+        }
+    }
+}
+
+pub static SATELLITE_GAUGES_CACHE: LazyLock<DashMap<String, Arc<SatelliteGauges>>> =
+    LazyLock::new(DashMap::new);
+
+pub static GS_GAUGES_CACHE: LazyLock<DashMap<String, Arc<GroundStationGauges>>> =
+    LazyLock::new(DashMap::new);
 
 fn register_metrics() {
     REGISTRY.register(Box::new(BATTERY_VOLTAGE.clone())).unwrap();
@@ -231,33 +280,37 @@ async fn main() -> Result<(), anyhow::Error> {
                         let _enter = span.enter();
 
                         // 1. Record metrics
+                        let gauges = SATELLITE_GAUGES_CACHE
+                            .entry(rec.satellite_id.clone())
+                            .or_insert_with(|| Arc::new(SatelliteGauges::new(&rec.satellite_id)))
+                            .clone();
+
                         if let Some(val) = rec.battery_voltage {
-                            BATTERY_VOLTAGE.with_label_values(&[&rec.satellite_id]).set(val);
+                            gauges.battery_voltage.set(val);
                         }
                         if let Some(val) = rec.battery_current {
-                            BATTERY_CURRENT.with_label_values(&[&rec.satellite_id]).set(val);
+                            gauges.battery_current.set(val);
                         }
                         if let Some(val) = rec.solar_panel_output {
-                            SOLAR_OUTPUT.with_label_values(&[&rec.satellite_id]).set(val);
+                            gauges.solar_output.set(val);
                         }
                         if let Some(val) = rec.cpu_usage {
-                            CPU_USAGE.with_label_values(&[&rec.satellite_id]).set(val as f64);
+                            gauges.cpu_usage.set(val as f64);
                         }
                         if let Some(val) = rec.memory_usage {
-                            MEMORY_USAGE.with_label_values(&[&rec.satellite_id]).set(val as f64);
+                            gauges.memory_usage.set(val as f64);
                         }
                         if let Some(val) = rec.fuel_remaining {
-                            FUEL_REMAINING.with_label_values(&[&rec.satellite_id]).set(val as f64);
+                            gauges.fuel_remaining.set(val as f64);
                         }
-                        let station_id = "default-station";
                         if let Some(val) = rec.signal_strength {
-                            SIGNAL_STRENGTH.with_label_values(&[&rec.satellite_id, station_id]).set(val as f64);
+                            gauges.signal_strength.set(val as f64);
                         }
                         if let Some(val) = rec.packet_loss {
-                            PACKET_LOSS.with_label_values(&[&rec.satellite_id, station_id]).set(val as f64);
+                            gauges.packet_loss.set(val as f64);
                         }
                         if let Some(val) = rec.communication_latency {
-                            LINK_LATENCY.with_label_values(&[&rec.satellite_id, station_id]).set(val as f64);
+                            gauges.link_latency.set(val as f64);
                         }
 
                         // 2. Emit OTel logs / thermal events if critical anomalies
@@ -317,8 +370,13 @@ async fn main() -> Result<(), anyhow::Error> {
                         span.set_parent(parent_context.clone());
                         let _enter = span.enter();
 
-                        LINK_LATENCY.with_label_values(&["fleet", &gs.station_id]).set(gs.latency as f64);
-                        PACKET_LOSS.with_label_values(&["fleet", &gs.station_id]).set(gs.congestion as f64);
+                        let gs_gauges = GS_GAUGES_CACHE
+                            .entry(gs.station_id.clone())
+                            .or_insert_with(|| Arc::new(GroundStationGauges::new(&gs.station_id)))
+                            .clone();
+
+                        gs_gauges.link_latency.set(gs.latency as f64);
+                        gs_gauges.packet_loss.set(gs.congestion as f64);
 
                         if gs.status == "CRITICAL" || gs.status == "WARNING" {
                             tracing::event!(
