@@ -189,9 +189,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Subscribed to Kafka topics for OTel ingestion");
 
+    let shutdown_fut = shutdown_signal();
+    tokio::pin!(shutdown_fut);
+
     loop {
-        match consumer.recv().await {
-            Ok(msg) => {
+        tokio::select! {
+            _ = &mut shutdown_fut => {
+                info!("Shutdown signal received. Exiting Space OTel Collector loop...");
+                break;
+            }
+            msg_res = consumer.recv() => {
+                match msg_res {
+                    Ok(msg) => {
                 // Extract trace context
                 let mut carrier = std::collections::HashMap::new();
                 if let Some(headers) = msg.headers() {
@@ -345,12 +354,42 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
 
                 let _ = consumer.commit_message(&msg, CommitMode::Async);
-            }
-            Err(e) => {
-                error!("Error in Space OTel Collector loop: {}", e);
-                // tokio::time::sleep(Duration::from_millis(500)).await;
-                tokio::time::sleep(Duration::from_secs_f64(0.5)).await;
+                    }
+                    Err(e) => {
+                        error!("Error in Space OTel Collector loop: {}", e);
+                        // tokio::time::sleep(Duration::from_millis(500)).await;
+                        tokio::time::sleep(Duration::from_secs_f64(0.5)).await;
+                    }
+                }
             }
         }
+    }
+
+    info!("Cleaning up telemetry before exit...");
+    spaceops_models::telemetry::shutdown_telemetry();
+    Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
     }
 }

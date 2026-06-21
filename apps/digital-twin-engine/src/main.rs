@@ -292,6 +292,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
 
     info!("Digital Twin Engine shut down gracefully.");
+    spaceops_models::telemetry::shutdown_telemetry();
     Ok(())
 }
 

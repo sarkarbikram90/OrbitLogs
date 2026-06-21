@@ -1,10 +1,19 @@
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{runtime, trace as sdktrace, Resource};
+use opentelemetry_sdk::propagation::TraceContextPropagator;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
 pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), anyhow::Error> {
+    // Register the global trace context propagator for context propagation across services (e.g. over Kafka)
+    global::set_text_map_propagator(TraceContextPropagator::new());
+
+    // Configure standard resources (service name merged with SDK defaults)
+    let resource = Resource::default().merge(&Resource::new(vec![
+        KeyValue::new("service.name", service_name.to_string()),
+    ]));
+
     // Configure OpenTelemetry Tracing pipeline
     let tracer =
         opentelemetry_otlp::new_pipeline()
@@ -14,9 +23,7 @@ pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), any
                     .tonic()
                     .with_endpoint(otlp_endpoint),
             )
-            .with_trace_config(sdktrace::config().with_resource(Resource::new(vec![
-                KeyValue::new("service.name", service_name.to_string()),
-            ])))
+            .with_trace_config(sdktrace::config().with_resource(resource))
             .install_batch(runtime::Tokio)?;
 
     // Integrate with Tracing Registry
@@ -39,3 +46,4 @@ pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), any
 pub fn shutdown_telemetry() {
     global::shutdown_tracer_provider();
 }
+

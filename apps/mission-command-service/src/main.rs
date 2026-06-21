@@ -148,6 +148,9 @@ async fn main() -> Result<(), anyhow::Error> {
     axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+
+    info!("Cleaning up telemetry before exit...");
+    spaceops_models::telemetry::shutdown_telemetry();
     Ok(())
 }
 

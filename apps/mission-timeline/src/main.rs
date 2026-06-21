@@ -261,6 +261,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
 
     info!("Mission Timeline Engine shut down gracefully.");
+    spaceops_models::telemetry::shutdown_telemetry();
     Ok(())
 }
 

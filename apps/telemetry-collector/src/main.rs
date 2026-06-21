@@ -3,7 +3,6 @@ use tracing::{error, info};
 
 use telemetry_collector::{
     consumer, metrics, server, server::handlers::AppState, server::producer::KafkaProducer,
-    telemetry,
 };
 
 #[derive(Parser, Debug)]
@@ -104,7 +103,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Start OpenTelemetry & tracing
-    if let Err(e) = telemetry::init_telemetry("open-spaceops-collector", &cli.otel_endpoint) {
+    if let Err(e) = spaceops_models::telemetry::init_telemetry("open-spaceops-collector", &cli.otel_endpoint) {
         error!(
             "Failed to initialize OTel tracing: {}. Local console logger initialized.",
             e
@@ -267,6 +266,6 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Clean up OTel tracing
-    telemetry::shutdown_telemetry();
+    spaceops_models::telemetry::shutdown_telemetry();
     Ok(())
 }
