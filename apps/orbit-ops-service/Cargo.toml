@@ -10,6 +10,7 @@ axum = { version = "0.7", features = ["macros", "ws"] }
 sgp4 = { version = "0.2" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+reqwest = { workspace = true }
 sqlx = { workspace = true }
 rdkafka = { workspace = true }
 tracing = { workspace = true }

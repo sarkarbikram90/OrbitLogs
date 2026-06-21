@@ -245,6 +245,18 @@ async fn chat(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ChatRequest>,
 ) -> Result<Json<ChatResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Run LLM input guardrail checks to sanitize prompt contexts and restrict DB/injection vectors
+    if let Err(err_msg) = sanitize_chat_input(&req.query) {
+        tracing::warn!("Guardrail blocked chat input: {}", err_msg);
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Guardrail violation",
+                "details": vec![err_msg]
+            })),
+        ));
+    }
+
     let query = req.query.to_lowercase();
     let sat_id = req.satellite_id.clone().unwrap_or_else(|| {
         // Simple extraction from string
@@ -360,6 +372,8 @@ async fn chat(
         response_text = generate_rule_response(&query, &sat_id, telemetry_opt, &events, &commands);
         sources.push("Operational Runbooks (DOC-TH-099, DOC-EPS-104)".to_string());
     }
+
+    let response_text = sanitize_chat_output(&response_text);
 
     Ok(Json(ChatResponse {
         response: response_text,
@@ -509,4 +523,63 @@ fn generate_rule_response(
     } else {
         "Hello, Operator. I am your Space Operations AI Copilot. I have access to live telemetry, incident history, and standard runbooks. Ask me about asset diagnostics, anomaly causes, or summaries.".to_string()
     }
+}
+
+fn sanitize_chat_input(query: &str) -> Result<(), String> {
+    let lower = query.to_lowercase();
+    
+    // 1. Detect Prompt Injection / System prompt extraction attempts
+    let injection_patterns = [
+        "ignore previous",
+        "system prompt",
+        "system instruction",
+        "jailbreak",
+        "you must now",
+        "bypass",
+        "reveal your prompt",
+        "act as a",
+        "forget all",
+    ];
+    for pattern in &injection_patterns {
+        if lower.contains(pattern) {
+            return Err("Input validation failed: Potential prompt injection attempt detected.".to_string());
+        }
+    }
+    
+    // 2. Detect SQL Injection attempts to prevent DB exfiltration
+    let sql_patterns = [
+        "union select",
+        "drop table",
+        "delete from",
+        "insert into",
+        "select *",
+        "or 1=1",
+        "or '1'='1'",
+        "--",
+    ];
+    for pattern in &sql_patterns {
+        if lower.contains(pattern) {
+            return Err("Input validation failed: Potential database injection attempt detected.".to_string());
+        }
+    }
+    
+    Ok(())
+}
+
+fn sanitize_chat_output(response: &str) -> String {
+    let lower = response.to_lowercase();
+    
+    // 1. Check for leakage of sensitive keys or connections
+    if lower.contains("postgres://") || lower.contains("postgresql://") || lower.contains("api_key") || lower.contains("jwt_secret") {
+        tracing::warn!("Guardrail Warning: LLM output blocked due to sensitive system data leakage detection.");
+        return "System Warning: Response blocked by LLM output safety guardrails (leakage protection).".to_string();
+    }
+    
+    // 2. Check for leak of system/internal instructions
+    if lower.contains("system instructions:") || lower.contains("you are antigravity") {
+        tracing::warn!("Guardrail Warning: LLM output blocked due to system instruction leak detection.");
+        return "System Warning: Response blocked by LLM output safety guardrails (instruction protection).".to_string();
+    }
+    
+    response.to_string()
 }

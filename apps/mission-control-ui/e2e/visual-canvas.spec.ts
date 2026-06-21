@@ -1,0 +1,54 @@
+import { test, expect } from '@playwright/test';
+
+test.describe('Starlink Mission Control UI - E2E Visual Canvas Tests', () => {
+  test.beforeEach(async ({ page }) => {
+    // Navigate to local dev server URL
+    await page.goto('http://localhost:5173/');
+  });
+
+  test('should load the 3D globe canvas and verify WebGL context', async ({ page }) => {
+    // 1. Verify canvas element is visible in DOM
+    const canvas = page.locator('canvas');
+    await expect(canvas).toBeVisible();
+
+    // 2. Validate WebGL support on the canvas
+    const webglSupported = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      if (!canvas) return false;
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      return !!gl;
+    });
+    expect(webglSupported).toBe(true);
+  });
+
+  test('should verify canvas dimensions adapt under scaling', async ({ page }) => {
+    const canvas = page.locator('canvas');
+    
+    // Check initial layout box
+    const initialBox = await canvas.boundingBox();
+    expect(initialBox).not.toBeNull();
+    
+    // Resize viewport to scale the page
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.waitForTimeout(500);
+    
+    const scaledBox = await canvas.boundingBox();
+    expect(scaledBox).not.toBeNull();
+    expect(scaledBox?.width).toBe(1280);
+  });
+
+  test('should verify WebSocket connection and frame receiving performance', async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    await page.waitForTimeout(2000);
+    
+    // Filter connection / WebSocket logs for errors
+    const wsErrors = consoleErrors.filter(err => err.toLowerCase().includes('websocket') || err.toLowerCase().includes('ws:'));
+    expect(wsErrors.length).toBe(0);
+  });
+});

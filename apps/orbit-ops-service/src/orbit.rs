@@ -470,3 +470,56 @@ pub async fn get_latest_tle_or_default(db_pool: &PgPool, sat_id: &str) -> (Strin
         _ => generate_default_tle(sat_id)
     }
 }
+
+pub async fn scrape_celestrak_tles(
+    db_pool: &PgPool,
+    kafka_producer: &FutureProducer,
+    timeline_topic: &str,
+) -> Result<(), anyhow::Error> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()?;
+    
+    // Fetch Starlink TLEs from Celestrak in standard 3-line format
+    let url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle";
+    let body = client.get(url).send().await?.text().await?;
+    
+    let lines: Vec<&str> = body.lines().map(|l| l.trim()).collect();
+    let mut mapped_count = 0;
+    
+    for chunk in lines.chunks_exact(3) {
+        if mapped_count >= 10 {
+            break;
+        }
+        
+        let name = chunk[0];
+        let line1 = chunk[1];
+        let line2 = chunk[2];
+        
+        if line1.starts_with('1') && line2.starts_with('2') {
+            mapped_count += 1;
+            let sat_id = format!("SAT-{:04}", mapped_count);
+            
+            tracing::info!("Scraped TLE for {} (NORAD name: {})", sat_id, name);
+            
+            let req = ImportTleRequest {
+                satellite_id: sat_id.clone(),
+                line1: line1.to_string(),
+                line2: line2.to_string(),
+            };
+            
+            if let Err(e) = import_tle_internal(db_pool, kafka_producer, timeline_topic, req).await {
+                tracing::error!("Failed to import scraped TLE for {}: {}", sat_id, e);
+            }
+        }
+    }
+    
+    if mapped_count > 0 {
+        tracing::info!("Successfully scraped and updated TLEs for {} satellites from CelesTrak", mapped_count);
+    } else {
+        anyhow::bail!("No valid TLEs parsed from CelesTrak response");
+    }
+    
+    Ok(())
+}
+

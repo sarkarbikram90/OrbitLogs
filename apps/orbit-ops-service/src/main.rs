@@ -286,6 +286,26 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     });
 
+    // 6. Spawning automated TLE scraping daemon (every 12 hours)
+    let state_scrape = Arc::clone(&shared_state);
+    let token_scrape = cancel_token.clone();
+    tokio::spawn(async move {
+        // Run first scrape after 10 seconds, then repeat every 12 hours
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        loop {
+            tokio::select! {
+                _ = token_scrape.cancelled() => break,
+                _ = async {
+                    info!("Automated TLE Scraping Daemon: fetching TLE data from CelesTrak...");
+                    if let Err(e) = orbit::scrape_celestrak_tles(&state_scrape.db_pool, &state_scrape.kafka_producer, &state_scrape.timeline_topic).await {
+                        error!("Automated TLE Scraping failed: {:?}", e);
+                    }
+                    tokio::time::sleep(Duration::from_secs(12 * 3600)).await;
+                } => {}
+            }
+        }
+    });
+
     // Setup CORS layer
     let cors = CorsLayer::new()
         .allow_origin(Any)
