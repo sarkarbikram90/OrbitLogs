@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spaceops-otel-collector
+  namespace: spaceops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spaceops-otel-collector
+  template:
+    metadata:
+      labels:
+        app: spaceops-otel-collector
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: spaceops-otel-collector
+        image: spaceops/spaceops-otel-collector:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        - containerPort: 8091
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 8091
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 8091
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        env:
+        - name: RUST_LOG
+          value: "info,space_otel_collector=debug"
+        - name: KAFKA_BROKERS
+          value: "spaceops-kafka-headless:9092"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://spaceops-jaeger:4317"
+        - name: METRICS_PORT
+          value: "8091"
+        - name: PROCESSED_TOPIC
+          value: "telemetry.processed"
+        - name: COMMAND_EVENTS_TOPIC
+          value: "command.events"
+        - name: GS_HEALTH_TOPIC
+          value: "groundstation.health"
+        - name: HEALTH_TOPIC
+          value: "mission.health"
+        - name: GROUP_ID
+          value: "space-otel-collector-group"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spaceops-otel-collector
+  namespace: spaceops
+spec:
+  ports:
+  - port: 8091
+    targetPort: 8091
+  selector:
+    app: spaceops-otel-collector

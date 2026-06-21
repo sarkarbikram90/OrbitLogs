@@ -13,12 +13,35 @@ spec:
       labels:
         app: spaceops-orbit-ops
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
       containers:
       - name: spaceops-orbit-ops
         image: spaceops/spaceops-orbit-ops:latest
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
         ports:
         - containerPort: 8095
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 8095
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 8095
+          initialDelaySeconds: 10
+          periodSeconds: 10
         env:
         - name: RUST_LOG
           value: "info,orbit_ops_service=debug"

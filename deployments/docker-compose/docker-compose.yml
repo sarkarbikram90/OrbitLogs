@@ -369,6 +369,40 @@ services:
     secrets:
     - database_url
     restart: unless-stopped
+  space-otel-collector:
+    build:
+      context: ../../
+      dockerfile: crates/space-otel-collector/Dockerfile
+    container_name: spaceops-otel-metrics-collector
+    ports:
+    - 8091:8091
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
+    environment:
+    - RUST_LOG=info,space_otel_collector=debug
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    - METRICS_PORT=8091
+    - KAFKA_SASL_PASSWORD_FILE=/run/secrets/kafka_sasl_password
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - kafka_sasl_password
+    restart: unless-stopped
   mission-control-ui:
     build:
       context: ../../

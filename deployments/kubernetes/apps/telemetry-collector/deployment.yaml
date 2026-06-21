@@ -13,12 +13,35 @@ spec:
       labels:
         app: spaceops-collector
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
       containers:
       - name: spaceops-collector
         image: spaceops/spaceops-collector:latest
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
         ports:
         - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
         env:
         - name: RUST_LOG
           value: "info,telemetry_collector=debug" 

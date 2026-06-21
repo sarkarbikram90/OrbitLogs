@@ -35,3 +35,11 @@ scrape_configs:
   - job_name: "mission-replay-engine"
     static_configs:
       - targets: ["mission-replay-engine:8084"]
+
+  - job_name: "orbit-ops-service"
+    static_configs:
+      - targets: ["orbit-ops-service:8095"]
+
+  - job_name: "space-otel-collector"
+    static_configs:
+      - targets: ["space-otel-collector:8091"]

@@ -21,3 +21,4 @@ resources:
   - apps/ai-incident-commander/deployment.yaml
   - apps/mission-timeline/deployment.yaml
   - apps/constellation-simulator/deployment.yaml
+  - apps/space-otel-collector/deployment.yaml

@@ -5,7 +5,7 @@ use axum::{
     Router,
     Json,
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use clap::Parser;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
@@ -363,6 +363,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
         // Operations Analytics
         .route("/api/analytics", get(get_operations_analytics))
+        .route("/health", get(health_check))
+        .route("/readiness", get(readiness_check))
+        .route("/liveness", get(liveness_check))
         .layer(cors)
         .with_state(shared_state);
 
@@ -773,3 +776,80 @@ async fn handle_orbit_ws(mut socket: axum::extract::ws::WebSocket, state: Arc<Se
         }
     }
 }
+
+#[derive(Serialize)]
+struct HealthResponse {
+    status: String,
+    timestamp: DateTime<Utc>,
+    services: ServiceStatus,
+}
+
+#[derive(Serialize)]
+struct ServiceStatus {
+    database: String,
+}
+
+async fn health_check(
+    State(state): State<Arc<ServiceState>>,
+) -> impl axum::response::IntoResponse {
+    let db_status = match sqlx::query("SELECT 1").execute(&state.db_pool).await {
+        Ok(_) => "UP".to_string(),
+        Err(e) => {
+            error!("Database ping failed in health check: {}", e);
+            "DOWN".to_string()
+        }
+    };
+
+    let status = if db_status == "UP" { "UP" } else { "DOWN" };
+    let code = if status == "UP" { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+
+    let resp = HealthResponse {
+        status: status.to_string(),
+        timestamp: Utc::now(),
+        services: ServiceStatus { database: db_status },
+    };
+
+    (code, Json(resp))
+}
+
+#[derive(Serialize)]
+struct ReadinessResponse {
+    ready: bool,
+    timestamp: DateTime<Utc>,
+    checks: ReadinessChecks,
+}
+
+#[derive(Serialize)]
+struct ReadinessChecks {
+    database: bool,
+}
+
+async fn readiness_check(
+    State(state): State<Arc<ServiceState>>,
+) -> impl axum::response::IntoResponse {
+    let db_ready = sqlx::query("SELECT 1").execute(&state.db_pool).await.is_ok();
+    let code = if db_ready { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+
+    let resp = ReadinessResponse {
+        ready: db_ready,
+        timestamp: Utc::now(),
+        checks: ReadinessChecks { database: db_ready },
+    };
+
+    (code, Json(resp))
+}
+
+#[derive(Serialize)]
+struct LivenessResponse {
+    alive: bool,
+    timestamp: DateTime<Utc>,
+}
+
+async fn liveness_check() -> impl axum::response::IntoResponse {
+    let resp = LivenessResponse {
+        alive: true,
+        timestamp: Utc::now(),
+    };
+    (StatusCode::OK, Json(resp))
+}
+
