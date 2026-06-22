@@ -232,7 +232,7 @@ impl SsaManager {
                             let record = FutureRecord::to(&self.timeline_topic)
                                 .key(sat_id)
                                 .payload(&payload);
-                            let _ = self.kafka_producer.send(record, Duration::from_secs(5)).await;
+                            let _ = self.kafka_producer.send(record, Duration::from_secs_f64(5.0)).await;
                         }
                     }
                 }
@@ -286,7 +286,15 @@ pub async fn get_ssa_status(
 ) -> Result<Json<SsaStatus>, StatusCode> {
     if let Some(entry) = state.ssa.nearest_objects.get(&satellite) {
         let (deb, dist, prob) = entry.value();
-        let risk = if *dist < 500.0 { 95.0 } else if *dist < 1500.0 { 75.0 } else if *dist < 5000.0 { 30.0 } else { 5.0 };
+        let risk = if *dist < 500.0 { 
+            95.0 
+        } else if *dist < 1500.0 { 
+            75.0 
+        } else if *dist < 5000.0 { 
+            30.0 
+        } else { 
+            5.0 
+        };
         
         Ok(Json(SsaStatus {
             satellite_id: satellite,
