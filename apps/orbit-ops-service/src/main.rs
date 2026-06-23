@@ -800,8 +800,16 @@ async fn health_check(
         }
     };
 
-    let status = if db_status == "UP" { "UP" } else { "DOWN" };
-    let code = if status == "UP" { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+    let status = if db_status == "UP" { 
+        "UP" 
+    } else { 
+        "DOWN" 
+    };
+    let code = if status == "UP" { 
+        StatusCode::OK 
+    } else { 
+        StatusCode::SERVICE_UNAVAILABLE 
+    };
 
     let resp = HealthResponse {
         status: status.to_string(),
@@ -828,7 +836,11 @@ async fn readiness_check(
     State(state): State<Arc<ServiceState>>,
 ) -> impl axum::response::IntoResponse {
     let db_ready = sqlx::query("SELECT 1").execute(&state.db_pool).await.is_ok();
-    let code = if db_ready { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+    let code = if db_ready { 
+        StatusCode::OK 
+    } else { 
+        StatusCode::SERVICE_UNAVAILABLE 
+    };
 
     let resp = ReadinessResponse {
         ready: db_ready,

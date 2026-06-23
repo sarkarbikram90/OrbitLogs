@@ -195,8 +195,16 @@ pub async fn get_dynamics_trends(
     let fd_state = state.flight_dynamics.states.get(&satellite);
     let decay_rate = fd_state.as_ref().map(|s| s.altitude_decay_rate_m_day).unwrap_or(50.0);
     
-    let trend = if decay_rate > 100.0 { "ACCELERATING".to_string() } else { "STABLE".to_string() };
-    let reentry_days = if decay_rate > 0.0 { (400.0 * 1000.0 / decay_rate) as i32 } else { 9999 };
+    let trend = if decay_rate > 100.0 
+    { "ACCELERATING".to_string() 
+    } else { 
+        "STABLE".to_string() 
+    };
+    let reentry_days = if decay_rate > 0.0 
+    { (400.0 * 1000.0 / decay_rate) as i32 
+    } else { 
+        9999 
+    };
 
     Ok(Json(TrendAnalysis {
         satellite_id: satellite,
