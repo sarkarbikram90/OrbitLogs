@@ -18,6 +18,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [4.4.0] - 2026-06-23
+
+### Changed
+- **Duration Constructor Standardizations**: Standardized the Kafka send timeout constructor to use double-precision float constructors (`Duration::from_secs_f64`) in `orbit-ops-service` (`ssa.rs`).
+- **Code Formatting & Style Compliance**: Formatted and cleaned up `/health`, `/readiness` checks, flight dynamics trends functions, and close approach risk calculations in `orbit-ops-service` (`main.rs`, `flight_dynamics.rs`, and `ssa.rs`) to improve code readability.
+- **Incident Commander Logging & Runbooks**: Refined log strings, error messages, and telemetry service names to use grammatically complete phrases (e.g. `ai-driven-incident-commander`), and structured embedded thermal and battery runbook templates in `ai-incident-commander` (`main.rs`).
+
+---
+
 ## [4.3.0] - 2026-06-21
 
 ### Added
