@@ -569,7 +569,7 @@ fn sanitize_chat_input(query: &str) -> Result<(), String> {
     ];
     for pattern in &sql_patterns {
         if lower.contains(pattern) {
-            return Err("Input validation has failed: Potential database injection attempt detected.".to_string());
+            return Err("input validation has failed: Potential database injection attempt detected.".to_string());
         }
     }
     
