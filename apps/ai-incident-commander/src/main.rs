@@ -249,7 +249,7 @@ async fn chat(
 ) -> Result<Json<ChatResponse>, (StatusCode, Json<serde_json::Value>)> {
     // Run LLM input guardrail checks to sanitize prompt contexts and restrict DB/injection vectors
     if let Err(err_msg) = sanitize_chat_input(&req.query) {
-        tracing::warn!("Guardrail has blocked the chat input: {}", err_msg);
+        tracing::warn!("LLM Input guardrail has blocked the chat input: {}", err_msg);
         return Err((
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
@@ -496,9 +496,9 @@ fn generate_rule_response(
             },
             anomaly_desc,
             if events.is_empty() { 
-                "No recent critical anomalies logged." 
+                "No recent critical anomalies are found." 
             } else { 
-                "Anomalies detected in last 24h." 
+                "Anomalies are found in last 24h." 
             },
             recommendations
         )
