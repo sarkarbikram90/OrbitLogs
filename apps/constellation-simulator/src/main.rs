@@ -45,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     info!(
-        "Starting Constellation Simulator with {} satellites, sending to topic '{}'...",
+        "Starting the Constellation Simulator with {} satellites, sending to topic '{}'...",
         cli.fleet_size, cli.raw_topic
     );
 
