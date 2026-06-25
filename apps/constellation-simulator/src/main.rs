@@ -14,7 +14,7 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(long, env = "FLEET_SIZE", default_value = "500")] // Support 100, 500, 1000, 5000
+    #[arg(long, env = "FLEET_SIZE", default_value = "500")] // Support 100, 500, 1000, 5000, 10000
     fleet_size: usize,
 
     #[arg(long, env = "TICK_INTERVAL_MS", default_value = "5000")]
