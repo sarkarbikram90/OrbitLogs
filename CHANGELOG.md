@@ -10,11 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### Added
-
 ### Changed
+- **Guardrail & Anomaly Log Wording in Incident Commander**: Updated LLM input guardrail warning logs and rule response phrasing for critical anomalies in `ai-incident-commander` (`main.rs`).
+- **Telemetry Packet & Frame Error Phrasing**: Improved error message phrasing across standard packet and frame validation paths in `spaceops-packets` (`lib.rs`).
+- **Constellation Simulator Log & Comments**: Refined startup logs and updated fleet size support comments in `constellation-simulator` (`main.rs`).
+- **Audit Logging Code Style**: Formatted the trace ID extraction logic and database error mapping in `mission-command-service` (`audit.rs`).
 
-### Removed
+### Fixed
+- **Input Guardrail Error Case Casing**: Fixed error message casing to be lowercase in the database injection detection checks in `ai-incident-commander` (`main.rs`).
 
 ---
 
