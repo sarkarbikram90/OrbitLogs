@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 
 ### Changed
+- **Ground Station Metric Descriptions**: Clarified Prometheus metric descriptions for antenna health and latency in `ground-station-simulator` (`main.rs`).
 - **Guardrail & Anomaly Log Wording in Incident Commander**: Updated LLM input guardrail warning logs and rule response phrasing for critical anomalies in `ai-incident-commander` (`main.rs`).
 - **Telemetry Packet & Frame Error Phrasing**: Improved error message phrasing across standard packet and frame validation paths in `spaceops-packets` (`lib.rs`).
 - **Constellation Simulator Log & Comments**: Refined startup logs and updated fleet size support comments in `constellation-simulator` (`main.rs`).
