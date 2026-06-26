@@ -64,7 +64,7 @@ pub static GS_ANTENNA_HEALTH: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "ground_station_antenna_health",
-            "Antenna hardware health percentage (0-100)"
+            "Antenna hardware health in percentage (0-100)"
         ),
         &["station_id"]
     )
@@ -74,7 +74,7 @@ pub static GS_LATENCY: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "ground_station_latency",
-            "Ground station uplink/downlink network latency (ms)"
+            "Ground station uplink/downlink network latency in ms (milli seconds)"
         ),
         &["station_id"]
     )
