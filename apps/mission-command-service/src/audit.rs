@@ -14,7 +14,14 @@ pub async fn log_audit(
     by: &str,
     notes: &str,
 ) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
-    let trace_id = Span::current().context().span().span_context().trace_id().to_string();
+
+    let trace_id = Span::current()
+        .context()
+        .span()
+        .span_context()
+        .trace_id()
+        .to_string();
+
     sqlx::query(
         "INSERT INTO command_audit_trail (command_id, transition_from, transition_to, changed_by, trace_id, notes)
          VALUES ($1, $2, $3, $4, $5, $6)"
@@ -27,7 +34,10 @@ pub async fn log_audit(
     .bind(notes)
     .execute(&state.db_pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+        "error": e.to_string()
+        }))
+    ))?;
 
     Ok(())
 }
