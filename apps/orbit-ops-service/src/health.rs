@@ -162,3 +162,82 @@ pub async fn get_health_score(
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_health_scoring_manager_new() {
+        let manager = HealthScoringManager::new();
+        assert!(manager.scores.is_empty());
+    }
+
+    #[test]
+    fn test_calculate_health_nominal() {
+        let manager = HealthScoringManager::new();
+        // High battery, low temp, low pitch, low packet loss, good fuel
+        manager.calculate_health("SAT-NOMINAL", 30.0, 13.0, 2.0, 0.5, 30.0);
+        
+        let score = manager.scores.get("SAT-NOMINAL").unwrap();
+        assert_eq!(score.composite_score, 100);
+        assert_eq!(score.subsystems.power, 100);
+        assert_eq!(score.subsystems.thermal, 100);
+        assert_eq!(score.subsystems.adcs, 100);
+        assert_eq!(score.subsystems.comms, 100);
+        assert_eq!(score.subsystems.propulsion, 100);
+        assert_eq!(score.health_trend, "STABLE");
+        assert_eq!(score.remaining_useful_life_days, 1825);
+        assert!(score.failure_prediction.is_none());
+    }
+
+    #[test]
+    fn test_calculate_health_warning() {
+        let manager = HealthScoringManager::new();
+        // Moderate parameters to trigger Warning state (composite < 85 and >= 60)
+        manager.calculate_health("SAT-WARNING", 60.0, 11.5, 10.0, 5.0, 10.0);
+
+        let score = manager.scores.get("SAT-WARNING").unwrap();
+        // Power score = 60 + ((11.5 - 11.0) / 1.5 * 40.0) = 60 + 13 = 73
+        // Thermal score = 100 - ((60.0 - 45.0) / 30.0 * 40.0) = 100 - 20 = 80
+        // ADCS score = 100 - ((10.0 - 5.0) / 10.0 * 50.0) = 100 - 25 = 75
+        // Comms score = 100 - (5.0 * 3.0) = 85
+        // Propulsion score = 30 + (10.0 * 3.0) = 60
+        // Composite = (73 + 80 + 75 + 85 + 60 + 100 + 100) / 7 = 573 / 7 = 81
+        assert_eq!(score.composite_score, 81);
+        assert_eq!(score.subsystems.power, 73);
+        assert_eq!(score.subsystems.thermal, 80);
+        assert_eq!(score.subsystems.adcs, 75);
+        assert_eq!(score.subsystems.comms, 85);
+        assert_eq!(score.subsystems.propulsion, 60);
+        assert_eq!(score.health_trend, "WARNING");
+        assert_eq!(score.remaining_useful_life_days, 1825); // >= 80 composite score -> 1825 days
+        assert_eq!(
+            score.failure_prediction.as_deref(),
+            Some("Attitude control gyroscopic momentum dump alignment required within 14 days.")
+        );
+    }
+
+    #[test]
+    fn test_calculate_health_degraded() {
+        let manager = HealthScoringManager::new();
+        // Very bad parameters to trigger Degraded state (composite < 60)
+        manager.calculate_health("SAT-DEGRADED", 80.0, 10.0, 20.0, 20.0, 2.0);
+
+        let score = manager.scores.get("SAT-DEGRADED").unwrap();
+        // Power score = 20
+        // Thermal score = 20
+        // ADCS score = 30
+        // Comms score = 40
+        // Propulsion score = 30 + (2.0 * 3.0) = 36
+        // Composite = (20 + 20 + 30 + 40 + 36 + 100 + 100) / 7 = 346 / 7 = 49
+        assert_eq!(score.composite_score, 49);
+        assert_eq!(score.health_trend, "DEGRADED");
+        assert_eq!(score.remaining_useful_life_days, 90); // < 50 composite score -> 90 days
+        assert_eq!(
+            score.failure_prediction.as_deref(),
+            Some("Critical battery aging or thermal overload cascade predicted within 7 days.")
+        );
+    }
+}
+

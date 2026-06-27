@@ -152,3 +152,140 @@ pub async fn get_twin_model(
         solar_pointing_angle: rec.orientation_pitch.unwrap_or(0.0) as f64,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A helper function to create a default TelemetryRecord
+    fn default_telemetry_record(sat_id: &str) -> TelemetryRecord {
+        TelemetryRecord {
+            event_id: uuid::Uuid::new_v4(),
+            satellite_id: sat_id.to_string(),
+            mission_id: "test-mission".to_string(),
+            timestamp: Utc::now(),
+            subsystem_id: "test-subsystem".to_string(),
+            battery_voltage: Some(13.8),
+            battery_current: Some(1.5),
+            solar_panel_output: Some(120.0),
+            cpu_usage: Some(25.0),
+            memory_usage: Some(30.0),
+            temperature: Some(22.0),
+            orientation_pitch: Some(0.0),
+            orientation_roll: Some(0.0),
+            orientation_yaw: Some(0.0),
+            velocity: Some(7.6),
+            altitude: Some(500.0),
+            fuel_remaining: Some(85.0),
+            communication_latency: Some(2.5),
+            packet_loss: Some(0.5),
+            signal_strength: Some(-75.0),
+            payload_power_draw: Some(15.0),
+            payload_active: Some(true),
+        }
+    }
+
+    #[test]
+    fn test_twin_manager_new() {
+        let manager = TwinManager::new();
+        assert!(manager.twins.is_empty());
+        assert!(manager.active_commands.is_empty());
+    }
+
+    #[test]
+    fn test_apply_and_clear_commands() {
+        let manager = TwinManager::new();
+        manager.apply_command("SAT-001", "CMD_SHED_LOAD_SECONDARY");
+        manager.apply_command("SAT-001", "CMD_RADIATOR_YAW_ADJUST");
+
+        {
+            let cmds = manager.active_commands.get("SAT-001").unwrap();
+            assert_eq!(cmds.len(), 2);
+            assert_eq!(cmds[0], "CMD_SHED_LOAD_SECONDARY");
+            assert_eq!(cmds[1], "CMD_RADIATOR_YAW_ADJUST");
+        }
+
+        manager.clear_commands("SAT-001");
+        assert!(manager.active_commands.get("SAT-001").is_none());
+    }
+
+    #[test]
+    fn test_update_twin_nominal() {
+        let manager = TwinManager::new();
+        let rec = default_telemetry_record("SAT-001");
+        let updated = manager.update_twin("SAT-001", rec.clone());
+
+        assert_eq!(updated.satellite_id, "SAT-001");
+        // Verify twin was cached
+        let cached = manager.twins.get("SAT-001").unwrap();
+        assert_eq!(cached.cpu_usage, rec.cpu_usage);
+    }
+
+    #[test]
+    fn test_update_twin_with_commands() {
+        let manager = TwinManager::new();
+        let sat_id = "SAT-CMD";
+
+        // 1. Shed load command
+        manager.apply_command(sat_id, "CMD_SHED_LOAD_SECONDARY");
+        let rec = default_telemetry_record(sat_id);
+        let updated = manager.update_twin(sat_id, rec);
+        assert_eq!(updated.payload_active, Some(false));
+        assert_eq!(updated.payload_power_draw, Some(0.0));
+        assert!(updated.cpu_usage.unwrap() < 25.0); // should be 25.0 * 0.7 = 17.5
+
+        // Reset and test safe mode
+        manager.clear_commands(sat_id);
+        manager.apply_command(sat_id, "CMD_ENTER_SAFE_MODE");
+        let rec = default_telemetry_record(sat_id);
+        let updated = manager.update_twin(sat_id, rec);
+        assert_eq!(updated.payload_active, Some(false));
+        assert_eq!(updated.payload_power_draw, Some(0.0));
+        assert_eq!(updated.cpu_usage, Some(10.0));
+        assert_eq!(updated.temperature, Some(22.0 * 0.8));
+
+        // Test radiator yaw adjustment
+        manager.clear_commands(sat_id);
+        manager.apply_command(sat_id, "CMD_RADIATOR_YAW_ADJUST");
+        let rec = default_telemetry_record(sat_id);
+        let updated = manager.update_twin(sat_id, rec);
+        assert_eq!(updated.temperature, Some(22.0 * 0.9));
+
+        // Test telemetry boost
+        manager.clear_commands(sat_id);
+        manager.apply_command(sat_id, "CMD_TTC_POWER_BOOST");
+        let rec = default_telemetry_record(sat_id);
+        let updated = manager.update_twin(sat_id, rec);
+        assert_eq!(updated.signal_strength, Some(-63.0)); // -75.0 + 12.0
+        assert_eq!(updated.packet_loss, Some(0.1));       // 0.5 * 0.2
+
+        // Test propulsion thrust
+        manager.clear_commands(sat_id);
+        manager.apply_command(sat_id, "CMD_PROP_THRUST");
+        let rec = default_telemetry_record(sat_id);
+        let updated = manager.update_twin(sat_id, rec);
+        assert_eq!(updated.fuel_remaining, Some(83.5)); // 85.0 - 1.5
+        assert_eq!(updated.velocity, Some(7.6 + 0.15));
+    }
+
+    #[test]
+    fn test_update_twin_failure_cascades() {
+        let manager = TwinManager::new();
+        let sat_id = "SAT-FAIL";
+
+        // 1. Thermal spike
+        let mut rec = default_telemetry_record(sat_id);
+        rec.temperature = Some(75.0);
+        let updated = manager.update_twin(sat_id, rec);
+        assert!(updated.cpu_usage.unwrap() > 25.0);       // should be 25.0 + 30.0 = 55.0
+        assert_eq!(updated.orientation_pitch, Some(8.5)); // 0.0 + 8.5
+
+        // 2. Low battery
+        let mut rec = default_telemetry_record(sat_id);
+        rec.battery_voltage = Some(10.5);
+        let updated = manager.update_twin(sat_id, rec);
+        assert_eq!(updated.payload_active, Some(false));
+        assert_eq!(updated.payload_power_draw, Some(0.0));
+    }
+}
+

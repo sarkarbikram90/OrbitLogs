@@ -10,7 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+- **orbit-ops-service Core Logic Unit Tests**: Implemented comprehensive unit test suites for `DirectorManager` (`director.rs`), `HealthScoringManager` (`health.rs`), and `TwinManager` (`twin.rs`) in `orbit-ops-service` to cover telemetry evaluation rules, composite health scoring algorithms, command application, and telemetry failure cascades.
+
 ### Changed
+- **evaluate_telemetry Signature Formatting**: Formatted the `evaluate_telemetry` function signature in `orbit-ops-service` (`director.rs`) across multiple lines to improve code readability.
+- **Capitalize Error Messages**: Capitalized the panic and error messages in the shutdown handlers within `mission-command-service` (`main.rs`).
 - **Ground Station Metric Descriptions**: Clarified Prometheus metric descriptions for antenna health and latency in `ground-station-simulator` (`main.rs`).
 - **Guardrail & Anomaly Log Wording in Incident Commander**: Updated LLM input guardrail warning logs and rule response phrasing for critical anomalies in `ai-incident-commander` (`main.rs`).
 - **Telemetry Packet & Frame Error Phrasing**: Improved error message phrasing across standard packet and frame validation paths in `spaceops-packets` (`lib.rs`).

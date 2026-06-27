@@ -120,3 +120,85 @@ pub async fn get_director_status(
         recommendations: recs,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_director_manager_new() {
+        let manager = DirectorManager::new();
+        assert!(manager.active_recommendations.is_empty());
+    }
+
+    #[test]
+    fn test_evaluate_telemetry_nominal() {
+        let manager = DirectorManager::new();
+        manager.evaluate_telemetry("SAT-NOMINAL", 25.0, 13.8, 1.0, 50.0);
+        let recs = manager.active_recommendations.get("SAT-NOMINAL").unwrap();
+        assert!(recs.is_empty());
+    }
+
+    #[test]
+    fn test_evaluate_telemetry_thermal_overload() {
+        let manager = DirectorManager::new();
+        manager.evaluate_telemetry("SAT-HOT", 61.5, 13.8, 1.0, 50.0);
+        let recs = manager.active_recommendations.get("SAT-HOT").unwrap();
+        assert_eq!(recs.len(), 1);
+        assert_eq!(recs[0].category, "CRITICAL");
+        assert_eq!(recs[0].title, "TCS Thermal Overload Detected");
+        assert_eq!(recs[0].proposed_commands, vec!["CMD_SHED_LOAD_SECONDARY", "CMD_RADIATOR_YAW_ADJUST"]);
+    }
+
+    #[test]
+    fn test_evaluate_telemetry_low_battery() {
+        let manager = DirectorManager::new();
+        manager.evaluate_telemetry("SAT-LOW-BAT", 25.0, 11.0, 1.0, 50.0);
+        let recs = manager.active_recommendations.get("SAT-LOW-BAT").unwrap();
+        assert_eq!(recs.len(), 1);
+        assert_eq!(recs[0].category, "CRITICAL");
+        assert_eq!(recs[0].title, "EPS Low Battery Voltage");
+        assert_eq!(recs[0].proposed_commands, vec!["CMD_PAYLOAD_DEACTIVATE", "CMD_ENTER_SAFE_MODE"]);
+    }
+
+    #[test]
+    fn test_evaluate_telemetry_packet_loss() {
+        let manager = DirectorManager::new();
+        manager.evaluate_telemetry("SAT-LOSSY", 25.0, 13.8, 16.5, 50.0);
+        let recs = manager.active_recommendations.get("SAT-LOSSY").unwrap();
+        assert_eq!(recs.len(), 1);
+        assert_eq!(recs[0].category, "WARNING");
+        assert_eq!(recs[0].title, "TTC Link Degraded");
+        assert_eq!(recs[0].proposed_commands, vec!["CMD_TTC_POWER_BOOST", "CMD_SCHEDULE_PASS_BANGALORE"]);
+    }
+
+    #[test]
+    fn test_evaluate_telemetry_low_fuel() {
+        let manager = DirectorManager::new();
+        // fuel < 20.0 && fuel > 5.0
+        manager.evaluate_telemetry("SAT-LOW-FUEL", 25.0, 13.8, 1.0, 12.0);
+        let recs = manager.active_recommendations.get("SAT-LOW-FUEL").unwrap();
+        assert_eq!(recs.len(), 1);
+        assert_eq!(recs[0].category, "OPTIMIZATION");
+        assert_eq!(recs[0].title, "PROP Fuel Management");
+        assert_eq!(recs[0].proposed_commands, vec!["CMD_PROP_SPARSE_CYCLE_ENABLE"]);
+
+        // fuel <= 5.0 should not trigger PROP fuel management rule
+        manager.evaluate_telemetry("SAT-VERY-LOW-FUEL", 25.0, 13.8, 1.0, 4.0);
+        let recs = manager.active_recommendations.get("SAT-VERY-LOW-FUEL").unwrap();
+        assert!(recs.is_empty());
+    }
+
+    #[test]
+    fn test_evaluate_telemetry_multiple_anomalies() {
+        let manager = DirectorManager::new();
+        manager.evaluate_telemetry("SAT-COMBO", 65.0, 10.5, 18.0, 15.0);
+        let recs = manager.active_recommendations.get("SAT-COMBO").unwrap();
+        assert_eq!(recs.len(), 4);
+        assert_eq!(recs[0].category, "CRITICAL"); // Thermal
+        assert_eq!(recs[1].category, "CRITICAL"); // Battery
+        assert_eq!(recs[2].category, "WARNING");  // Packet loss
+        assert_eq!(recs[3].category, "OPTIMIZATION"); // Fuel
+    }
+}
+
