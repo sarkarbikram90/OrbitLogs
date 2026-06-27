@@ -34,7 +34,15 @@ impl DirectorManager {
         }
     }
 
-    pub fn evaluate_telemetry(&self, sat_id: &str, temp: f64, battery_v: f64, packet_loss: f64, fuel: f32) {
+    pub fn evaluate_telemetry(
+        &self, 
+        sat_id: &str, 
+        temp: f64, 
+        battery_v: f64, 
+        packet_loss: f64, 
+        fuel: f32
+    )
+    {
         let mut recs = Vec::new();
 
         if temp > 60.0 {
