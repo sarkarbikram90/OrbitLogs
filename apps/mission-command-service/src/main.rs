@@ -149,7 +149,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    info!("Cleaning up telemetry before exit...");
+    info!("Cleaning up telemetry logs before shutdown...");
     spaceops_models::telemetry::shutdown_telemetry();
     Ok(())
 }
