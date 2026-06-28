@@ -5,36 +5,40 @@ pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
 pub static TELEMETRY_RECEIVED_TOTAL: LazyLock<IntCounterVec> = LazyLock::new(|| {
     IntCounterVec::new(
         Opts::new(
-            "telemetry_received_total",
+            "Telemetry_received_total",
             "Total number of telemetry events received by the HTTP collector endpoint"
         ),
         &["satellite_id", "status"]
     )
-    .expect("telemetry_received_total metric must be created")
+    .expect("Telemetry_received_total metric must be created")
 });
 pub static TELEMETRY_PROCESSED_TOTAL: LazyLock<IntCounterVec> = LazyLock::new(|| {
     IntCounterVec::new(
         Opts::new(
-            "telemetry_processed_total",
+            "Telemetry_processed_total",
             "Total number of telemetry events successfully processed by the consumer"
         ),
         &["satellite_id"]
     )
-    .expect("telemetry_processed_total metric must be created")
+    .expect("Telemetry_processed_total metric must be created")
 });
 pub static TELEMETRY_INVALID_TOTAL: LazyLock<IntCounterVec> = LazyLock::new(|| {
     IntCounterVec::new(
         Opts::new(
-            "telemetry_invalid_total",
+            "Telemetry_invalid_total",
             "Total number of telemetry events rejected due to schema/validation errors"
         ),
         &["reason"]
     )
-    .expect("telemetry_invalid_total metric must be created")
+    .expect("Telemetry_invalid_total metric must be created")
 });
+
+// A Dead Letter Queue (DLQ) is a special queue where messages are sent
+// after they cannot be processed successfully, instead of being lost or retried forever.
+
 pub static DLQ_PUBLISH_FAILURES_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
     IntCounter::new(
-        "dlq_publish_failures_total",
+        "DLQ_Publish_failures_total",
         "Total number of failed attempts to publish messages to the dead letter queue"
     )
     .expect("DLQ_Publish_failures_total metric must be created")
@@ -89,26 +93,26 @@ pub static KAFKA_CONSUMER_LAG: LazyLock<GaugeVec> = LazyLock::new(|| {
 pub fn register_metrics() {
     REGISTRY
         .register(Box::new(TELEMETRY_RECEIVED_TOTAL.clone()))
-        .expect("telemetry_received_total registration must succeed");
+        .expect("Telemetry_received_total registration must succeed");
     REGISTRY
         .register(Box::new(TELEMETRY_PROCESSED_TOTAL.clone()))
-        .expect("telemetry_processed_total registration must succeed");
+        .expect("Telemetry_processed_total registration must succeed");
     REGISTRY
         .register(Box::new(TELEMETRY_INVALID_TOTAL.clone()))
-        .expect("telemetry_invalid_total registration must succeed");
+        .expect("Telemetry_invalid_total registration must succeed");
     REGISTRY
         .register(Box::new(DLQ_PUBLISH_FAILURES_TOTAL.clone()))
-        .expect("dlq_publish_failures_total registration must succeed");
+        .expect("DLQ_Publish_failures_total registration must succeed");
     REGISTRY
         .register(Box::new(PROCESSING_LATENCY.clone()))
-        .expect("processing_latency registration must succeed");
+        .expect("Processing_latency registration must succeed");
     REGISTRY
         .register(Box::new(KAFKA_PUBLISH_LATENCY.clone()))
-        .expect("kafka_publish_latency registration must succeed");
+        .expect("Kafka_publish_latency registration must succeed");
     REGISTRY
         .register(Box::new(DATABASE_INSERT_LATENCY.clone()))
-        .expect("database_insert_latency registration must succeed");
+        .expect("Database_insert_latency registration must succeed");
     REGISTRY
         .register(Box::new(KAFKA_CONSUMER_LAG.clone()))
-        .expect("kafka_consumer_lag registration must succeed");
+        .expect("Kafka_consumer_lag registration must succeed");
 }
