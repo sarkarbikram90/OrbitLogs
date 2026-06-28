@@ -1,3 +1,5 @@
+extern crate spaceops_models as orbitlogs_models;
+
 use clap::{Parser, Subcommand};
 use tracing::{error, info};
 
@@ -6,7 +8,7 @@ use telemetry_collector::{
 };
 
 #[derive(Parser, Debug)]
-#[command(name = "Open SpaceOps - Telemetry Collector & Consumer")]
+#[command(name = "Orbitlogs telemetry collector & Consumer")]
 #[command(about = "Ingests real-time satellite telemetry to Kafka and consumes to TimescaleDB", long_about = None)]
 struct Cli {
     #[arg(long, env = "HTTP_PORT", default_value = "8080")]
@@ -18,7 +20,7 @@ struct Cli {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
     )]
     database_url: String,
 
@@ -83,7 +85,7 @@ enum Commands {
     RunMigrations,
 }
 
-use spaceops_models::load_secret;
+use orbitlogs_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -103,7 +105,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Start OpenTelemetry & tracing
-    if let Err(e) = spaceops_models::telemetry::init_telemetry("open-spaceops-collector", &cli.otel_endpoint) {
+    if let Err(e) = orbitlogs_models::telemetry::init_telemetry("orbitlogs-collector", &cli.otel_endpoint) {
         error!(
             "Failed to initialize OTel tracing: {}. Local console logger initialized.",
             e
@@ -172,6 +174,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 return Err(anyhow::anyhow!("Database migration failed: could not connect to database"));
             }
         }
+        
         Commands::RunServer => {
             let app_state = AppState {
                 kafka_producer,
@@ -266,6 +269,6 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Clean up OTel tracing
-    spaceops_models::telemetry::shutdown_telemetry();
+    orbitlogs_models::telemetry::shutdown_telemetry();
     Ok(())
 }
