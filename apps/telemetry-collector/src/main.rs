@@ -1,3 +1,4 @@
+
 extern crate spaceops_models as orbitlogs_models;
 
 use clap::{Parser, Subcommand};
@@ -115,7 +116,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     info!(
-        "Starting Open SpaceOps services in mode: {:?}",
+        "Starting Orbitlogs Telemetry Collector services in mode: {:?}",
         cli.command.as_ref().unwrap_or(&Commands::RunAll)
     );
 
@@ -152,7 +153,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let db_pool = match run_mode {
         Commands::RunConsumer | Commands::RunAll | Commands::RunServer | Commands::RunMigrations => {
             info!("Configuring database connection pool...");
-            match spaceops_models::db::establish_db_connection(&cli.database_url, 20).await {
+            match orbitlogs_models::db::establish_db_connection(&cli.database_url, 20).await {
                 Ok(p) => Some(p),
                 Err(e) => {
                     error!("Fatal: Failed to connect to TimescaleDB connection: {}", e);
