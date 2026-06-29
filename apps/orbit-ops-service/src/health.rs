@@ -163,6 +163,24 @@ pub async fn get_health_score(
     }
 }
 
+impl crate::processor::TelemetryProcessor for HealthScoringManager {
+    fn process<'a>(
+        &'a self,
+        sat_id: &'a str,
+        record: &'a spaceops_models::TelemetryRecord,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
+        let temp = record.temperature.unwrap_or(20.0);
+        let batt = record.battery_voltage.unwrap_or(13.8);
+        let pitch = record.orientation_pitch.unwrap_or(0.0) as f64;
+        let loss = record.packet_loss.unwrap_or(0.0) as f64;
+        let fuel = record.fuel_remaining.unwrap_or(100.0);
+        
+        self.calculate_health(sat_id, temp, batt, pitch, loss, fuel);
+        
+        Box::pin(async move {})
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

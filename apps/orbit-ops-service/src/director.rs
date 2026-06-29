@@ -121,6 +121,23 @@ pub async fn get_director_status(
     }))
 }
 
+impl crate::processor::TelemetryProcessor for DirectorManager {
+    fn process<'a>(
+        &'a self,
+        sat_id: &'a str,
+        record: &'a spaceops_models::TelemetryRecord,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
+        let temp = record.temperature.unwrap_or(20.0);
+        let batt = record.battery_voltage.unwrap_or(13.8);
+        let loss = record.packet_loss.unwrap_or(0.0) as f64;
+        let fuel = record.fuel_remaining.unwrap_or(100.0);
+        
+        self.evaluate_telemetry(sat_id, temp, batt, loss, fuel);
+        
+        Box::pin(async move {})
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

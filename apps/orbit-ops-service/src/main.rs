@@ -33,6 +33,7 @@ mod training;
 mod health;
 mod postmortem;
 mod graph;
+mod processor;
 
 #[derive(Parser, Debug)]
 #[command(name = "Orbit Operations Service")]
@@ -98,6 +99,7 @@ struct ServiceState {
     health: Arc<health::HealthScoringManager>,
     postmortem: Arc<postmortem::PostmortemManager>,
     graph: Arc<graph::GraphManager>,
+    processors: Vec<Arc<dyn crate::processor::TelemetryProcessor>>,
 }
 
 #[tokio::main]
@@ -156,6 +158,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let postmortem = Arc::new(postmortem::PostmortemManager::new(db_pool.clone()));
     let graph = Arc::new(graph::GraphManager::new(db_pool.clone()));
 
+    let processors: Vec<Arc<dyn crate::processor::TelemetryProcessor>> = vec![
+        flight_dynamics.clone(),
+        health.clone(),
+        director.clone(),
+    ];
+
     let shared_state = Arc::new(ServiceState {
         db_pool,
         kafka_producer,
@@ -171,6 +179,7 @@ async fn main() -> Result<(), anyhow::Error> {
         health,
         postmortem,
         graph,
+        processors,
     });
 
     let cancel_token = CancellationToken::new();
@@ -417,22 +426,10 @@ async fn run_telemetry_loop(
                                 // 1. Pass telemetry through Twin Engine
                                 let rec_twin = state.twin.update_twin(&sat_id, rec);
 
-                                // Extract parameters
-                                let alt = rec_twin.altitude.unwrap_or(500.0);
-                                let fuel = rec_twin.fuel_remaining.unwrap_or(100.0);
-                                let temp = rec_twin.temperature.unwrap_or(20.0);
-                                let batt = rec_twin.battery_voltage.unwrap_or(13.8);
-                                let pitch = rec_twin.orientation_pitch.unwrap_or(0.0) as f64;
-                                let loss = rec_twin.packet_loss.unwrap_or(0.0) as f64;
-
-                                // 2. Calculate flight dynamics decays
-                                state.flight_dynamics.update_dynamics(&sat_id, alt, fuel).await;
-
-                                // 3. Compute Composite Health Scorecard
-                                state.health.calculate_health(&sat_id, temp, batt, pitch, loss, fuel);
-
-                                // 4. Feed Director Expert Rules
-                                state.director.evaluate_telemetry(&sat_id, temp, batt, loss, fuel);
+                                // 2. Run polymorphic TelemetryProcessors (Flight Dynamics, Health Scoring, Director Rules)
+                                for processor in &state.processors {
+                                    processor.process(&sat_id, &rec_twin).await;
+                                }
 
                                 // 5. Closed-loop Command Verification
                                 verify_pending_commands(&state, &rec_twin).await;
