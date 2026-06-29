@@ -537,6 +537,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
         APID_ADCS => {
             if payload.len() < 12 {
                 return Err(PacketError::ParserError(
+                    // ADCS (Attitude Determination and Control System)
                     "ADCS payload is too short".to_string(),
                 ));
             }
@@ -547,7 +548,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
         APID_PAYLOAD => {
             if payload.len() < 9 {
                 return Err(PacketError::ParserError(
-                    "Payload payload is too short".to_string(),
+                    "Payload is too short".to_string(),
                 ));
             }
             record.payload_power_draw = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
