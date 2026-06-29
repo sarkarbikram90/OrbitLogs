@@ -10,7 +10,7 @@ pub enum PacketError {
     InvalidCrc { expected: u16, calculated: u16 },
     UnknownApid(u16),
     SubsystemMismatch(String),
-    ParserError(String),
+    ParserError(String)
 }
 
 impl std::fmt::Display for PacketError {

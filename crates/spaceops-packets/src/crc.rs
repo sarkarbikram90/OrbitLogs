@@ -1,5 +1,6 @@
 /// Calculates the standard CRC-16-CCITT checksum (polynomial 0x1021, initial value 0xFFFF)
 /// over the provided data.
+
 pub fn calculate_crc16(data: &[u8]) -> u16 {
     let mut crc: u16 = 0xFFFF;
     for &byte in data {
