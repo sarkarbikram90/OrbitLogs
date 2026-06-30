@@ -174,7 +174,7 @@ impl TelemetryRecord {
         }
 
         if self.timestamp > Utc::now() + chrono::Duration::minutes(5) {
-            errors.push("timestamp cannot be in the future".to_string());
+            errors.push("Timestamp cannot be ahead of current time".to_string());
         }
 
         if errors.is_empty() {
