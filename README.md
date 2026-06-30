@@ -209,6 +209,18 @@ To elevate OrbitLogs to mission-grade standard, the core platform has been harde
 
 ---
 
+## 📊 OpenTelemetry Standards & Specifications Compliance
+
+OrbitLogs is built to strictly adhere to official **OpenTelemetry standards and specifications**, enabling seamless telemetry collection and trace visualization through native integrations:
+
+*   **W3C Context Propagation**: Utilizes the standard W3C Trace Context propagator (`TraceContextPropagator`) to inject and extract `traceparent` parameters across asynchronous system boundaries (Kafka record headers), complying with the OTel Context Propagation specification.
+*   **OTLP Exporter Pipeline**: Telemetry pipelines are built using the official `opentelemetry_otlp` crate utilizing standard gRPC connections (`tonic`) to export spans to local collectors on port `4317`.
+*   **Production SDK Tracing**: Configured with an asynchronous `BatchSpanProcessor` (`install_batch(runtime::Tokio)`) to flush tracing data efficiently without blocking the event loops of mission-critical services.
+*   **Resource Semantics**: Integrates OTel Resource semantic conventions, explicitly mapping `service.name` onto tracing metadata.
+*   **Metrics Integration**: Exposes metrics on a standard Prometheus `/metrics` endpoint (port `8091` inside the `space-otel-collector`), ensuring complete compatibility with standard OTel Collector scraping receivers.
+
+---
+
 ## 🔌 Port Mapping & Endpoints
 
 Once fully initialized, the platform exposes the following developer interfaces:
