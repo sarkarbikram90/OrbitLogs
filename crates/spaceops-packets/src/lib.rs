@@ -119,7 +119,7 @@ impl TelemetryPacket {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PacketError> {
         if bytes.len() < 8 {
             return Err(PacketError::InvalidLength(
-                "Packet is too short for the minimal header".to_string(),
+                "Packet is too short for minimal header".to_string(),
             ));
         }
 
@@ -486,7 +486,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     let data_apid = ud[0] as u16;
     if data_apid != packet.apid {
         return Err(PacketError::SubsystemMismatch(format!(
-            "The payload header apid {} does not match packet apid {}",
+            "The payload header apid {} does not match the packet apid {}",
             data_apid, packet.apid
         )));
     }
