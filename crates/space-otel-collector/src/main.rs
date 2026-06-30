@@ -311,10 +311,14 @@ async fn main() -> Result<(), anyhow::Error> {
                         let _enter = span.enter();
 
                         // 1. Record metrics
-                        let gauges = SATELLITE_GAUGES_CACHE
-                            .entry(rec.satellite_id.clone())
-                            .or_insert_with(|| Arc::new(SatelliteGauges::new(&rec.satellite_id)))
-                            .clone();
+                        let gauges = if let Some(g) = SATELLITE_GAUGES_CACHE.get(&rec.satellite_id) {
+                            g.clone()
+                        } else {
+                            SATELLITE_GAUGES_CACHE
+                                .entry(rec.satellite_id.clone())
+                                .or_insert_with(|| Arc::new(SatelliteGauges::new(&rec.satellite_id)))
+                                .clone()
+                        };
 
                         if let Some(val) = rec.battery_voltage {
                             gauges.battery_voltage.set(val);
@@ -401,10 +405,14 @@ async fn main() -> Result<(), anyhow::Error> {
                         span.set_parent(parent_context.clone());
                         let _enter = span.enter();
 
-                        let gs_gauges = GS_GAUGES_CACHE
-                            .entry(gs.station_id.clone())
-                            .or_insert_with(|| Arc::new(GroundStationGauges::new(&gs.station_id)))
-                            .clone();
+                        let gs_gauges = if let Some(g) = GS_GAUGES_CACHE.get(&gs.station_id) {
+                            g.clone()
+                        } else {
+                            GS_GAUGES_CACHE
+                                .entry(gs.station_id.clone())
+                                .or_insert_with(|| Arc::new(GroundStationGauges::new(&gs.station_id)))
+                                .clone()
+                        };
 
                         gs_gauges.link_latency.set(gs.latency as f64);
                         gs_gauges.packet_loss.set(gs.congestion as f64);

@@ -69,6 +69,9 @@ struct Cli {
     #[arg(long, env = "KAFKA_SSL_CA_LOCATION")]
     kafka_ssl_ca_location: Option<String>,
 
+    #[arg(long, env = "CACHE_CAPACITY", default_value = "10000")]
+    cache_capacity: usize,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -204,6 +207,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 sasl_username: cli.kafka_sasl_username,
                 sasl_password: cli.kafka_sasl_password,
                 ssl_ca_location: cli.kafka_ssl_ca_location,
+                cache_capacity: cli.cache_capacity,
             };
             consumer::start_consumer(consumer_config, pool, kafka_producer).await?;
         }
@@ -228,16 +232,17 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Consumer Setup
             let consumer_config = consumer::ConsumerConfig {
-                brokers: cli.kafka_brokers,
-                group_id: cli.group_id,
-                raw_topic: cli.raw_topic,
-                processed_topic: cli.processed_topic,
-                invalid_topic: cli.invalid_topic,
-                security_protocol: cli.kafka_security_protocol,
-                sasl_mechanism: cli.kafka_sasl_mechanism,
-                sasl_username: cli.kafka_sasl_username,
-                sasl_password: cli.kafka_sasl_password,
-                ssl_ca_location: cli.kafka_ssl_ca_location,
+                brokers: cli.kafka_brokers.clone(),
+                group_id: cli.group_id.clone(),
+                raw_topic: cli.raw_topic.clone(),
+                processed_topic: cli.processed_topic.clone(),
+                invalid_topic: cli.invalid_topic.clone(),
+                security_protocol: cli.kafka_security_protocol.clone(),
+                sasl_mechanism: cli.kafka_sasl_mechanism.clone(),
+                sasl_username: cli.kafka_sasl_username.clone(),
+                sasl_password: cli.kafka_sasl_password.clone(),
+                ssl_ca_location: cli.kafka_ssl_ca_location.clone(),
+                cache_capacity: cli.cache_capacity,
             };
 
             // Spawn both in concurrent tasks

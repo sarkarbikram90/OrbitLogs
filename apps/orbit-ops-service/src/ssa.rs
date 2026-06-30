@@ -115,7 +115,7 @@ impl SsaManager {
         let debris_c = manager.debris.clone();
         tokio::spawn(async move {
             for deb in debris_c {
-                let _ = sqlx::query(
+                if let Err(e) = sqlx::query(
                     "INSERT INTO ssa_objects (id, name, object_type, inclination, altitude, velocity, size_meters)
                      VALUES ($1, $2, $3, $4, $5, $6, $7)
                      ON CONFLICT (id) DO UPDATE SET altitude = EXCLUDED.altitude, velocity = EXCLUDED.velocity"
@@ -128,7 +128,10 @@ impl SsaManager {
                 .bind(deb.velocity)
                 .bind(deb.size_meters)
                 .execute(&db_c)
-                .await;
+                .await
+                {
+                    error!("Failed to seed debris object {}: {}", deb.id, e);
+                }
             }
         });
 
@@ -188,7 +191,7 @@ impl SsaManager {
                         let id = Uuid::new_v4();
                         let conjunction_time = now + chrono::Duration::seconds(30 + rand::random::<i64>() % 120);
 
-                        let _ = sqlx::query(
+                        if let Err(e) = sqlx::query(
                             "INSERT INTO conjunction_events (id, satellite_id, object_id, object_name, object_type, probability, distance_meters, conjunction_time, severity, status)
                              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
                         )
@@ -203,7 +206,10 @@ impl SsaManager {
                         .bind(severity)
                         .bind("ACTIVE")
                         .execute(&self.db_pool)
-                        .await;
+                        .await
+                        {
+                            error!("Failed to insert conjunction event between satellite {} and debris {}: {}", sat_id, deb.id, e);
+                        }
 
                         let msg = format!(
                             "Conjunction warning! Satellite {} has close approach with {} at distance {:.1}m. Probability: {:.6}",

@@ -207,6 +207,32 @@ pub struct GroundStationHealth {
     pub maintenance: Option<bool>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum HealthState {
+    #[serde(rename = "GREEN")]
+    Green,
+    #[serde(rename = "YELLOW")]
+    Yellow,
+    #[serde(rename = "RED")]
+    Red,
+}
+
+impl HealthState {
+    pub fn to_string(&self) -> String {
+        match self {
+            HealthState::Green => "GREEN".to_string(),
+            HealthState::Yellow => "YELLOW".to_string(),
+            HealthState::Red => "RED".to_string(),
+        }
+    }
+}
+
+impl std::fmt::Display for HealthState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
 pub fn load_secret(env_var: &str) -> Option<String> {
     if let Ok(val) = std::env::var(env_var) {
         if !val.trim().is_empty() {

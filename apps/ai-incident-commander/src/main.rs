@@ -276,7 +276,19 @@ async fn chat(
     });
 
     // 1. Fetch relevant context from DB
-    let telemetry_opt = get_latest_telemetry(&state.db_pool, &sat_id).await;
+    let telemetry_opt = match get_latest_telemetry(&state.db_pool, &sat_id).await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Failed to retrieve telemetry context from database: {}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": "Internal database error",
+                    "details": vec![e.to_string()]
+                })),
+            ));
+        }
+    };
     let events = get_recent_events(&state.db_pool, &sat_id).await;
     let commands = get_recent_commands(&state.db_pool, &sat_id).await;
 
@@ -383,25 +395,30 @@ async fn chat(
     }))
 }
 
-async fn get_latest_telemetry(pool: &PgPool, sat_id: &str) -> Option<serde_json::Value> {
-    let row = sqlx::query("SELECT * FROM telemetry WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 1")
+async fn get_latest_telemetry(pool: &PgPool, sat_id: &str) -> Result<Option<serde_json::Value>, sqlx::Error> {
+    let row_opt = sqlx::query("SELECT * FROM telemetry WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 1")
         .bind(sat_id)
         .fetch_optional(pool)
         .await
-        .ok()??;
+        .map_err(|e| {
+            error!("Failed to fetch latest telemetry for satellite {}: {}", sat_id, e);
+            e
+        })?;
 
-    Some(serde_json::json!({
-        "timestamp": row.get::<chrono::DateTime<chrono::Utc>, _>("timestamp"),
-        "battery_voltage": row.get::<Option<f64>, _>("battery_voltage"),
-        "battery_current": row.get::<Option<f64>, _>("battery_current"),
-        "solar_panel_output": row.get::<Option<f64>, _>("solar_panel_output"),
-        "cpu_usage": row.get::<Option<f32>, _>("cpu_usage"),
-        "memory_usage": row.get::<Option<f32>, _>("memory_usage"),
-        "temperature": row.get::<Option<f64>, _>("temperature"),
-        "fuel_remaining": row.get::<Option<f32>, _>("fuel_remaining"),
-        "signal_strength": row.get::<Option<f32>, _>("signal_strength"),
-        "packet_loss": row.get::<Option<f32>, _>("packet_loss"),
-        "communication_latency": row.get::<Option<f32>, _>("communication_latency"),
+    Ok(row_opt.map(|row| {
+        serde_json::json!({
+            "timestamp": row.get::<chrono::DateTime<chrono::Utc>, _>("timestamp"),
+            "battery_voltage": row.get::<Option<f64>, _>("battery_voltage"),
+            "battery_current": row.get::<Option<f64>, _>("battery_current"),
+            "solar_panel_output": row.get::<Option<f64>, _>("solar_panel_output"),
+            "cpu_usage": row.get::<Option<f32>, _>("cpu_usage"),
+            "memory_usage": row.get::<Option<f32>, _>("memory_usage"),
+            "temperature": row.get::<Option<f64>, _>("temperature"),
+            "fuel_remaining": row.get::<Option<f32>, _>("fuel_remaining"),
+            "signal_strength": row.get::<Option<f32>, _>("signal_strength"),
+            "packet_loss": row.get::<Option<f32>, _>("packet_loss"),
+            "communication_latency": row.get::<Option<f32>, _>("communication_latency"),
+        })
     }))
 }
 

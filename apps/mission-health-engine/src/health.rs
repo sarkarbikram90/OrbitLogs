@@ -20,25 +20,7 @@ fn get_linked_ground_station(satellite_id: &str) -> String {
     "GS-0001".to_string()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HealthState {
-    #[serde(rename = "GREEN")]
-    Green,
-    #[serde(rename = "YELLOW")]
-    Yellow,
-    #[serde(rename = "RED")]
-    Red,
-}
-
-impl HealthState {
-    pub fn to_string(&self) -> String {
-        match self {
-            HealthState::Green => "GREEN".to_string(),
-            HealthState::Yellow => "YELLOW".to_string(),
-            HealthState::Red => "RED".to_string(),
-        }
-    }
-}
+pub use spaceops_models::HealthState;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SubsystemHealth {

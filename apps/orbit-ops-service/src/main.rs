@@ -211,7 +211,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         let (line1, line2) = orbit::get_latest_tle_or_default(&state_o.db_pool, sat_id).await;
                         if let Ok(state) = orbit::propagate_tle_sgp4(sat_id, &line1, &line2, now) {
                             // Persist to TimescaleDB orbit_positions
-                            let _ = sqlx::query(
+                            if let Err(e) = sqlx::query(
                                 "INSERT INTO orbit_positions (timestamp, satellite_id, latitude, longitude, altitude, velocity, orbital_period, inclination, eccentricity)
                                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
                             )
@@ -225,7 +225,10 @@ async fn main() -> Result<(), anyhow::Error> {
                             .bind(state.inclination)
                             .bind(state.eccentricity)
                             .execute(&state_o.db_pool)
-                            .await;
+                            .await
+                            {
+                                error!("Failed to insert orbit position for {}: {}", state.satellite_id, e);
+                            }
 
                             // Publish to Kafka topic orbit.state
                             let orbit_event = serde_json::json!({
@@ -503,14 +506,17 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
 
         if matched {
             // Update command status in DB to CONFIRMED
-            let _ = sqlx::query("UPDATE commands SET status = 'CONFIRMED', executed_at = $1 WHERE id = $2")
+            if let Err(e) = sqlx::query("UPDATE commands SET status = 'CONFIRMED', executed_at = $1 WHERE id = $2")
                 .bind(Utc::now())
                 .bind(cmd_id)
                 .execute(&state.db_pool)
-                .await;
+                .await
+            {
+                error!("Failed to update command status to CONFIRMED for command {}: {}", cmd_id, e);
+            }
 
             let v_id = Uuid::new_v4();
-            let _ = sqlx::query("INSERT INTO command_verifications (id, command_id, satellite_id, command_type, expected_telemetry_field, expected_telemetry_value, status) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+            if let Err(e) = sqlx::query("INSERT INTO command_verifications (id, command_id, satellite_id, command_type, expected_telemetry_field, expected_telemetry_value, status) VALUES ($1, $2, $3, $4, $5, $6, $7)")
                 .bind(v_id)
                 .bind(cmd_id)
                 .bind(&rec.satellite_id)
@@ -519,7 +525,10 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
                 .bind(expected_val)
                 .bind("CONFIRMED")
                 .execute(&state.db_pool)
-                .await;
+                .await
+            {
+                error!("Failed to insert command verification for command {}: {}", cmd_id, e);
+            }
 
             let verify_payload = serde_json::json!({
                 "timestamp": Utc::now(),

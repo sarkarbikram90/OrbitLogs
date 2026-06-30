@@ -7,3 +7,4 @@ description = "Fleet-wide health calculations for satellite constellations"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+spaceops-models = { path = "../spaceops-models" }

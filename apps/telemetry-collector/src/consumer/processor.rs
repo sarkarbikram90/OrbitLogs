@@ -15,7 +15,6 @@ use rdkafka::message::Message;
 use sqlx::PgPool;
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -65,6 +64,7 @@ pub struct ConsumerConfig {
     pub sasl_username: Option<String>,
     pub sasl_password: Option<String>,
     pub ssl_ca_location: Option<String>,
+    pub cache_capacity: usize,
 }
 
 
@@ -72,17 +72,19 @@ pub struct TelemetryConsumer {
     config: ConsumerConfig,
     db_pool: PgPool,
     kafka_producer: KafkaProducer,
-    cache: Mutex<lru::LruCache<String, TelemetryRecord>>,
+    cache: std::sync::Mutex<lru::LruCache<String, TelemetryRecord>>,
     anomaly_cooldowns: DashMap<(String, String), Instant>,
 }
 
 impl TelemetryConsumer {
     pub fn new(config: ConsumerConfig, db_pool: PgPool, kafka_producer: KafkaProducer) -> Self {
+        let capacity = NonZeroUsize::new(config.cache_capacity)
+            .unwrap_or_else(|| NonZeroUsize::new(10000).unwrap());
         Self {
             config,
             db_pool,
             kafka_producer,
-            cache: Mutex::new(lru::LruCache::new(NonZeroUsize::new(10000).unwrap())),
+            cache: std::sync::Mutex::new(lru::LruCache::new(capacity)),
             anomaly_cooldowns: DashMap::new(),
         }
     }
@@ -262,7 +264,7 @@ impl TelemetryConsumer {
 
         // 1. Check in-memory cache first
         let cached_opt = {
-            let mut cache = self.cache.lock().await;
+            let mut cache = self.cache.lock().unwrap();
             cache.get(sat_id).cloned()
         };
 
@@ -360,7 +362,7 @@ impl TelemetryConsumer {
 
         // 5. Save back to cache
         {
-            let mut cache = self.cache.lock().await;
+            let mut cache = self.cache.lock().unwrap();
             cache.put(sat_id.clone(), merged.clone());
         }
 

@@ -428,6 +428,18 @@ pub fn encode_record_to_frame(
     Ok(frame.to_bytes())
 }
 
+fn parse_f64(slice: &[u8]) -> Result<f64, PacketError> {
+    slice.try_into()
+        .map(f64::from_be_bytes)
+        .map_err(|_| PacketError::ParserError("Failed to parse f64".to_string()))
+}
+
+fn parse_f32(slice: &[u8]) -> Result<f32, PacketError> {
+    slice.try_into()
+        .map(f32::from_be_bytes)
+        .map_err(|_| PacketError::ParserError("Failed to parse f32".to_string()))
+}
+
 /// Decodes binary frame data back to a TelemetryRecord.
 pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketError> {
     let frame = TelemetryFrame::from_bytes(bytes)?;
@@ -500,10 +512,9 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
                     "Power payload is too short".to_string(),
                 ));
             }
-            record.battery_voltage = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
-            record.battery_current = Some(f64::from_be_bytes(payload[8..16].try_into().unwrap()));
-            record.solar_panel_output =
-                Some(f64::from_be_bytes(payload[16..24].try_into().unwrap()));
+            record.battery_voltage = Some(parse_f64(&payload[0..8])?);
+            record.battery_current = Some(parse_f64(&payload[8..16])?);
+            record.solar_panel_output = Some(parse_f64(&payload[16..24])?);
         }
         APID_THERMAL => {
             if payload.len() < 8 {
@@ -511,7 +522,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
                     "Thermal payload is too short".to_string(),
                 ));
             }
-            record.temperature = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
+            record.temperature = Some(parse_f64(&payload[0..8])?);
         }
         APID_COMMS => {
             if payload.len() < 12 {
@@ -519,10 +530,9 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
                     "Comms payload is too short".to_string(),
                 ));
             }
-            record.communication_latency =
-                Some(f32::from_be_bytes(payload[0..4].try_into().unwrap()));
-            record.packet_loss = Some(f32::from_be_bytes(payload[4..8].try_into().unwrap()));
-            record.signal_strength = Some(f32::from_be_bytes(payload[8..12].try_into().unwrap()));
+            record.communication_latency = Some(parse_f32(&payload[0..4])?);
+            record.packet_loss = Some(parse_f32(&payload[4..8])?);
+            record.signal_strength = Some(parse_f32(&payload[8..12])?);
         }
         APID_PROPULSION => {
             if payload.len() < 20 {
@@ -530,9 +540,9 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
                     "Propulsion payload is too short".to_string(),
                 ));
             }
-            record.velocity = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
-            record.altitude = Some(f64::from_be_bytes(payload[8..16].try_into().unwrap()));
-            record.fuel_remaining = Some(f32::from_be_bytes(payload[16..20].try_into().unwrap()));
+            record.velocity = Some(parse_f64(&payload[0..8])?);
+            record.altitude = Some(parse_f64(&payload[8..16])?);
+            record.fuel_remaining = Some(parse_f32(&payload[16..20])?);
         }
         APID_ADCS => {
             if payload.len() < 12 {
@@ -541,9 +551,9 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
                     "ADCS payload is too short".to_string(),
                 ));
             }
-            record.orientation_pitch = Some(f32::from_be_bytes(payload[0..4].try_into().unwrap()));
-            record.orientation_roll = Some(f32::from_be_bytes(payload[4..8].try_into().unwrap()));
-            record.orientation_yaw = Some(f32::from_be_bytes(payload[8..12].try_into().unwrap()));
+            record.orientation_pitch = Some(parse_f32(&payload[0..4])?);
+            record.orientation_roll = Some(parse_f32(&payload[4..8])?);
+            record.orientation_yaw = Some(parse_f32(&payload[8..12])?);
         }
         APID_PAYLOAD => {
             if payload.len() < 9 {
@@ -551,7 +561,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
                     "Payload is too short".to_string(),
                 ));
             }
-            record.payload_power_draw = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
+            record.payload_power_draw = Some(parse_f64(&payload[0..8])?);
             record.payload_active = Some(payload[8] != 0);
         }
         APID_FLIGHT_COMPUTER => {
@@ -560,8 +570,8 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
                     "Flight computer payload is too short".to_string(),
                 ));
             }
-            record.cpu_usage = Some(f32::from_be_bytes(payload[0..4].try_into().unwrap()));
-            record.memory_usage = Some(f32::from_be_bytes(payload[4..8].try_into().unwrap()));
+            record.cpu_usage = Some(parse_f32(&payload[0..4])?);
+            record.memory_usage = Some(parse_f32(&payload[4..8])?);
         }
         _ => {
             if payload.len() < 93 {
@@ -569,27 +579,23 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
                     "Unified payload is too short".to_string(),
                 ));
             }
-            record.battery_voltage = Some(f64::from_be_bytes(payload[0..8].try_into().unwrap()));
-            record.battery_current = Some(f64::from_be_bytes(payload[8..16].try_into().unwrap()));
-            record.solar_panel_output =
-                Some(f64::from_be_bytes(payload[16..24].try_into().unwrap()));
-            record.temperature = Some(f64::from_be_bytes(payload[24..32].try_into().unwrap()));
-            record.communication_latency =
-                Some(f32::from_be_bytes(payload[32..36].try_into().unwrap()));
-            record.packet_loss = Some(f32::from_be_bytes(payload[36..40].try_into().unwrap()));
-            record.signal_strength = Some(f32::from_be_bytes(payload[40..44].try_into().unwrap()));
-            record.velocity = Some(f64::from_be_bytes(payload[44..52].try_into().unwrap()));
-            record.altitude = Some(f64::from_be_bytes(payload[52..60].try_into().unwrap()));
-            record.fuel_remaining = Some(f32::from_be_bytes(payload[60..64].try_into().unwrap()));
-            record.orientation_pitch =
-                Some(f32::from_be_bytes(payload[64..68].try_into().unwrap()));
-            record.orientation_roll = Some(f32::from_be_bytes(payload[68..72].try_into().unwrap()));
-            record.orientation_yaw = Some(f32::from_be_bytes(payload[72..76].try_into().unwrap()));
-            record.payload_power_draw =
-                Some(f64::from_be_bytes(payload[76..84].try_into().unwrap()));
+            record.battery_voltage = Some(parse_f64(&payload[0..8])?);
+            record.battery_current = Some(parse_f64(&payload[8..16])?);
+            record.solar_panel_output = Some(parse_f64(&payload[16..24])?);
+            record.temperature = Some(parse_f64(&payload[24..32])?);
+            record.communication_latency = Some(parse_f32(&payload[32..36])?);
+            record.packet_loss = Some(parse_f32(&payload[36..40])?);
+            record.signal_strength = Some(parse_f32(&payload[40..44])?);
+            record.velocity = Some(parse_f64(&payload[44..52])?);
+            record.altitude = Some(parse_f64(&payload[52..60])?);
+            record.fuel_remaining = Some(parse_f32(&payload[60..64])?);
+            record.orientation_pitch = Some(parse_f32(&payload[64..68])?);
+            record.orientation_roll = Some(parse_f32(&payload[68..72])?);
+            record.orientation_yaw = Some(parse_f32(&payload[72..76])?);
+            record.payload_power_draw = Some(parse_f64(&payload[76..84])?);
             record.payload_active = Some(payload[84] != 0);
-            record.cpu_usage = Some(f32::from_be_bytes(payload[85..89].try_into().unwrap()));
-            record.memory_usage = Some(f32::from_be_bytes(payload[89..93].try_into().unwrap()));
+            record.cpu_usage = Some(parse_f32(&payload[85..89])?);
+            record.memory_usage = Some(parse_f32(&payload[89..93])?);
         }
     }
 
