@@ -1,3 +1,4 @@
+
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{runtime, trace as sdktrace, Resource};
@@ -6,7 +7,8 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
 pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), anyhow::Error> {
-    // Register the global trace context propagator for context propagation across services (e.g. over Kafka)
+    // Register the global trace context propagator for context 
+    // propagation across services (e.g. over Kafka)
     global::set_text_map_propagator(TraceContextPropagator::new());
 
     // Configure standard resources (service name merged with SDK defaults)
