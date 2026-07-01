@@ -1,7 +1,7 @@
 use clap::Parser;
 use rdkafka::producer::{FutureProducer, FutureRecord};
-use spaceops_models::kafka::KafkaConfigBuilder;
-use spaceops_models::TelemetryRecord;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::TelemetryRecord;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -138,7 +138,7 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             // Encode binary CCSDS frame
-            if let Ok(_bytes) = spaceops_packets::encode_record_to_frame(&rec, ticks as u16) {
+            if let Ok(_bytes) = orbitlogs_packets::encode_record_to_frame(&rec, ticks as u16) {
                 let key = format!("MISSION-CONSTELLATION:{}", sat.id);
                 if let Ok(json_payload) = serde_json::to_string(&rec) {
                     let producer_clone = Arc::clone(&producer);

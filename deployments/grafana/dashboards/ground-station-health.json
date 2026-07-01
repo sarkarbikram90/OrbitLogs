@@ -173,11 +173,11 @@
   ],
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["spaceops", "groundstation", "health"],
+  "tags": ["orbitlogs", "groundstation", "health"],
   "time": {
     "from": "now-15m",
     "to": "now"
   },
-  "title": "Open SpaceOps - Ground Station Health",
+  "title": "OrbitLogs - Ground Station Health",
   "version": 1
 }

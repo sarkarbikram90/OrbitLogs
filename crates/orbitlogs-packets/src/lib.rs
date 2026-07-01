@@ -1,7 +1,7 @@
 pub mod crc;
 
 use chrono::{TimeZone, Utc};
-use spaceops_models::TelemetryRecord;
+use orbitlogs_models::TelemetryRecord;
 use uuid::Uuid;
 
 #[derive(Debug)]

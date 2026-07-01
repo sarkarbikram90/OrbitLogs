@@ -39,7 +39,7 @@ In time-series satellite telemetry, out-of-order execution ruins metrics calcula
 Kafka is configured to run on a 3-node KRaft cluster with full **Mutual TLS (mTLS)** validation:
 *   A PKCS12 keystore/truststore generator container automatically runs on start.
 *   Brokers enforce SSL with mutual client authentication (`ssl.client.auth=required`).
-*   Internal client connections utilize PEM CA, certificate, and key configurations via `KafkaConfigBuilder` in `spaceops-models`.
+*   Internal client connections utilize PEM CA, certificate, and key configurations via `KafkaConfigBuilder` in `orbitlogs-models`.
 
 ---
 

@@ -145,7 +145,7 @@ async fn start_metrics_server(port: u16) {
     }
 }
 
-use spaceops_models::load_secret;
+use orbitlogs_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -200,7 +200,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let consumer_handle = tokio::spawn(async move {
         info!("Starting background groundstation.health consumer...");
-        let mut client_config = spaceops_models::kafka::KafkaConfigBuilder::new(brokers)
+        let mut client_config = orbitlogs_models::kafka::KafkaConfigBuilder::new(brokers)
             .with_security(
                 security_protocol,
                 sasl_mechanism,
@@ -209,9 +209,9 @@ async fn main() -> Result<(), anyhow::Error> {
                 ssl_ca_location,
             )
             .with_ssl(
-                spaceops_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
-                spaceops_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
-                spaceops_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
+                orbitlogs_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
+                orbitlogs_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
+                orbitlogs_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
             )
             .build();
         client_config
@@ -365,7 +365,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     TELEMETRY_GENERATED_TOTAL.inc();
 
                     // Encode telemetry record as binary Space Packet inside a Telemetry Frame
-                    let binary_payload = match spaceops_packets::encode_record_to_frame(
+                    let binary_payload = match orbitlogs_packets::encode_record_to_frame(
                         &telemetry,
                         tick as u16,
                     ) {

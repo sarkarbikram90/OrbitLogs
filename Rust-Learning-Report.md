@@ -20,7 +20,7 @@ The OrbitLogs project is an excellent example of a modern, production-grade Rust
 - **Asynchronous HTTP Servers:** Building REST and WebSocket routes using `Axum` and middleware architectures.
 
 ### C. Advanced Testing Paradigms
-- **Property-Based Testing:** Using the `proptest` crate in `spaceops-packets` (`crates/spaceops-packets/src/lib.rs`) to automatically fuzz-test parsing functions with hundreds of randomized telemetry inputs, detecting subtle boundary anomalies.
+- **Property-Based Testing:** Using the `proptest` crate in `orbitlogs-packets` (`crates/orbitlogs-packets/src/lib.rs`) to automatically fuzz-test parsing functions with hundreds of randomized telemetry inputs, detecting subtle boundary anomalies.
 - **Integration Testing:** Testing HTTP services by mocking requests and state without spawning a physical socket listener (using `tower::ServiceExt`).
 - **Unit Testing Pure Logic:** Constructing localized, pure unit tests for calculations like health projections in `health.rs` and twin cascades in `twin.rs`.
 
@@ -46,7 +46,7 @@ To advance from a proficient Rust user to a top-tier systems engineer, you shoul
 
 ### Step 1: Implement Zero-Copy Parsing (Master Lifetimes)
 *Currently, telemetry frames copy raw strings and vectors during parsing.*
-- **Challenge:** Refactor `spaceops-packets` (`crates/spaceops-packets/src/lib.rs`) to use borrowed data slices (`&'a [u8]` and `&'a str`) instead of `String` and `Vec<u8>`. Use Serde's zero-copy deserialization attributes (`#[serde(borrow)]`).
+- **Challenge:** Refactor `orbitlogs-packets` (`crates/orbitlogs-packets/src/lib.rs`) to use borrowed data slices (`&'a [u8]` and `&'a str`) instead of `String` and `Vec<u8>`. Use Serde's zero-copy deserialization attributes (`#[serde(borrow)]`).
 - **What you learn:** Deep mastery of lifetimes (`'a`), how the borrow checker references slices, and how to eliminate memory allocation overhead.
 
 ### Step 2: Abstract with Generic Traits (Master Traits & Generics)

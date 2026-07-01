@@ -4,7 +4,7 @@ FROM rust:alpine as builder
 # Install building system requirements
 RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev cmake g++
 
-WORKDIR /usr/src/open-spaceops
+WORKDIR /usr/src/orbitlogs
 
 # Copy workspace configuration and profiles
 COPY Cargo.toml Cargo.lock ./
@@ -18,8 +18,8 @@ COPY apps/digital-twin-engine/Cargo.toml apps/digital-twin-engine/Cargo.toml
 COPY apps/mission-timeline/Cargo.toml apps/mission-timeline/Cargo.toml
 COPY apps/ai-incident-commander/Cargo.toml apps/ai-incident-commander/Cargo.toml
 COPY apps/constellation-simulator/Cargo.toml apps/constellation-simulator/Cargo.toml
-COPY crates/spaceops-models/Cargo.toml crates/spaceops-models/Cargo.toml
-COPY crates/spaceops-packets/Cargo.toml crates/spaceops-packets/Cargo.toml
+COPY crates/orbitlogs-models/Cargo.toml crates/orbitlogs-models/Cargo.toml
+COPY crates/orbitlogs-packets/Cargo.toml crates/orbitlogs-packets/Cargo.toml
 COPY crates/space-schema-registry/Cargo.toml crates/space-schema-registry/Cargo.toml
 COPY crates/fleet-health/Cargo.toml crates/fleet-health/Cargo.toml
 COPY crates/space-otel-collector/Cargo.toml crates/space-otel-collector/Cargo.toml
@@ -35,8 +35,8 @@ RUN mkdir -p apps/digital-twin-engine/src && echo "fn main() {}" > apps/digital-
 RUN mkdir -p apps/mission-timeline/src && echo "fn main() {}" > apps/mission-timeline/src/main.rs
 RUN mkdir -p apps/ai-incident-commander/src && echo "fn main() {}" > apps/ai-incident-commander/src/main.rs
 RUN mkdir -p apps/constellation-simulator/src && echo "fn main() {}" > apps/constellation-simulator/src/main.rs
-RUN mkdir -p crates/spaceops-models/src && touch crates/spaceops-models/src/lib.rs
-RUN mkdir -p crates/spaceops-packets/src && touch crates/spaceops-packets/src/lib.rs
+RUN mkdir -p crates/orbitlogs-models/src && touch crates/orbitlogs-models/src/lib.rs
+RUN mkdir -p crates/orbitlogs-packets/src && touch crates/orbitlogs-packets/src/lib.rs
 RUN mkdir -p crates/space-schema-registry/src && touch crates/space-schema-registry/src/lib.rs
 RUN mkdir -p crates/fleet-health/src && touch crates/fleet-health/src/lib.rs
 RUN mkdir -p crates/space-otel-collector/src && touch crates/space-otel-collector/src/lib.rs
@@ -45,16 +45,16 @@ RUN mkdir -p crates/space-otel-collector/src && touch crates/space-otel-collecto
 RUN cargo build --release -p ground-station-simulator
 
 # Copy actual source files
-COPY crates/spaceops-models/src crates/spaceops-models/src
-COPY crates/spaceops-packets/src crates/spaceops-packets/src
+COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
+COPY crates/orbitlogs-packets/src crates/orbitlogs-packets/src
 COPY crates/space-schema-registry/src crates/space-schema-registry/src
 COPY crates/fleet-health/src crates/fleet-health/src
 COPY crates/space-otel-collector/src crates/space-otel-collector/src
 COPY apps/ground-station-simulator/src apps/ground-station-simulator/src
 
 # Rebuild actual application
-RUN touch crates/spaceops-models/src/lib.rs
-RUN touch crates/spaceops-packets/src/lib.rs
+RUN touch crates/orbitlogs-models/src/lib.rs
+RUN touch crates/orbitlogs-packets/src/lib.rs
 RUN touch crates/space-schema-registry/src/lib.rs
 RUN touch crates/fleet-health/src/lib.rs
 RUN touch crates/space-otel-collector/src/lib.rs
@@ -66,10 +66,10 @@ FROM alpine:3.21
 RUN apk add --no-cache ca-certificates libgcc libstdc++ openssl
 
 # Create non-root user for security hardening (UID/GID 10001)
-RUN addgroup -g 10001 -S spaceops && adduser -u 10001 -S spaceops -G spaceops
+RUN addgroup -g 10001 -S orbitlogs && adduser -u 10001 -S orbitlogs -G orbitlogs
 
-COPY --from=builder /usr/src/open-spaceops/target/release/ground-station-simulator /usr/local/bin/ground-station-simulator
+COPY --from=builder /usr/src/orbitlogs/target/release/ground-station-simulator /usr/local/bin/ground-station-simulator
 
-USER spaceops
+USER orbitlogs
 
 ENTRYPOINT ["ground-station-simulator"]

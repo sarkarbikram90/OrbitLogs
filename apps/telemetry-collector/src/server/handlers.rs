@@ -72,7 +72,7 @@ pub async fn ingest_telemetry(
         .unwrap_or("application/json");
 
     let payload = if content_type.starts_with("application/octet-stream") {
-        match spaceops_packets::decode_frame_to_record(&body_bytes) {
+        match orbitlogs_packets::decode_frame_to_record(&body_bytes) {
             Ok(rec) => rec,
             Err(e) => {
                 warn!(
@@ -365,7 +365,7 @@ pub async fn ws_handler(
     let mut authenticated = false;
 
     if let Some(ref tok) = params.token {
-        if spaceops_models::auth::secure_compare(tok, &state.api_key) {
+        if orbitlogs_models::auth::secure_compare(tok, &state.api_key) {
             authenticated = true;
         }
     }
@@ -373,7 +373,7 @@ pub async fn ws_handler(
     if !authenticated {
         if let Some(auth_val) = headers.get("Authorization").and_then(|h| h.to_str().ok()) {
             let token = auth_val.strip_prefix("Bearer ").unwrap_or(auth_val);
-            if spaceops_models::auth::secure_compare(token, &state.api_key) {
+            if orbitlogs_models::auth::secure_compare(token, &state.api_key) {
                 authenticated = true;
             }
         }

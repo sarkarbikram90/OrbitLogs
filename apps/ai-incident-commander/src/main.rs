@@ -22,7 +22,7 @@ struct Cli {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
     )]
     database_url: String,
 
@@ -90,7 +90,7 @@ async fn auth_middleware(
     }
 
     let authenticated = match token_opt {
-        Some(ref t) => spaceops_models::auth::secure_compare(t, &state.api_key),
+        Some(ref t) => orbitlogs_models::auth::secure_compare(t, &state.api_key),
         None => false,
     };
 
@@ -204,16 +204,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
 
     // Init tracing
-    spaceops_models::telemetry::init_telemetry("ai-driven-incident-commander", &cli.otel_endpoint)?;
+    orbitlogs_models::telemetry::init_telemetry("ai-driven-incident-commander", &cli.otel_endpoint)?;
 
     info!("Starting AI Driven Incident Commander...");
 
     let api_key = cli.api_key.clone()
-        .or_else(|| spaceops_models::load_secret("API_KEY"))
+        .or_else(|| orbitlogs_models::load_secret("API_KEY"))
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
 
-    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
+    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
     let http_client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()?;
@@ -239,7 +239,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
 
     info!("AI Driven Incident Commander has been shut down gracefully.");
-    spaceops_models::telemetry::shutdown_telemetry();
+    orbitlogs_models::telemetry::shutdown_telemetry();
     Ok(())
 }
 

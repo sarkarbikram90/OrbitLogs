@@ -44,7 +44,7 @@ OrbitLogs decouples real-time high-throughput telemetry ingestion from database 
 
 ### Ingestion Flow
 1.  **Multi-Format Ingress**: The Axum server in [telemetry-collector](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/telemetry-collector/src/main.rs) ingests data on `:8080/telemetry`. It supports JSON payloads and CCSDS-inspired binary packet streams when `Content-Type: application/octet-stream` is specified.
-2.  **CRC-16 Checksum Validation**: Binary packets are parsed via the `spaceops-packets` crate, verifying their CRC-16-CCITT checksums to guarantee integrity over simulated space links.
+2.  **CRC-16 Checksum Validation**: Binary packets are parsed via the `orbitlogs-packets` crate, verifying their CRC-16-CCITT checksums to guarantee integrity over simulated space links.
 3.  **Schema Registry Check**: Validates payloads against V1 (Legacy), V2 (Standard), and V3 (Extended) formats using `space-schema-registry` rules.
 4.  **Kafka Queue**: Valid payloads are enriched and queued onto the `telemetry.raw` topic using a key-based partition strategy (keyed by `satellite_id`).
 5.  **Rejection Quarantine (DLQ)**: Failing payloads are wrapped in a diagnostic JSON envelope and routed to `telemetry.invalid`.

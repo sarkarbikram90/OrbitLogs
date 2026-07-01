@@ -167,7 +167,7 @@ impl crate::processor::TelemetryProcessor for HealthScoringManager {
     fn process<'a>(
         &'a self,
         sat_id: &'a str,
-        record: &'a spaceops_models::TelemetryRecord,
+        record: &'a orbitlogs_models::TelemetryRecord,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
         let temp = record.temperature.unwrap_or(20.0);
         let batt = record.battery_voltage.unwrap_or(13.8);

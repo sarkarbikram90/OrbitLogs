@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spaceops-ai-incident-commander
-  namespace: spaceops
+  name: orbitlogs-ai-incident-commander
+  namespace: orbitlogs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-ai-incident-commander
+      app: orbitlogs-ai-incident-commander
   template:
     metadata:
       labels:
-        app: spaceops-ai-incident-commander
+        app: orbitlogs-ai-incident-commander
     spec:
       containers:
-      - name: spaceops-ai-incident-commander
-        image: spaceops/spaceops-ai-incident-commander:latest
+      - name: orbitlogs-ai-incident-commander
+        image: orbitlogs/orbitlogs-ai-incident-commander:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8088
@@ -25,7 +25,7 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: database_url
         - name: RUN_MIGRATIONS
           value: "false"
@@ -34,18 +34,18 @@ spec:
         - name: API_KEY
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: api_key
         - name: GEMINI_API_KEY
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: gemini_api_key
               optional: true
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: openai_api_key
               optional: true
         - name: CORS_ALLOWED_ORIGIN
@@ -61,11 +61,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spaceops-ai-incident-commander
-  namespace: spaceops
+  name: orbitlogs-ai-incident-commander
+  namespace: orbitlogs
 spec:
   ports:
   - port: 8088
     targetPort: 8088
   selector:
-    app: spaceops-ai-incident-commander
+    app: orbitlogs-ai-incident-commander

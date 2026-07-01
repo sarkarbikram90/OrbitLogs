@@ -11,8 +11,8 @@ use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde::{Deserialize, Serialize};
-use spaceops_models::kafka::KafkaConfigBuilder;
-use spaceops_models::TelemetryRecord;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::TelemetryRecord;
 use sqlx::{PgPool, Row};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -47,7 +47,7 @@ struct Cli {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
     )]
     database_url: String,
 
@@ -114,7 +114,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Starting Orbit Operations Service V4...");
 
-    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 10).await?;
+    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 10).await?;
 
     let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
     let kafka_producer: FutureProducer = producer_config.create()?;

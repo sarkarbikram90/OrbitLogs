@@ -1,27 +1,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spaceops-constellation-simulator
-  namespace: spaceops
+  name: orbitlogs-constellation-simulator
+  namespace: orbitlogs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-constellation-simulator
+      app: orbitlogs-constellation-simulator
   template:
     metadata:
       labels:
-        app: spaceops-constellation-simulator
+        app: orbitlogs-constellation-simulator
     spec:
       containers:
-      - name: spaceops-constellation-simulator
-        image: spaceops/spaceops-constellation-simulator:latest
+      - name: orbitlogs-constellation-simulator
+        image: orbitlogs/orbitlogs-constellation-simulator:latest
         imagePullPolicy: IfNotPresent
         env:
         - name: RUST_LOG
           value: "info,constellation_simulator=debug"
         - name: KAFKA_BROKERS
-          value: "spaceops-kafka-headless:9092"
+          value: "orbitlogs-kafka-headless:9092"
         - name: FLEET_SIZE
           value: "500"
         - name: TICK_INTERVAL_MS

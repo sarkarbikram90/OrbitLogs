@@ -14,7 +14,7 @@ rdkafka = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 dotenvy = { workspace = true }
-spaceops-models = { workspace = true }
+orbitlogs-models = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 prometheus = { workspace = true }

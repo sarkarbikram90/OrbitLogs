@@ -6,8 +6,8 @@ use rdkafka::client::ClientContext;
 use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
-use spaceops_models::db::establish_db_connection;
-use spaceops_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::db::establish_db_connection;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -21,7 +21,7 @@ mod health;
 mod metrics;
 
 use health::{assess_satellite_health, GroundStationState};
-use spaceops_models::TelemetryRecord;
+use orbitlogs_models::TelemetryRecord;
 
 struct MetricsContext;
 
@@ -52,7 +52,7 @@ impl ClientContext for MetricsContext {
 impl ConsumerContext for MetricsContext {}
 
 #[derive(Parser, Debug, Clone)]
-#[command(name = "Open SpaceOps - Mission Health Engine")]
+#[command(name = "OrbitLogs - Mission Health Engine")]
 #[command(about = "Processes satellite telemetry and publishes spacecraft health status", long_about = None)]
 struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
@@ -61,7 +61,7 @@ struct Cli {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
     )]
     database_url: String,
 
@@ -129,7 +129,7 @@ async fn start_metrics_server(port: u16) {
     }
 }
 
-use spaceops_models::load_secret;
+use orbitlogs_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

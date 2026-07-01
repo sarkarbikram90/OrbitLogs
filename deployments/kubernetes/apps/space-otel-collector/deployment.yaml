@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spaceops-otel-collector
-  namespace: spaceops
+  name: orbitlogs-otel-collector
+  namespace: orbitlogs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-otel-collector
+      app: orbitlogs-otel-collector
   template:
     metadata:
       labels:
-        app: spaceops-otel-collector
+        app: orbitlogs-otel-collector
     spec:
       securityContext:
         runAsNonRoot: true
@@ -19,8 +19,8 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
       containers:
-      - name: spaceops-otel-collector
-        image: spaceops/spaceops-otel-collector:latest
+      - name: orbitlogs-otel-collector
+        image: orbitlogs/orbitlogs-otel-collector:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
@@ -46,9 +46,9 @@ spec:
         - name: RUST_LOG
           value: "info,space_otel_collector=debug"
         - name: KAFKA_BROKERS
-          value: "spaceops-kafka-headless:9092"
+          value: "orbitlogs-kafka-headless:9092"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://spaceops-jaeger:4317"
+          value: "http://orbitlogs-jaeger:4317"
         - name: METRICS_PORT
           value: "8091"
         - name: PROCESSED_TOPIC
@@ -72,11 +72,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spaceops-otel-collector
-  namespace: spaceops
+  name: orbitlogs-otel-collector
+  namespace: orbitlogs
 spec:
   ports:
   - port: 8091
     targetPort: 8091
   selector:
-    app: spaceops-otel-collector
+    app: orbitlogs-otel-collector

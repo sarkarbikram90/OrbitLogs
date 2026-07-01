@@ -1,5 +1,5 @@
 
-extern crate spaceops_models as orbitlogs_models;
+extern crate orbitlogs_models;
 
 use clap::{Parser, Subcommand};
 use tracing::{error, info};

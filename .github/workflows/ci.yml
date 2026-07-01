@@ -1,4 +1,4 @@
-name: Open SpaceOps CI/CD
+name: OrbitLogs CI/CD
 
 permissions:
   contents: read
@@ -24,19 +24,19 @@ jobs:
       timescaledb:
         image: timescale/timescaledb:2.15.0-pg15
         env:
-          POSTGRES_DB: spaceops
+          POSTGRES_DB: orbitlogs
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespassword
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d spaceops"
+          --health-cmd "pg_isready -U postgres -d orbitlogs"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/spaceops
+      DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/orbitlogs
 
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +58,7 @@ jobs:
         run: |
           echo "Waiting for TimescaleDB to accept connections on localhost..."
           for i in {1..30}; do
-            if PGPASSWORD=postgrespassword psql -h localhost -U postgres -d spaceops -c "SELECT 1" >/dev/null 2>&1; then
+            if PGPASSWORD=postgrespassword psql -h localhost -U postgres -d orbitlogs -c "SELECT 1" >/dev/null 2>&1; then
               echo "Database is ready!"
               break
             fi
@@ -67,7 +67,7 @@ jobs:
           done
           for f in deployments/postgres/migrations/*.sql; do
             echo "Applying migration: $f"
-            PGPASSWORD=postgrespassword psql -h localhost -U postgres -d spaceops -f "$f"
+            PGPASSWORD=postgrespassword psql -h localhost -U postgres -d orbitlogs -f "$f"
           done
 
       - name: Check code formatting
@@ -101,18 +101,18 @@ jobs:
 
       - name: Build Telemetry Simulator Container
         run: |
-          docker build --pull -t open-spaceops/telemetry-simulator:test -f apps/telemetry-simulator/Dockerfile .
+          docker build --pull -t orbitlogs/telemetry-simulator:test -f apps/telemetry-simulator/Dockerfile .
 
       - name: Build Telemetry Collector Container
         run: |
-          docker build --pull -t open-spaceops/telemetry-collector:test -f apps/telemetry-collector/Dockerfile .
+          docker build --pull -t orbitlogs/telemetry-collector:test -f apps/telemetry-collector/Dockerfile .
 
       - name: Verify non-root container execution
         run: |
           echo "Checking collector runs as non-root..."
-          docker run --rm --entrypoint whoami open-spaceops/telemetry-collector:test | grep -q spaceops
+          docker run --rm --entrypoint whoami orbitlogs/telemetry-collector:test | grep -q orbitlogs
           echo "Checking simulator runs as non-root..."
-          docker run --rm --entrypoint whoami open-spaceops/telemetry-simulator:test | grep -q spaceops
+          docker run --rm --entrypoint whoami orbitlogs/telemetry-simulator:test | grep -q orbitlogs
           echo "All containers verified as non-root."
 
   frontend-ci:
@@ -154,7 +154,7 @@ jobs:
           echo "kafkasaslpassword" > deployments/docker-compose/secrets/kafka_sasl_password.txt
           echo "default_api_key" > deployments/docker-compose/secrets/api_key.txt
           echo "admin" > deployments/docker-compose/secrets/grafana_admin_password.txt
-          echo "postgres://postgres:postgrespassword@timescaledb:5432/spaceops" > deployments/docker-compose/secrets/database_url.txt
+          echo "postgres://postgres:postgrespassword@timescaledb:5432/orbitlogs" > deployments/docker-compose/secrets/database_url.txt
 
       - name: Build and start the docker compose stack
         run: |

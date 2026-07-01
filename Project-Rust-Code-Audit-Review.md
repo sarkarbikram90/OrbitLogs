@@ -13,7 +13,7 @@ The codebase shows a strong understanding of systems-level engineering—featuri
 ### 1. Idiomatic Rust Patterns
 
 #### 🟨 Anti-Pattern: Stringly-Typed States
-Across several crates (e.g., `crates/fleet-health/src/lib.rs` and `crates/spaceops-models/src/lib.rs`), spacecraft state and status variables are represented using heap-allocated `String` types (e.g., `"GREEN"`, `"YELLOW"`, `"RED"`, `"CRITICAL"`).
+Across several crates (e.g., `crates/fleet-health/src/lib.rs` and `crates/orbitlogs-models/src/lib.rs`), spacecraft state and status variables are represented using heap-allocated `String` types (e.g., `"GREEN"`, `"YELLOW"`, `"RED"`, `"CRITICAL"`).
 - **Impact**: String allocations incur heap overhead, degrade cache locality, and lack compile-time validation. Typographical errors like `"GREEN "` (with a trailing space) or `"green"` bypass matches silently.
 - **Remediation**: Represent closed states using a strongly-typed enum:
   ```rust
@@ -26,7 +26,7 @@ Across several crates (e.g., `crates/fleet-health/src/lib.rs` and `crates/spaceo
   ```
 
 #### 🟢 Positive Pattern: Idiomatic Builder Pattern
-The `KafkaConfigBuilder` in `crates/spaceops-models/src/kafka.rs` is an excellent example of the builder pattern. It separates raw parameter construction, environment secret retrieval, and final conversion into `rdkafka::config::ClientConfig` cleanly and cleanly.
+The `KafkaConfigBuilder` in `crates/orbitlogs-models/src/kafka.rs` is an excellent example of the builder pattern. It separates raw parameter construction, environment secret retrieval, and final conversion into `rdkafka::config::ClientConfig` cleanly and cleanly.
 
 #### 🟢 Positive Pattern: Boilerplate Reduction Macros
 The `merge_opt_fields!` macro in `apps/telemetry-collector/src/consumer/processor.rs` is highly idiomatic. It eliminates extensive block-matching boilerplate when merging incoming subsystem streams with cached state structures.
@@ -36,7 +36,7 @@ The `merge_opt_fields!` macro in `apps/telemetry-collector/src/consumer/processo
 ### 2. Memory Management & Ownership
 
 #### 🟨 Optimizing Parsing Allocations (Zero-Copy Candidates)
-The `TelemetryPacket` and `TelemetryFrame` structures in `crates/spaceops-packets` use owned `Vec<u8>` for user payload fields (`user_data` and `data_field`).
+The `TelemetryPacket` and `TelemetryFrame` structures in `crates/orbitlogs-packets` use owned `Vec<u8>` for user payload fields (`user_data` and `data_field`).
 - **Impact**: Instantiating these structures via `from_bytes` triggers heap allocations and data copies (`.to_vec()`).
 - **Analysis**: Since the final output is mapped to an owned `TelemetryRecord` struct for serialization/persistence, initial packet copying is generally necessary. However, for internal parsing operations, using a zero-copy borrow approach with lifetimes (e.g., `TelemetryPacket<'a>`) would remove intermediate heap allocations.
 
@@ -108,7 +108,7 @@ cache: Mutex<lru::LruCache<String, TelemetryRecord>>
   ```
 
 #### 🟥 Critical Performance Anti-Pattern: Bit-by-Bit CRC Calculation
-In `crates/spaceops-packets/src/crc.rs`, the `calculate_crc16` function runs a nested loop over every bit of every byte:
+In `crates/orbitlogs-packets/src/crc.rs`, the `calculate_crc16` function runs a nested loop over every bit of every byte:
 ```rust
 for &byte in data {
     crc ^= (byte as u16) << 8;
@@ -169,7 +169,7 @@ pub fn calculate_crc16(data: &[u8]) -> u16 {
 ```
 
 ### B. Safe Array Slices Parsing
-In `crates/spaceops-packets/src/lib.rs`, replace panicking `unwrap()` calls on slice conversions with mapped errors:
+In `crates/orbitlogs-packets/src/lib.rs`, replace panicking `unwrap()` calls on slice conversions with mapped errors:
 ```rust
 // Refactored from payload[0..8].try_into().unwrap()
 let bytes: [u8; 8] = payload[0..8].try_into()

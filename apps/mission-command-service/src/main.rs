@@ -4,7 +4,7 @@ use axum::{
 };
 use clap::Parser;
 use rdkafka::producer::FutureProducer;
-use spaceops_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -30,7 +30,7 @@ struct Cli {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
     )]
     database_url: String,
 
@@ -81,24 +81,24 @@ async fn main() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
 
     // Start telemetry
-    spaceops_models::telemetry::init_telemetry("mission-command-service", &cli.otel_endpoint)?;
+    orbitlogs_models::telemetry::init_telemetry("mission-command-service", &cli.otel_endpoint)?;
 
     info!("Starting Mission Command Service...");
 
     let api_key = cli.api_key.clone()
-        .or_else(|| spaceops_models::load_secret("API_KEY"))
+        .or_else(|| orbitlogs_models::load_secret("API_KEY"))
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
 
     let jwt_secret = cli.jwt_secret.clone()
-        .or_else(|| spaceops_models::load_secret("JWT_SECRET"))
+        .or_else(|| orbitlogs_models::load_secret("JWT_SECRET"))
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| {
             info!("No JWT secret provided. Generating random ephemeral JWT secret...");
             uuid::Uuid::new_v4().to_string()
         });
 
-    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
+    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
 
     let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
     let kafka_producer: FutureProducer = producer_config.create()?;
@@ -150,7 +150,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
 
     info!("Cleaning up telemetry logs before shutdown...");
-    spaceops_models::telemetry::shutdown_telemetry();
+    orbitlogs_models::telemetry::shutdown_telemetry();
     Ok(())
 }
 
@@ -184,9 +184,9 @@ mod tests {
 
     #[test]
     fn test_secure_compare() {
-        assert!(spaceops_models::auth::secure_compare("secretkey", "secretkey"));
-        assert!(!spaceops_models::auth::secure_compare("secretkey", "wrongkey"));
-        assert!(!spaceops_models::auth::secure_compare("secretkey", "short"));
+        assert!(orbitlogs_models::auth::secure_compare("secretkey", "secretkey"));
+        assert!(!orbitlogs_models::auth::secure_compare("secretkey", "wrongkey"));
+        assert!(!orbitlogs_models::auth::secure_compare("secretkey", "short"));
     }
 
     #[test]

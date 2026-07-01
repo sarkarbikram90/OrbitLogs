@@ -9,9 +9,9 @@ use uuid::Uuid;
 use crate::scenario::Scenario;
 
 // TelemetryRecord is imported from the shared domain crate
-pub use spaceops_models::TelemetryRecord;
+pub use orbitlogs_models::TelemetryRecord;
 
-pub use spaceops_models::GroundStationHealth as GroundStationState;
+pub use orbitlogs_models::GroundStationHealth as GroundStationState;
 
 pub struct SatelliteSimulator {
     pub id: String,

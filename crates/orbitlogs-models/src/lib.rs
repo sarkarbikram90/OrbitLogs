@@ -12,7 +12,7 @@ fn default_mission() -> String {
     "unknown".to_string()
 }
 
-/// Canonical satellite telemetry record shared across all Open SpaceOps services.
+/// Canonical satellite telemetry record shared across all Orbitlogs services.
 ///
 /// This struct represents a single telemetry snapshot from a satellite subsystem, containing
 /// subsystem-specific electrical power, attitude, or operational parameters.

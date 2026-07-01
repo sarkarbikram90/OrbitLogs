@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spaceops-simulator
-  namespace: spaceops
+  name: orbitlogs-simulator
+  namespace: orbitlogs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-simulator
+      app: orbitlogs-simulator
   template:
     metadata:
       labels:
-        app: spaceops-simulator
+        app: orbitlogs-simulator
     spec:
       containers:
-      - name: spaceops-simulator
-        image: spaceops/spaceops-simulator:latest
+      - name: orbitlogs-simulator
+        image: orbitlogs/orbitlogs-simulator:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8081
@@ -23,13 +23,13 @@ spec:
         - name: RUST_LOG
           value: "info,telemetry_simulator=debug" 
         - name: COLLECTOR_URL
-          value: "http://spaceops-collector:8080/telemetry" 
+          value: "http://orbitlogs-collector:8080/telemetry" 
         - name: KAFKA_BROKERS
-          value: "spaceops-kafka-headless:9092" 
+          value: "orbitlogs-kafka-headless:9092" 
         - name: API_KEY
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: api_key
         resources:
           requests:
@@ -42,11 +42,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spaceops-simulator
-  namespace: spaceops
+  name: orbitlogs-simulator
+  namespace: orbitlogs
 spec:
   ports:
   - port: 8081
     targetPort: 8081
   selector:
-    app: spaceops-simulator
+    app: orbitlogs-simulator

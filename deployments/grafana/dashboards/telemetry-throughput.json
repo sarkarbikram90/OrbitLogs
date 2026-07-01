@@ -205,11 +205,11 @@
   ],
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["spaceops", "throughput"],
+  "tags": ["orbitlogs", "throughput"],
   "time": {
     "from": "now-15m",
     "to": "now"
   },
-  "title": "Open SpaceOps - Telemetry Throughput",
+  "title": "OrbitLogs - Telemetry Throughput",
   "version": 1
 }

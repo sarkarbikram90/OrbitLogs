@@ -153,7 +153,7 @@ pub async fn auth_middleware(
     }
 
     let authenticated = match token_opt {
-        Some(ref t) => spaceops_models::auth::secure_compare(t, &state.api_key),
+        Some(ref t) => orbitlogs_models::auth::secure_compare(t, &state.api_key),
         None => false,
     };
 

@@ -3,7 +3,7 @@ use clap::Parser;
 use std::str::FromStr;
 
 #[derive(Parser, Debug, Clone)]
-#[command(name = "Open SpaceOps - Telemetry Simulator")]
+#[command(name = "OrbitLogs - Telemetry Simulator")]
 #[command(about = "Simulates satellite telemetry stream for testing the observability platform", long_about = None)]
 pub struct Config {
     #[arg(

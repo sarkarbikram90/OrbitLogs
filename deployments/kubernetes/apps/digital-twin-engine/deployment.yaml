@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spaceops-digital-twin
-  namespace: spaceops
+  name: orbitlogs-digital-twin
+  namespace: orbitlogs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-digital-twin
+      app: orbitlogs-digital-twin
   template:
     metadata:
       labels:
-        app: spaceops-digital-twin
+        app: orbitlogs-digital-twin
     spec:
       containers:
-      - name: spaceops-digital-twin
-        image: spaceops/spaceops-digital-twin:latest
+      - name: orbitlogs-digital-twin
+        image: orbitlogs/orbitlogs-digital-twin:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8086
@@ -25,12 +25,12 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: database_url
         - name: RUN_MIGRATIONS
           value: "false"
         - name: KAFKA_BROKERS
-          value: "spaceops-kafka-headless:9092"
+          value: "orbitlogs-kafka-headless:9092"
         - name: PORT
           value: "8086"
         - name: PROCESSED_TOPIC
@@ -42,7 +42,7 @@ spec:
         - name: API_KEY
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: api_key
         - name: CORS_ALLOWED_ORIGIN
           value: "http://localhost:3000"
@@ -57,11 +57,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spaceops-digital-twin
-  namespace: spaceops
+  name: orbitlogs-digital-twin
+  namespace: orbitlogs
 spec:
   ports:
   - port: 8086
     targetPort: 8086
   selector:
-    app: spaceops-digital-twin
+    app: orbitlogs-digital-twin

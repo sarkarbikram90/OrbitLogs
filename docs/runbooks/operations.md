@@ -15,7 +15,7 @@ This document contains step-by-step troubleshooting procedures, maintenance guid
 1. **Identify Lagging Partitions**:
    Log into a Kafka broker container and inspect consumer group partition states:
    ```bash
-   docker exec -it spaceops-kafka-1 kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group orbit-ops-group
+   docker exec -it orbitlogs-kafka-1 kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group orbit-ops-group
    ```
 2. **Review DB Ingestion Health**:
    Verify if consumer loops are throwing persistent DB write errors (look for `Database insert attempt X failed` in logs).

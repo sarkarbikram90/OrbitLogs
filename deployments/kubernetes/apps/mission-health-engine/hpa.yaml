@@ -1,13 +1,13 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: spaceops-health-engine-hpa
-  namespace: spaceops
+  name: orbitlogs-health-engine-hpa
+  namespace: orbitlogs
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: spaceops-health-engine
+    name: orbitlogs-health-engine
   minReplicas: 2
   maxReplicas: 10
   metrics:

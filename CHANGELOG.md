@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Capitalize Error Messages**: Capitalized the panic and error messages in the shutdown handlers within `mission-command-service` (`main.rs`).
 - **Ground Station Metric Descriptions**: Clarified Prometheus metric descriptions for antenna health and latency in `ground-station-simulator` (`main.rs`).
 - **Guardrail & Anomaly Log Wording in Incident Commander**: Updated LLM input guardrail warning logs and rule response phrasing for critical anomalies in `ai-incident-commander` (`main.rs`).
-- **Telemetry Packet & Frame Error Phrasing**: Improved error message phrasing across standard packet and frame validation paths in `spaceops-packets` (`lib.rs`).
+- **Telemetry Packet & Frame Error Phrasing**: Improved error message phrasing across standard packet and frame validation paths in `orbitlogs-packets` (`lib.rs`).
 - **Constellation Simulator Log & Comments**: Refined startup logs and updated fleet size support comments in `constellation-simulator` (`main.rs`).
 - **Audit Logging Code Style**: Formatted the trace ID extraction logic and database error mapping in `mission-command-service` (`audit.rs`).
 
@@ -45,7 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Telemetry Collector Health API**: Integrated health router and endpoints (`/health`, `/liveness`, `/readiness`) into the OpenTelemetry collector's metrics server (`crates/space-otel-collector/src/main.rs`), listening on port `8091`.
 - **Hardened Kubernetes Security Contexts**: Configured pod and container-level `securityContext` settings (non-root execution `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, and read-only root filesystems where appropriate) across manifests for `orbit-ops-service`, `space-otel-collector`, and `telemetry-collector`.
 - **Kubernetes Liveness & Readiness Probes**: Added HTTP liveness/readiness probes to the Kubernetes deployment specifications for `orbit-ops-service`, `space-otel-collector`, and `telemetry-collector`.
-- **Collector Containerization**: Created a multi-stage, alpine-based production `Dockerfile` for `space-otel-collector` (`crates/space-otel-collector/Dockerfile`) executing under an unprivileged `spaceops` user context.
+- **Collector Containerization**: Created a multi-stage, alpine-based production `Dockerfile` for `space-otel-collector` (`crates/space-otel-collector/Dockerfile`) executing under an unprivileged `orbitlogs` user context.
 - **Kubernetes space-otel-collector Integration**: Created deployment manifests for `space-otel-collector` and registered the new service under the global `kustomization.yaml`.
 - **Docker Compose space-otel-collector Integration**: Integrated `space-otel-collector` container service inside `docker-compose.yml` for unified local stack orchestration.
 - **Vite Rollup Code Splitting**: Implemented rollup `manualChunks` in `vite.config.ts` for `mission-control-ui` to split third-party `node_modules` dependencies into a dedicated `vendor` chunk, reducing build warning sizes from 826KB to 104KB.
@@ -78,7 +78,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [4.1.0] - 2026-06-21
 
 ### Added
-- **Global Context Propagation**: Registered `TraceContextPropagator` in the shared `spaceops-models` telemetry initialization layer, activating W3C trace context extraction/injection across all asynchronous microservice boundaries.
+- **Global Context Propagation**: Registered `TraceContextPropagator` in the shared `orbitlogs-models` telemetry initialization layer, activating W3C trace context extraction/injection across all asynchronous microservice boundaries.
 - **OTel Resource Merging**: Refactored OpenTelemetry resource generation to merge user-specified metadata with `Resource::default()` to comply with standard specs (language, SDK name, and version).
 - **Graceful Shutdown & Span Flushing**: Integrated SIGINT/SIGTERM handlers and explicit `shutdown_telemetry()` hooks in all Axum servers and processing workers to ensure zero-loss tracing flushes before container termination.
 - **DashMap Metrics Cache**: Introduced global concurrent static caches (`SATELLITE_GAUGES_CACHE`, `GS_GAUGES_CACHE`) in `space-otel-collector` to avoid lock contention on high-cardinality label lookups and eliminate redundant heap allocations.
@@ -100,7 +100,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - **Production Hardening & Scale Readiness**:
   - Implemented **TimescaleDB Continuous Aggregates** (`20260101000011_continuous_aggregates.sql`) to pre-calculate hourly averages of telemetry metrics (battery, solar output, CPU, temperature, altitude) to prevent CPU exhaustion.
-  - Added a dedicated Kubernetes **Job** (`spaceops-db-migrations`) to execute database migrations sequentially on startup, preventing horizontal scaling pods from triggering concurrent schema lock contentions.
+  - Added a dedicated Kubernetes **Job** (`orbitlogs-db-migrations`) to execute database migrations sequentially on startup, preventing horizontal scaling pods from triggering concurrent schema lock contentions.
   - Hardened Horizontal Pod Autoscaling (HPAs) for telemetry ingestion proxies (`telemetry-collector`) and analytics consumers (`mission-health-engine`) to scale dynamically using external metric queues (`consumer_lag_messages` > 10,000) rather than generic CPU usage thresholds.
   - Resolved command verification lifecycle race conditions by removing legacy mock sleep timers in `mission-command-service` and relying strictly on closed-loop telemetry updates from `orbit-ops-service`.
   - Added a new `run-migrations` subcommand in the `telemetry-collector` CLI to support clean, isolated run-to-completion database bootstrap.
@@ -138,9 +138,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - **High Consumer Lag Prometheus Alerting**: Introduced a new alert rule `HighConsumerLag` in [rules.yml](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/deployments/prometheus/rules.yml) which triggers when the consumer lag on any Kafka topic exceeds 1000 messages for 5 minutes.
 - **Digital Twin Projection Unit Tests**: Implemented comprehensive unit tests under a new `tests` module in [apps/digital-twin-engine/src/main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/digital-twin-engine/src/main.rs) validating nominal, degraded, and failed battery, thermal, ADCS pitch drift, and propulsion propellant depletion thresholds.
-- **Centralized Secure String Comparison**: Implemented constant-time secure string comparison `secure_compare` in the shared model crate [crates/spaceops-models/src/auth.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/crates/spaceops-models/src/auth.rs) utilizing SHA-256 to hash inputs to equal size and eliminate the timing/length oracle vulnerability.
+- **Centralized Secure String Comparison**: Implemented constant-time secure string comparison `secure_compare` in the shared model crate [crates/orbitlogs-models/src/auth.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/crates/orbitlogs-models/src/auth.rs) utilizing SHA-256 to hash inputs to equal size and eliminate the timing/length oracle vulnerability.
 - **Kafka Mutual TLS (mTLS) Hardening**: Added broker keystores, truststores, and client PEM keys/certificates via a new container-based orchestrator `certs-generator` in [docker-compose.yml](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/deployments/docker-compose/docker-compose.yml) executing [generate_kafka_certs.sh](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/deployments/docker-compose/scripts/generate_kafka_certs.sh). Upgraded internal broker listeners to SSL with mutual client authentication enforced.
-- **Client Configuration mTLS Support**: Extended `KafkaConfigBuilder` in [crates/spaceops-models/src/kafka.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/crates/spaceops-models/src/kafka.rs) to support client PEM cert paths, and updated [telemetry-collector](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/telemetry-collector/src/main.rs), [telemetry-simulator](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/telemetry-simulator/src/main.rs), [ground-station-simulator](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/ground-station-simulator/src/main.rs), and [orbit-ops-service](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/orbit-ops-service/src/main.rs) to load client certifications in `docker-compose.yml`.
+- **Client Configuration mTLS Support**: Extended `KafkaConfigBuilder` in [crates/orbitlogs-models/src/kafka.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/crates/orbitlogs-models/src/kafka.rs) to support client PEM cert paths, and updated [telemetry-collector](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/telemetry-collector/src/main.rs), [telemetry-simulator](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/telemetry-simulator/src/main.rs), [ground-station-simulator](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/ground-station-simulator/src/main.rs), and [orbit-ops-service](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/orbit-ops-service/src/main.rs) to load client certifications in `docker-compose.yml`.
 
 ### Changed
 - **Modularization of Mission Command Service**: Modularized the monolithic [main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-command-service/src/main.rs) by splitting its core operations into dedicated submodules:
@@ -148,14 +148,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - [commands.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-command-service/src/commands.rs) for listing, creation, and execution command lifecycles.
   - [audit.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/mission-command-service/src/audit.rs) for command event audit trailing.
 - **Digital Twin Refactoring**: Extracted pure health projection calculations from `get_twin_health` route handler to `project_twin_health` in [apps/digital-twin-engine/src/main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/digital-twin-engine/src/main.rs) to enable mock-free unit testing.
-- **Connection Pool Refactoring**: Upgraded `spaceops-models` to execute programmatic SQLx database migrations in `establish_db_connection`.
+- **Connection Pool Refactoring**: Upgraded `orbitlogs-models` to execute programmatic SQLx database migrations in `establish_db_connection`.
 - **JWT Key Separation**: Decoupled JWT signing keys from the shared service API keys across the command service configuration.
 - **Login Rate Limiter**: Added client IP-based rate limiting on the `/api/auth/login` endpoint using `DashMap` in the command service.
 - **Commands API Pagination**: Added limit/offset parameters and explicit column selection to `/api/commands`.
 - **Incident Commander Connection Sharing**: Refactored the `ai-incident-commander` state to initialize and share a single `reqwest::Client` to avoid socket/file descriptor exhaustion, and integrated prompt injection guardrails.
 
 ### Fixed
-- **Timing Vulnerabilities**: Replaced timing side-channel oracle string comparisons with secure centralized `spaceops_models::auth::secure_compare` across 6 services.
+- **Timing Vulnerabilities**: Replaced timing side-channel oracle string comparisons with secure centralized `orbitlogs_models::auth::secure_compare` across 6 services.
 - **Pinned TimescaleDB Version**: Replaced the non-deterministic `latest` tag with the fixed `timescale/timescaledb:2.15.0-pg15` container tag across Compose and CI config files.
 
 ---
@@ -271,12 +271,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Phase 17 — Ground Station Weather Attenuation**: Extended ground station simulator to inject backhaul network attenuation and atmospheric weather effects (storms, heavy snow) into link budget calculations.
 - **Phase 18 — Advanced Sidebar Navigation**: Refactored `App.tsx` to introduce a full sidebar navigation layout with dedicated sub-dashboard sections for Command Center (RBAC controls), Mission Timeline search, Digital Twin viewer, and AI Copilot.
 - **New UI Components**: Added `AiCopilot.tsx`, `CommandCenter.tsx`, `DigitalTwinViewer.tsx`, `MissionTimelineView.tsx` to `mission-control-ui`.
-- **New Shared Crate Types**: Added `telemetry.rs` module and `init_telemetry` function to `spaceops-models` for centralized OTel initialization.
+- **New Shared Crate Types**: Added `telemetry.rs` module and `init_telemetry` function to `orbitlogs-models` for centralized OTel initialization.
 - **Satellite Orbit Image**: Added `docs/images/satellite_orbit.png` embedded in README.
 
 ### Changed
-- **Rebrand to OrbitLogs**: Renamed the project from "Open SpaceOps" to **OrbitLogs** across all Rust binaries, Docker container names, README, CHANGELOG, UI console titles, and Grafana dashboard labels.
-- **Centralized Telemetry Init**: Consolidated OTel/tracing initialization into the shared `spaceops-models` crate, eliminating duplicate initialization code across services.
+- **Rebrand to OrbitLogs**: Renamed the project from "OrbitLogs" to **OrbitLogs** across all Rust binaries, Docker container names, README, CHANGELOG, UI console titles, and Grafana dashboard labels.
+- **Centralized Telemetry Init**: Consolidated OTel/tracing initialization into the shared `orbitlogs-models` crate, eliminating duplicate initialization code across services.
 - **Documentation Overhaul**: Significantly expanded `README.md` with deep operational specifications for all 11 microservices, port mappings, and 18-phase roadmap progress.
 - **Removed `CONTRIBUTING.md`**: Removed outdated contributing guide from the repository.
 
@@ -297,19 +297,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - HPA (Horizontal Pod Autoscaler) for `telemetry-collector` and `mission-health-engine` based on CPU utilization.
   - Infrastructure StatefulSets: `kafka/statefulset.yaml`, `timescaledb/statefulset.yaml`.
 - **Staff Architecture Review** (`SpaceX-Staff-Level-Architecture-Review.md`): Added architecture review document evaluating system design, scalability, observability, and hiring signal with full scoring rubric.
-- **`KafkaConfigBuilder::from_env`**: Added convenience builder method to `crates/spaceops-models/src/kafka.rs` to construct Kafka producers directly from environment variables.
+- **`KafkaConfigBuilder::from_env`**: Added convenience builder method to `crates/orbitlogs-models/src/kafka.rs` to construct Kafka producers directly from environment variables.
 
 ### Changed
 - **3-Node Kafka KRaft Cluster**: Upgraded `docker-compose.yml` from single-broker to a full 3-node Kafka KRaft cluster with `replication-factor=3` and `min.insync.replicas=2` for all topics, eliminating Zookeeper dependency entirely.
 - **Telemetry Simulator Resilience**: Updated `telemetry-simulator` to handle connection backoff and retry on collector unavailability.
-- **Mission Health Engine Refactor**: Refactored `mission-health-engine/src/main.rs` to use the centralized `KafkaConfigBuilder` and `establish_db_connection` from `spaceops-models`.
+- **Mission Health Engine Refactor**: Refactored `mission-health-engine/src/main.rs` to use the centralized `KafkaConfigBuilder` and `establish_db_connection` from `orbitlogs-models`.
 - **Review Consolidation**: Condensed 8 separate review documents (`SpaceX Engineer level review.md`, `SpaceX-Staff-review.md`, `SpaceX-Engineer-Review-Gemini.md`, `SpaceX-Engineer-Review-Gemini-2.md`, `SpaceX-Engineer-Review-Gemini-3.md`, `Gemini-suggested-improvements.md`, `SpaceX-Staff-Level-Architecture-Review.md`, `Analysis.md`) into a single `SpaceX-Level-Engineer-Review.md`.
 
 ### Fixed
 - **URL Hardcoding in UI**: Resolved hardcoded backend URLs in `App.tsx` to use environment-configurable values for staging/production deployments.
 - **API Key CLI Robustness**: Improved API key resolution to check `--api-key` CLI flag, `API_KEY` env var, and Docker secrets file (`API_KEY_FILE`) with proper empty-string filtering.
 - **Clippy Warnings**: Resolved all clippy linting errors in `ground-station-simulator` including collapsing nested `if` statements.
-- **`ground-station-simulator` Dockerfile**: Added missing `COPY` for `spaceops-models` workspace member sources during multi-stage builds.
+- **`ground-station-simulator` Dockerfile**: Added missing `COPY` for `orbitlogs-models` workspace member sources during multi-stage builds.
 - **`cargo fmt`**: Applied `cargo fmt --all` workspace-wide to achieve full formatting compliance.
 
 ---
@@ -331,13 +331,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Kafka KRaft Migration**: Eliminated Zookeeper dependency from `docker-compose.yml` and migrated to native Kafka KRaft mode across all brokers.
 - **LRU Cache Eviction for Consumer**: Replaced unbounded consumer telemetry state cache with an LRU cache capped at 10,000 concurrent satellite entries to prevent unbounded memory growth.
 - **At-Least-Once Delivery**: Implemented double-failure panic exits in the Kafka consumer — if both the TimescaleDB write and DLQ publish fail, the consumer panics and halts to prevent silent offset commits and data loss.
-- **Centralized `establish_db_connection` and `KafkaConfigBuilder`**: Extracted duplicate database pool and Kafka client construction into the shared `spaceops-models` crate.
+- **Centralized `establish_db_connection` and `KafkaConfigBuilder`**: Extracted duplicate database pool and Kafka client construction into the shared `orbitlogs-models` crate.
 - **`tokio::sync::Mutex` Upgrade**: Replaced blocking `std::sync::Mutex` with `tokio::sync::Mutex` in the consumer cache to prevent Tokio executor thread starvation during async await points.
 
 ### Fixed
 - **Timing Side-Channel Vulnerability**: Replaced standard `==` string comparisons for bearer tokens and WebSocket authorization with `subtle::ConstantTimeEq` to prevent timing oracle attacks.
 - **Clippy Warnings**: Resolved all workspace clippy warnings including collapsing nested `if let` / `if` chains to ensure clean `-D warnings` CI gate.
-- **Workspace Docker Builds**: Fixed `ground-station-simulator` Dockerfile to correctly `COPY` `spaceops-models` sources during the multi-stage builder stage.
+- **Workspace Docker Builds**: Fixed `ground-station-simulator` Dockerfile to correctly `COPY` `orbitlogs-models` sources during the multi-stage builder stage.
 
 ---
 
@@ -351,14 +351,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Kafka Circuit Breaker**: Implemented a custom 3-state circuit breaker (`Closed`, `Open`, `HalfOpen`) with 10-second recovery timeout on the Kafka producer to prevent thread exhaustion during broker outages.
 - **Alertmanager Configuration** (`deployments/alertmanager/alertmanager.yml`): Initial Alertmanager routing rules and receiver configuration.
 - **OpenAPI Specification** (`docs/openapi.yaml`): Complete OpenAPI 3.0 specification covering all ingestion, replay, health, and metrics endpoints.
-- **`spaceops-packets` CRC and Binary Layer**: Added `crc.rs` module with CRC-16-CCITT implementation and full binary framing encode/decode logic in `lib.rs`.
+- **`orbitlogs-packets` CRC and Binary Layer**: Added `crc.rs` module with CRC-16-CCITT implementation and full binary framing encode/decode logic in `lib.rs`.
 - **Docker Secrets**: Added Docker Compose secrets infrastructure with mounted secret files for `postgres_password`, `api_key`, `database_url`, `kafka_sasl_password`, and `grafana_admin_password`.
 
 ### Changed
 - **At-Least-Once Delivery**: Shifted from Kafka auto-commit to manual offset commits. Offsets committed asynchronously only after successful TimescaleDB write or DLQ enqueue fallback.
-- **Non-Root Containers**: Updated all container images (`Dockerfile`) to create a dedicated `spaceops` user and run with non-privileged system rights (UID/GID 10001).
+- **Non-Root Containers**: Updated all container images (`Dockerfile`) to create a dedicated `orbitlogs` user and run with non-privileged system rights (UID/GID 10001).
 - **Hardcoded Credentials Removal**: Refactored Grafana provisioning, `docker-compose.yml`, and collector configurations to retrieve database secrets dynamically from environment variables and Docker secrets files.
-- **Shared Models Extraction**: Extracted duplicate `TelemetryRecord` structs from the collector and simulator into a dedicated, reusable workspace library `spaceops-models`.
+- **Shared Models Extraction**: Extracted duplicate `TelemetryRecord` structs from the collector and simulator into a dedicated, reusable workspace library `orbitlogs-models`.
 - **Serde Strict Parsing**: Configured `#[serde(deny_unknown_fields)]` on shared telemetry structs to block unexpected JSON key schemas and prevent silent field injection.
 - **Telemetry Latency Buckets**: Tailored custom Prometheus histogram sub-10ms buckets optimized for high-resolution satellite telemetry update rates.
 - **`cargo fmt`** compliance enforced: Applied `cargo fmt --all` and validated in CI.
@@ -395,7 +395,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Components: `FleetOverview.tsx`, `GroundStationStatus.tsx`, `IncidentPanel.tsx`, `ReplayControls.tsx`, `SatelliteDetail.tsx`.
   - Real-time WebSocket telemetry feed integration.
   - ESLint and TypeScript build verification in CI.
-- **CCSDS-Inspired Binary Telemetry Layer** (`crates/spaceops-packets`):
+- **CCSDS-Inspired Binary Telemetry Layer** (`crates/orbitlogs-packets`):
   - Binary frame serialization/deserialization with CRC-16-CCITT validation.
   - `application/octet-stream` content-type routing in the ingestion API.
   - Schema version byte embedded in frame header (V1/V2/V3).
@@ -463,7 +463,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 - **CI Database Wait**: Replaced non-deterministic `sleep` with a robust `pg_isready` polling loop.
-- **Container Multi-Stage Build**: Fixed `COPY` step for `spaceops-models` crate sources in the builder stage to resolve `cargo build` path resolution failures.
+- **Container Multi-Stage Build**: Fixed `COPY` step for `orbitlogs-models` crate sources in the builder stage to resolve `cargo build` path resolution failures.
 - **Simulator Compilation**: Fixed loop variable lifetime issues in the telemetry simulator's orbital generator.
 
 ---
@@ -471,10 +471,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [0.1.0] - 2026-05-24
 
 ### Added
-- **Initial Platform** (`feat: implement Open SpaceOps V1 platform and documentation`):
+- **Initial Platform** (`feat: implement OrbitLogs V1 platform and documentation`):
   - **`apps/telemetry-collector`**: Axum HTTP server ingesting satellite telemetry to Kafka (`telemetry.raw`) with a concurrent Tokio consumer writing to TimescaleDB. Subcommand modes: `run-server`, `run-consumer`, `run-all`.
   - **`apps/telemetry-simulator`**: Rust telemetry generator simulating realistic satellite state (battery, thermal, orientation, fuel, communications, CPU) and posting to the collector at configurable intervals.
-  - **`crates/spaceops-models`**: Shared workspace crate with canonical `TelemetryRecord` struct, `validate()` method with physical bounds checking, and Kafka/DB construction utilities.
+  - **`crates/orbitlogs-models`**: Shared workspace crate with canonical `TelemetryRecord` struct, `validate()` method with physical bounds checking, and Kafka/DB construction utilities.
   - **Kafka Integration**: KRaft-mode Kafka broker with topics `telemetry.raw`, `telemetry.processed`, `telemetry.invalid` (DLQ).
   - **TimescaleDB Schema** (`01_init.sql`): `satellites`, `telemetry`, and `events` hypertables with composite indexes, compression policies (7-day threshold), and retention policies (90-day telemetry, 180-day events).
   - **Prometheus Metrics**: Custom histogram buckets, counters, and gauges for telemetry throughput, processing latency, error rates, and DLQ failures.

@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spaceops-timeline
-  namespace: spaceops
+  name: orbitlogs-timeline
+  namespace: orbitlogs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-timeline
+      app: orbitlogs-timeline
   template:
     metadata:
       labels:
-        app: spaceops-timeline
+        app: orbitlogs-timeline
     spec:
       containers:
-      - name: spaceops-timeline
-        image: spaceops/spaceops-timeline:latest
+      - name: orbitlogs-timeline
+        image: orbitlogs/orbitlogs-timeline:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8087
@@ -25,12 +25,12 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: database_url
         - name: RUN_MIGRATIONS
           value: "false"
         - name: KAFKA_BROKERS
-          value: "spaceops-kafka-headless:9092"
+          value: "orbitlogs-kafka-headless:9092"
         - name: PORT
           value: "8087"
         - name: TIMELINE_EVENTS_TOPIC
@@ -42,7 +42,7 @@ spec:
         - name: API_KEY
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: api_key
         - name: CORS_ALLOWED_ORIGIN
           value: "http://localhost:3000"
@@ -57,11 +57,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spaceops-timeline
-  namespace: spaceops
+  name: orbitlogs-timeline
+  namespace: orbitlogs
 spec:
   ports:
   - port: 8087
     targetPort: 8087
   selector:
-    app: spaceops-timeline
+    app: orbitlogs-timeline

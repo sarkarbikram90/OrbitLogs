@@ -12,8 +12,8 @@ members = [
     "apps/ai-incident-commander",
     "apps/constellation-simulator",
     "apps/orbit-ops-service",
-    "crates/spaceops-models",
-    "crates/spaceops-packets",
+    "crates/orbitlogs-models",
+    "crates/orbitlogs-packets",
     "crates/space-schema-registry",
     "crates/fleet-health",
     "crates/space-otel-collector",
@@ -40,8 +40,8 @@ opentelemetry-otlp = { version = "0.14", features = ["grpc-tonic", "tokio"] }
 tracing-opentelemetry = "0.22"
 anyhow = "1.0"
 dotenvy = "0.15"
-spaceops-models = { path = "crates/spaceops-models" }
-spaceops-packets = { path = "crates/spaceops-packets" }
+orbitlogs-models = { path = "crates/orbitlogs-models" }
+orbitlogs-packets = { path = "crates/orbitlogs-packets" }
 space-schema-registry = { path = "crates/space-schema-registry" }
 fleet-health = { path = "crates/fleet-health" }
 subtle = "2.5"

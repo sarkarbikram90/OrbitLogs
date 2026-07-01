@@ -1,6 +1,6 @@
 # OrbitLogs 🚀
 
-[![OrbitLogs CI/CD](https://github.com/sarkarbikram90/Open-SpaceOps/actions/workflows/ci.yml/badge.svg)](https://github.com/sarkarbikram90/Open-SpaceOps/actions/workflows/ci.yml)
+[![OrbitLogs CI/CD](https://github.com/sarkarbikram90/OrbitLogs/actions/workflows/ci.yml/badge.svg)](https://github.com/sarkarbikram90/OrbitLogs/actions/workflows/ci.yml)
 [![Language: Rust](https://img.shields.io/badge/Language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript-blue.svg)](https://www.typescriptlang.org/)
 [![Database: TimescaleDB](https://img.shields.io/badge/Database-TimescaleDB-blue.svg)](https://www.timescale.com/)
@@ -147,7 +147,7 @@ OrbitLogs 2.0 introduces a decentralized suite of async Rust microservices and p
 *   Injects real-time orbital pass factors including signal degradation, antenna mechanical faults, backhaul network congestion, and atmospheric weather states (storms, heavy snow).
 
 ### 3. CCSDS-Inspired Binary Telemetry Layer
-*   Uses [crates/spaceops-packets](crates/spaceops-packets) to enforce structured binary serialization (`application/octet-stream`).
+*   Uses [crates/orbitlogs-packets](crates/orbitlogs-packets) to enforce structured binary serialization (`application/octet-stream`).
 *   Implements a custom **CRC-16-CCITT checksum validation** to reject corrupt packets during ground segment uplink, maintaining a JSON fallback endpoint for open integrations.
 
 ### 4. Space Schema Registry (`crates/space-schema-registry`)
@@ -290,7 +290,7 @@ npm run build
 
 OrbitLogs has been engineered to comply with enterprise-grade reliability and security audits:
 
-*   **Non-Root Execution**: Every service container runs under a dedicated system user `spaceops` with UID/GID `10001` (complying with standard Kubernetes security policies).
+*   **Non-Root Execution**: Every service container runs under a dedicated system user `orbitlogs` with UID/GID `10001` (complying with standard Kubernetes security policies).
 *   **At-Least-Once Database Guarantee**: The processor commits Kafka offsets manually only after successful batch insertion into TimescaleDB or writing to the Dead Letter Queue (DLQ).
 *   **Ingestion Defense**: Axum endpoints reject payloads exceeding **10KB** via `DefaultBodyLimit` and apply a strict token-bucket rate limiter (partitioned per client token or IP) to protect resources from Denial of Service (DoS) attempts.
 *   **Serde Deny**: Shared models enforce `#[serde(deny_unknown_fields)]` to prevent injection of unmapped attributes.

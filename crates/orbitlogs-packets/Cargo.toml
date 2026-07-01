@@ -1,5 +1,5 @@
 [package]
-name = "spaceops-packets"
+name = "orbitlogs-packets"
 version = "1.0.0"
 edition = "2021"
 description = "Binary space packet and frame serialization layer inspired by CCSDS standards"
@@ -8,7 +8,7 @@ description = "Binary space packet and frame serialization layer inspired by CCS
 serde = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
-spaceops-models = { workspace = true }
+orbitlogs-models = { workspace = true }
 
 [dev-dependencies]
 proptest = "1.4.0"

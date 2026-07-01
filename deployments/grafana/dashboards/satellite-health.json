@@ -308,7 +308,7 @@
   ],
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["spaceops", "satellite"],
+  "tags": ["orbitlogs", "satellite"],
   "templating": {
     "list": [
       {
@@ -329,6 +329,6 @@
     "from": "now-15m",
     "to": "now"
   },
-  "title": "Open SpaceOps - Satellite Health",
+  "title": "OrbitLogs - Satellite Health",
   "version": 1
 }

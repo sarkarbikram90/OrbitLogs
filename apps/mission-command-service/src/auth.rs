@@ -138,7 +138,7 @@ pub async fn login_handler(
         ));
     }
 
-    if !spaceops_models::auth::secure_compare(&req.api_key, &state.api_key) {
+    if !orbitlogs_models::auth::secure_compare(&req.api_key, &state.api_key) {
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({ "error": "Invalid API key" })),
@@ -158,7 +158,7 @@ pub async fn login_handler(
         .timestamp() as usize;
 
     let claims = Claims {
-        sub: "spaceops-operator".to_string(),
+        sub: "orbitlogs-operator".to_string(),
         role: format!("{:?}", role),
         exp,
     };

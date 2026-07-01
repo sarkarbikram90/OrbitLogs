@@ -1,6 +1,6 @@
 use sqlx::{Error, PgPool};
 
-pub use spaceops_models::GroundStationHealth;
+pub use orbitlogs_models::GroundStationHealth;
 
 pub async fn insert_ground_station_health(
     pool: &PgPool,

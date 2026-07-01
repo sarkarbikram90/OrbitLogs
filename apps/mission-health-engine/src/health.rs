@@ -6,9 +6,9 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use spaceops_models::TelemetryRecord;
+use orbitlogs_models::TelemetryRecord;
 
-pub use spaceops_models::GroundStationHealth as GroundStationState;
+pub use orbitlogs_models::GroundStationHealth as GroundStationState;
 
 fn get_linked_ground_station(satellite_id: &str) -> String {
     if let Some(num_str) = satellite_id.strip_prefix("SAT-") {
@@ -20,7 +20,7 @@ fn get_linked_ground_station(satellite_id: &str) -> String {
     "GS-0001".to_string()
 }
 
-pub use spaceops_models::HealthState;
+pub use orbitlogs_models::HealthState;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SubsystemHealth {

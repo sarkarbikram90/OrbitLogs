@@ -47,7 +47,7 @@ fn create_test_app() -> Router {
         invalid_topic: "telemetry.invalid".to_string(),
         db_pool: None,
         broadcast_tx,
-        api_key: "secret-spaceops-key-2026".to_string(),
+        api_key: "secret-orbitlogs-key-2026".to_string(),
         cors_allowed_origin: "http://localhost:3000".to_string(),
         rate_limiter: std::sync::Arc::new(dashmap::DashMap::new()),
     });
@@ -398,7 +398,7 @@ async fn test_real_handler_binary_valid() {
         event_id: Uuid::new_v4(),
     };
 
-    let binary_data = spaceops_packets::encode_record_to_frame(&rec, 1).unwrap();
+    let binary_data = orbitlogs_packets::encode_record_to_frame(&rec, 1).unwrap();
 
     let response = app
         .oneshot(
@@ -467,7 +467,7 @@ async fn test_auth_middleware_accepted_header() {
                 .method("POST")
                 .uri("/telemetry_authed")
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer secret-spaceops-key-2026")
+                .header("Authorization", "Bearer secret-orbitlogs-key-2026")
                 .body(Body::from("{}"))
                 .unwrap(),
         )
@@ -488,7 +488,7 @@ async fn test_auth_middleware_accepted_query_param() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/telemetry_authed?token=secret-spaceops-key-2026")
+                .uri("/telemetry_authed?token=secret-orbitlogs-key-2026")
                 .header("Content-Type", "application/json")
                 .body(Body::from("{}"))
                 .unwrap(),

@@ -30,7 +30,7 @@ The OrbitLogs platform is now certified as **fully production-ready** for missio
 ## 🔍 Detailed Component Audit
 
 ### 1. Ingestion Pipeline & Serialization (`telemetry-collector`)
-- **CCSDS Packet Integrity**: The `spaceops-packets` crate correctly enforces binary serialization matching standard packet structures. Checksumming using **CRC-16-CCITT** provides robust bit-level corruption detection over degraded ground links.
+- **CCSDS Packet Integrity**: The `orbitlogs-packets` crate correctly enforces binary serialization matching standard packet structures. Checksumming using **CRC-16-CCITT** provides robust bit-level corruption detection over degraded ground links.
 - **Timing Attacks & Authentication**: Ingestion endpoints require API keys authenticated using constant-time comparisons (`subtle::constant_time_eq`), completely blocking timing side-channel attacks.
 - **Resource Denial Defense**: Ingestion endpoints restrict request body sizes via `DefaultBodyLimit::max(10_240)` (10KB), preventing Out-Of-Memory (OOM) exploits from malicious oversized payloads.
 - **Rate-Limiting**: Token-bucket middleware applies partitioned limits per token (100 req/sec bucket capacity/refill), preventing local API exhaustion during telemetry storms.
@@ -67,7 +67,7 @@ The OrbitLogs platform is now certified as **fully production-ready** for missio
 - **Remediation**: Configured robust `securityContext` settings at both the pod and container levels:
   - Enforced `runAsNonRoot: true`, `runAsUser: 10001`, `runAsGroup: 10001`, and `fsGroup: 10001`.
   - Enforced `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, and dropped all kernel capabilities (`capabilities.drop: [ALL]`).
-  - Added a multi-stage `Dockerfile` for the `space-otel-collector` service that creates and runs under an unprivileged `spaceops` user context.
+  - Added a multi-stage `Dockerfile` for the `space-otel-collector` service that creates and runs under an unprivileged `orbitlogs` user context.
 - **Outcome**: Admission controllers can now verify container isolation policies, successfully neutralizing container-escape security vulnerabilities.
 
 ### 4. Git Secrets Mitigation Strategy

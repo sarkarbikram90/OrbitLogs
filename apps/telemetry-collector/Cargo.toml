@@ -23,8 +23,8 @@ dotenvy = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
-spaceops-models = { workspace = true }
-spaceops-packets = { workspace = true }
+orbitlogs-models = { workspace = true }
+orbitlogs-packets = { workspace = true }
 tower = { version = "0.5", features = ["limit", "util", "buffer", "load-shed"] }
 subtle = { workspace = true }
 dashmap = { workspace = true }

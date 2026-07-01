@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spaceops-ground-station-simulator
-  namespace: spaceops
+  name: orbitlogs-ground-station-simulator
+  namespace: orbitlogs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-ground-station-simulator
+      app: orbitlogs-ground-station-simulator
   template:
     metadata:
       labels:
-        app: spaceops-ground-station-simulator
+        app: orbitlogs-ground-station-simulator
     spec:
       containers:
-      - name: spaceops-ground-station-simulator
-        image: spaceops/spaceops-ground-station-simulator:latest
+      - name: orbitlogs-ground-station-simulator
+        image: orbitlogs/orbitlogs-ground-station-simulator:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8083
@@ -25,12 +25,12 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: database_url
         - name: RUN_MIGRATIONS
           value: "false"
         - name: KAFKA_BROKERS
-          value: "spaceops-kafka-headless:9092" 
+          value: "orbitlogs-kafka-headless:9092" 
         resources:
           requests:
             cpu: 100m
@@ -42,11 +42,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spaceops-ground-station-simulator
-  namespace: spaceops
+  name: orbitlogs-ground-station-simulator
+  namespace: orbitlogs
 spec:
   ports:
   - port: 8083
     targetPort: 8083
   selector:
-    app: spaceops-ground-station-simulator
+    app: orbitlogs-ground-station-simulator

@@ -96,7 +96,7 @@ impl KafkaProducer {
         sasl_password: Option<&str>,
         ssl_ca_location: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
-        let mut config = spaceops_models::kafka::KafkaConfigBuilder::new(brokers.to_string())
+        let mut config = orbitlogs_models::kafka::KafkaConfigBuilder::new(brokers.to_string())
             .with_security(
                 security_protocol.map(|s| s.to_string()),
                 sasl_mechanism.map(|s| s.to_string()),
@@ -105,9 +105,9 @@ impl KafkaProducer {
                 ssl_ca_location.map(|s| s.to_string()),
             )
             .with_ssl(
-                spaceops_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
-                spaceops_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
-                spaceops_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
+                orbitlogs_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
+                orbitlogs_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
+                orbitlogs_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
             )
             .build();
         config

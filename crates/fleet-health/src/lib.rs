@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use spaceops_models::HealthState;
+use orbitlogs_models::HealthState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubsystemHealth {

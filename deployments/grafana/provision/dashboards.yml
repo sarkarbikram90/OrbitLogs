@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: 'Open SpaceOps Dashboards'
+  - name: 'OrbitLogs Dashboards'
     orgId: 1
-    folder: 'Open SpaceOps'
+    folder: 'OrbitLogs'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 5

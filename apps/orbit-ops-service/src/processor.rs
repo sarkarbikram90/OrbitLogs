@@ -5,6 +5,6 @@ pub trait TelemetryProcessor: Send + Sync {
     fn process<'a>(
         &'a self,
         sat_id: &'a str,
-        record: &'a spaceops_models::TelemetryRecord,
+        record: &'a orbitlogs_models::TelemetryRecord,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 }

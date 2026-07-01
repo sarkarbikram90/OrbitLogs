@@ -30,7 +30,7 @@ Our verification plan enforces a strict testing hierarchy from isolated unit tes
 Unit tests are written inside the respective crates and applications:
 - **Digital Twin Projection Tests**: Inside `digital-twin-engine` ([main.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/apps/digital-twin-engine/src/main.rs)), unit tests validate battery, thermal, ADCS drift, and fuel depletion threshold outputs.
 - **RNG State Validation**: Inside `telemetry-simulator`, unit tests confirm that deterministic seeded loops yield matching telemetry streams.
-- **Model Checks**: Inside `spaceops-models`, tests assert range boundaries for pitch/yaw, signal strength, and voltage attributes.
+- **Model Checks**: Inside `orbitlogs-models`, tests assert range boundaries for pitch/yaw, signal strength, and voltage attributes.
 
 Run all workspace tests:
 ```bash

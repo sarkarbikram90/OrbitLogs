@@ -33,7 +33,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT pg_size_pretty(pg_database_size('spaceops')) as value;"
+          "rawSql": "SELECT pg_size_pretty(pg_database_size('orbitlogs')) as value;"
         }
       ],
       "fieldConfig": {
@@ -114,7 +114,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT count(*) as value FROM pg_stat_activity WHERE datname = 'spaceops';"
+          "rawSql": "SELECT count(*) as value FROM pg_stat_activity WHERE datname = 'orbitlogs';"
         }
       ],
       "fieldConfig": {
@@ -207,11 +207,11 @@
   ],
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["spaceops", "infra"],
+  "tags": ["orbitlogs", "infra"],
   "time": {
     "from": "now-15m",
     "to": "now"
   },
-  "title": "Open SpaceOps - Infrastructure Health",
+  "title": "OrbitLogs - Infrastructure Health",
   "version": 1
 }

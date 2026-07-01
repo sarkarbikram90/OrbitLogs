@@ -22,5 +22,5 @@ dotenvy = { workspace = true }
 clap = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
-spaceops-models = { workspace = true }
+orbitlogs-models = { workspace = true }
 axum = { workspace = true }

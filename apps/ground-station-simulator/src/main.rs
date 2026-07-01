@@ -11,7 +11,7 @@ mod db;
 use db::{insert_ground_station_health, GroundStationHealth};
 
 #[derive(Parser, Debug, Clone)]
-#[command(name = "Open SpaceOps - Ground Station Simulator")]
+#[command(name = "OrbitLogs - Ground Station Simulator")]
 #[command(about = "Simulates realistic space-to-ground communications & environmental link factors", long_about = None)]
 struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
@@ -20,7 +20,7 @@ struct Cli {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
     )]
     database_url: String,
 
@@ -136,7 +136,7 @@ async fn start_metrics_server(port: u16) {
     }
 }
 
-use spaceops_models::load_secret;
+use orbitlogs_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -168,10 +168,10 @@ async fn main() -> Result<(), anyhow::Error> {
     tokio::spawn(start_metrics_server(cli.metrics_port));
 
     // Connect to database
-    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
+    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
 
     // Init Kafka Producer
-    let mut config = spaceops_models::kafka::KafkaConfigBuilder::new(cli.kafka_brokers.clone())
+    let mut config = orbitlogs_models::kafka::KafkaConfigBuilder::new(cli.kafka_brokers.clone())
         .with_security(
             cli.kafka_security_protocol.clone(),
             cli.kafka_sasl_mechanism.clone(),
@@ -180,9 +180,9 @@ async fn main() -> Result<(), anyhow::Error> {
             cli.kafka_ssl_ca_location.clone(),
         )
         .with_ssl(
-            spaceops_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
-            spaceops_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
-            spaceops_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
+            orbitlogs_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
+            orbitlogs_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
+            orbitlogs_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
         )
         .build();
     config.set("message.timeout.ms", "5000");

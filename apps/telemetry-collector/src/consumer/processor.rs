@@ -91,7 +91,7 @@ impl TelemetryConsumer {
 
     pub async fn start(&self) -> Result<(), anyhow::Error> {
         let mut client_config =
-            spaceops_models::kafka::KafkaConfigBuilder::new(self.config.brokers.clone())
+            orbitlogs_models::kafka::KafkaConfigBuilder::new(self.config.brokers.clone())
                 .with_security(
                     self.config.security_protocol.clone(),
                     self.config.sasl_mechanism.clone(),
@@ -100,9 +100,9 @@ impl TelemetryConsumer {
                     self.config.ssl_ca_location.clone(),
                 )
                 .with_ssl(
-                    spaceops_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
-                    spaceops_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
-                    spaceops_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
+                    orbitlogs_models::load_secret("KAFKA_SSL_CERTIFICATE_LOCATION"),
+                    orbitlogs_models::load_secret("KAFKA_SSL_KEY_LOCATION"),
+                    orbitlogs_models::load_secret("KAFKA_SSL_KEY_PASSWORD"),
                 )
                 .build();
         client_config

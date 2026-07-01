@@ -18,8 +18,8 @@ prometheus = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 dotenvy = { workspace = true }
-spaceops-models = { workspace = true }
-spaceops-packets = { workspace = true }
+orbitlogs-models = { workspace = true }
+orbitlogs-packets = { workspace = true }
 rdkafka = { workspace = true }
 axum = { version = "0.7" }
 dashmap = { workspace = true }

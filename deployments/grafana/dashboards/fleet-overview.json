@@ -385,7 +385,7 @@
   ],
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["spaceops", "fleet"],
+  "tags": ["orbitlogs", "fleet"],
   "time": {
     "from": "now-15m",
     "to": "now"
@@ -398,6 +398,6 @@
     ]
   },
   "timezone": "",
-  "title": "Open SpaceOps - Fleet Overview",
+  "title": "OrbitLogs - Fleet Overview",
   "version": 1
 }

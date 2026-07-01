@@ -40,9 +40,9 @@ pub struct DbTelemetry {
     pub payload_active: Option<bool>,
 }
 
-impl From<DbTelemetry> for spaceops_models::TelemetryRecord {
+impl From<DbTelemetry> for orbitlogs_models::TelemetryRecord {
     fn from(t: DbTelemetry) -> Self {
-        spaceops_models::TelemetryRecord {
+        orbitlogs_models::TelemetryRecord {
             satellite_id: t.satellite_id,
             subsystem_id: t.subsystem_id,
             mission_id: t.mission_id,

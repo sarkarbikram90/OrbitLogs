@@ -35,7 +35,7 @@ flowchart LR
 ### Timing Side-Channel Defenses
 To prevent timing side-channel attacks that leak secret keys, credentials comparison utilizes a SHA-256 pre-hashing comparison approach:
 *   Credentials are hashed using SHA-256 first, ensuring both inputs to `ct_eq` are exactly 32 bytes, regardless of user input length.
-*   Centralized in `spaceops-models::auth::secure_compare` ([auth.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/crates/spaceops-models/src/auth.rs)).
+*   Centralized in `orbitlogs-models::auth::secure_compare` ([auth.rs](file:///c:/Users/bikrams/orbitlogs/OrbitLOgs/crates/orbitlogs-models/src/auth.rs)).
 
 ### JWT-Based Command Permissions
 *   Flight commands require a securely signed JWT Bearer token with Role-Based Access Control (RBAC) validations.
@@ -55,5 +55,5 @@ To prevent timing side-channel attacks that leak secret keys, credentials compar
 
 ### Container Isolation
 *   Multi-stage container builds separate compilation dependencies from runtime packages.
-*   Containers execute under a non-root system user `spaceops` (UID/GID 10001) to mitigate escape exploits.
+*   Containers execute under a non-root system user `orbitlogs` (UID/GID 10001) to mitigate escape exploits.
 *   Database passwords and keys are mounted from secure secret files at `/run/secrets/` rather than environment strings.

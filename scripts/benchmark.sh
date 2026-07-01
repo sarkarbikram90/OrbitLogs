@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Open SpaceOps Performance Benchmark Suite ==="
+echo "=== OrbitLogs Performance Benchmark Suite ==="
 
 # Check k6
 command -v k6 >/dev/null 2>&1 || { echo >&2 "k6 is required but not installed. Aborting."; exit 1; }

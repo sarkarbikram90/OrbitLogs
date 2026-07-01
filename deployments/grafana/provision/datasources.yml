@@ -12,7 +12,7 @@ datasources:
     type: postgres
     access: proxy
     url: timescaledb:5432
-    database: ${POSTGRES_DB:-spaceops}
+    database: ${POSTGRES_DB:-orbitlogs}
     user: ${POSTGRES_USER:-postgres}
     secureJsonData:
       password: ${POSTGRES_PASSWORD:-postgrespassword}

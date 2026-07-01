@@ -154,11 +154,11 @@
   ],
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["spaceops", "satellite", "health"],
+  "tags": ["orbitlogs", "satellite", "health"],
   "time": {
     "from": "now-15m",
     "to": "now"
   },
-  "title": "Open SpaceOps - Fleet & Mission Health",
+  "title": "OrbitLogs - Fleet & Mission Health",
   "version": 1
 }

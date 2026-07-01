@@ -1,9 +1,9 @@
 services:
   timescaledb:
     image: timescale/timescaledb:2.15.0-pg15
-    container_name: spaceops-timescaledb
+    container_name: orbitlogs-timescaledb
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-spaceops}
+      POSTGRES_DB: ${POSTGRES_DB:-orbitlogs}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     ports:
@@ -14,7 +14,7 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - pg_isready -U postgres -d spaceops
+      - pg_isready -U postgres -d orbitlogs
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,14 +28,14 @@ services:
     restart: unless-stopped
   certs-generator:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: spaceops-certs-generator
+    container_name: orbitlogs-certs-generator
     volumes:
       - ./secrets:/secrets
       - ./scripts:/scripts
     entrypoint: [ "bash", "/scripts/generate_kafka_certs.sh" ]
   kafka-init:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: spaceops-kafka-init
+    container_name: orbitlogs-kafka-init
     depends_on:
     - certs-generator
     - kafka-1
@@ -64,7 +64,7 @@ services:
           memory: 128M
   jaeger:
     image: jaegertracing/all-in-one:1.47
-    container_name: spaceops-jaeger
+    container_name: orbitlogs-jaeger
     ports:
     - 16686:16686
     - 4317:4317
@@ -78,7 +78,7 @@ services:
     restart: unless-stopped
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.82.0
-    container_name: spaceops-otel-collector
+    container_name: orbitlogs-otel-collector
     volumes:
     - ../otel/otel-collector-config.yml:/etc/otelcol/config.yaml
     command:
@@ -95,7 +95,7 @@ services:
     restart: unless-stopped
   alertmanager:
     image: prom/alertmanager:v0.25.0
-    container_name: spaceops-alertmanager
+    container_name: orbitlogs-alertmanager
     volumes:
     - ../alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
     ports:
@@ -108,7 +108,7 @@ services:
     restart: unless-stopped
   prometheus:
     image: prom/prometheus:v2.46.0
-    container_name: spaceops-prometheus
+    container_name: orbitlogs-prometheus
     volumes:
     - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     - ../prometheus/rules.yml:/etc/prometheus/rules.yml
@@ -124,7 +124,7 @@ services:
     restart: unless-stopped
   grafana:
     image: grafana/grafana:10.0.3
-    container_name: spaceops-grafana
+    container_name: orbitlogs-grafana
     volumes:
     - ../grafana/provision/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
     - ../grafana/provision/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml
@@ -148,7 +148,7 @@ services:
     build:
       context: ../../
       dockerfile: apps/telemetry-collector/Dockerfile
-    container_name: spaceops-collector
+    container_name: orbitlogs-collector
     ports:
     - 8080:8080
     volumes:
@@ -188,7 +188,7 @@ services:
     build:
       context: ../../
       dockerfile: apps/telemetry-simulator/Dockerfile
-    container_name: spaceops-simulator
+    container_name: orbitlogs-simulator
     ports:
     - 8081:8081
     volumes:
@@ -229,7 +229,7 @@ services:
     build:
       context: ../../
       dockerfile: apps/mission-health-engine/Dockerfile
-    container_name: spaceops-health-engine
+    container_name: orbitlogs-health-engine
     ports:
     - 8082:8082
     volumes:
@@ -270,7 +270,7 @@ services:
     build:
       context: ../../
       dockerfile: apps/ground-station-simulator/Dockerfile
-    container_name: spaceops-ground-station-simulator
+    container_name: orbitlogs-ground-station-simulator
     ports:
     - 8083:8083
     volumes:
@@ -309,7 +309,7 @@ services:
     build:
       context: ../../
       dockerfile: apps/mission-replay-engine/Dockerfile
-    container_name: spaceops-replay-engine
+    container_name: orbitlogs-replay-engine
     ports:
     - 8084:8084
     environment:
@@ -332,7 +332,7 @@ services:
     build:
       context: ../../
       dockerfile: apps/orbit-ops-service/Dockerfile
-    container_name: spaceops-orbit-ops
+    container_name: orbitlogs-orbit-ops
     ports:
     - 8095:8095
     volumes:
@@ -373,7 +373,7 @@ services:
     build:
       context: ../../
       dockerfile: crates/space-otel-collector/Dockerfile
-    container_name: spaceops-otel-metrics-collector
+    container_name: orbitlogs-otel-metrics-collector
     ports:
     - 8091:8091
     volumes:
@@ -407,7 +407,7 @@ services:
     build:
       context: ../../
       dockerfile: apps/mission-control-ui/Dockerfile
-    container_name: spaceops-mission-control-ui
+    container_name: orbitlogs-mission-control-ui
     ports:
     - 3000:3000
     depends_on:
@@ -421,7 +421,7 @@ services:
     restart: unless-stopped
   kafka-1:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: spaceops-kafka-1
+    container_name: orbitlogs-kafka-1
     ports:
     - 9092:9092
     volumes:
@@ -436,10 +436,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,SSL:SSL,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: SSL
       KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka-1.keystore.jks
-      KAFKA_SSL_KEYSTORE_PASSWORD: spaceopspass
-      KAFKA_SSL_KEY_PASSWORD: spaceopspass
+      KAFKA_SSL_KEYSTORE_PASSWORD: orbitlogspass
+      KAFKA_SSL_KEY_PASSWORD: orbitlogspass
       KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-1.truststore.jks
-      KAFKA_SSL_TRUSTSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: orbitlogspass
       KAFKA_SSL_CLIENT_AUTH: required
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
@@ -463,7 +463,7 @@ services:
     restart: unless-stopped
   kafka-2:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: spaceops-kafka-2
+    container_name: orbitlogs-kafka-2
     ports:
     - 9094:9094
     volumes:
@@ -478,10 +478,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,SSL:SSL,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: SSL
       KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka-2.keystore.jks
-      KAFKA_SSL_KEYSTORE_PASSWORD: spaceopspass
-      KAFKA_SSL_KEY_PASSWORD: spaceopspass
+      KAFKA_SSL_KEYSTORE_PASSWORD: orbitlogspass
+      KAFKA_SSL_KEY_PASSWORD: orbitlogspass
       KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-2.truststore.jks
-      KAFKA_SSL_TRUSTSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: orbitlogspass
       KAFKA_SSL_CLIENT_AUTH: required
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
@@ -505,7 +505,7 @@ services:
     restart: unless-stopped
   kafka-3:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: spaceops-kafka-3
+    container_name: orbitlogs-kafka-3
     ports:
     - 9096:9096
     volumes:
@@ -520,10 +520,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,SSL:SSL,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: SSL
       KAFKA_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka-3.keystore.jks
-      KAFKA_SSL_KEYSTORE_PASSWORD: spaceopspass
-      KAFKA_SSL_KEY_PASSWORD: spaceopspass
+      KAFKA_SSL_KEYSTORE_PASSWORD: orbitlogspass
+      KAFKA_SSL_KEY_PASSWORD: orbitlogspass
       KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-3.truststore.jks
-      KAFKA_SSL_TRUSTSTORE_PASSWORD: spaceopspass
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: orbitlogspass
       KAFKA_SSL_CLIENT_AUTH: required
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2

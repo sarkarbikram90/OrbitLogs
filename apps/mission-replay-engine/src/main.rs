@@ -24,13 +24,13 @@ mod db;
 mod metrics;
 
 #[derive(Parser, Debug, Clone)]
-#[command(name = "Open SpaceOps - Mission Replay Engine")]
+#[command(name = "OrbitLogs - Mission Replay Engine")]
 #[command(about = "Historical data playback engine for telemetry and events", long_about = None)]
 struct Cli {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
     )]
     database_url: String,
 
@@ -74,7 +74,7 @@ struct ControlReplayRequest {
 #[serde(tag = "type", content = "data")]
 enum ReplayData {
     #[serde(rename = "telemetry")]
-    Telemetry(spaceops_models::TelemetryRecord),
+    Telemetry(orbitlogs_models::TelemetryRecord),
     #[serde(rename = "event")]
     Event(db::DbEvent),
     #[serde(rename = "satellite_health")]
@@ -97,7 +97,7 @@ fn is_valid_speed(speed: f32) -> bool {
     allowed.iter().any(|&s| (s - speed).abs() < f32::EPSILON)
 }
 
-use spaceops_models::load_secret;
+use orbitlogs_models::load_secret;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -128,7 +128,7 @@ async fn main() -> Result<(), anyhow::Error> {
     metrics::register_metrics();
 
     // Connect to database
-    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 10).await?;
+    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 10).await?;
 
     let state = Arc::new(AppState {
         db_pool,
@@ -776,7 +776,7 @@ async fn query_and_send_events(
     let mut all_data = Vec::new();
 
     for t in telemetry {
-        let rec: spaceops_models::TelemetryRecord = t.into();
+        let rec: orbitlogs_models::TelemetryRecord = t.into();
         all_data.push(TimedReplayData {
             timestamp: rec.timestamp,
             data: ReplayData::Telemetry(rec),
@@ -892,7 +892,7 @@ async fn auth_middleware(
     }
 
     let authenticated = match token_opt {
-        Some(ref t) => spaceops_models::auth::secure_compare(t, &state.api_key),
+        Some(ref t) => orbitlogs_models::auth::secure_compare(t, &state.api_key),
         None => false,
     };
 
@@ -1099,7 +1099,7 @@ mod tests {
         use tower::util::ServiceExt;
 
         let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://postgres:postgrespassword@localhost:5432/spaceops".to_string()
+            "postgres://postgres:postgrespassword@localhost:5432/orbitlogs".to_string()
         });
 
         let db_pool = match sqlx::PgPool::connect_with(database_url.parse().unwrap()).await {

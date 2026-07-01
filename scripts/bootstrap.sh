@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Open SpaceOps Local Bootstrap ==="
+echo "=== OrbitLogs Local Bootstrap ==="
 
 # 1. Check prerequisites
 echo "Checking prerequisites..."
@@ -18,7 +18,7 @@ docker compose -f deployments/docker-compose/docker-compose.yml up -d --build
 
 # 4. Wait for database health
 echo "Waiting for TimescaleDB to become healthy..."
-until docker exec spaceops-timescaledb pg_isready -U postgres -d spaceops >/dev/null 2>&1; do
+until docker exec orbitlogs-timescaledb pg_isready -U postgres -d orbitlogs >/dev/null 2>&1; do
   echo -n "."
   sleep 1
 done

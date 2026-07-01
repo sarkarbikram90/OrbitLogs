@@ -22,7 +22,7 @@ The server listens on `:8080` and exposes three endpoints:
 ### `POST /telemetry`
 Accepts downlink telemetry streams.
 *   **JSON Ingestion**: Enforces strict parsing checks using Serde's `#[serde(deny_unknown_fields)]` to block unmapped parameters.
-*   **CCSDS Binary Ingestion**: When `Content-Type: application/octet-stream` is set, the server decodes binary packets using `spaceops-packets` and validates the **CRC-16-CCITT** checksum.
+*   **CCSDS Binary Ingestion**: When `Content-Type: application/octet-stream` is set, the server decodes binary packets using `orbitlogs-packets` and validates the **CRC-16-CCITT** checksum.
 *   **CORS & Auth**: Enforces JWT Bearer authentication and locks origins to the `CORS_ALLOWED_ORIGIN` env configuration.
 *   **Rate Limiting**: Employs an IP-partitioned token-bucket rate limiter via `DashMap` to prevent request starvation under load.
 *   **Returns**: HTTP `202 Accepted` with a unique transaction UUID.

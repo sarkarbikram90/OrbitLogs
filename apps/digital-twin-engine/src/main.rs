@@ -10,8 +10,8 @@ use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde::{Deserialize, Serialize};
-use spaceops_models::kafka::KafkaConfigBuilder;
-use spaceops_models::TelemetryRecord;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::TelemetryRecord;
 use sqlx::{PgPool, Row};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -32,7 +32,7 @@ struct Cli {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/spaceops"
+        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
     )]
     database_url: String,
 
@@ -131,7 +131,7 @@ async fn auth_middleware(
     }
 
     let authenticated = match token_opt {
-        Some(ref t) => spaceops_models::auth::secure_compare(t, &state.api_key),
+        Some(ref t) => orbitlogs_models::auth::secure_compare(t, &state.api_key),
         None => false,
     };
 
@@ -226,16 +226,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
 
     // Init tracing
-    spaceops_models::telemetry::init_telemetry("digital-twin-engine", &cli.otel_endpoint)?;
+    orbitlogs_models::telemetry::init_telemetry("digital-twin-engine", &cli.otel_endpoint)?;
 
     info!("Starting Digital Twin Engine...");
 
     let api_key = cli.api_key.clone()
-        .or_else(|| spaceops_models::load_secret("API_KEY"))
+        .or_else(|| orbitlogs_models::load_secret("API_KEY"))
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
 
-    let db_pool = spaceops_models::db::establish_db_connection(&cli.database_url, 5).await?;
+    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
 
     let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
     let kafka_producer: FutureProducer = producer_config.create()?;
@@ -292,7 +292,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
 
     info!("Digital Twin Engine shut down gracefully.");
-    spaceops_models::telemetry::shutdown_telemetry();
+    orbitlogs_models::telemetry::shutdown_telemetry();
     Ok(())
 }
 

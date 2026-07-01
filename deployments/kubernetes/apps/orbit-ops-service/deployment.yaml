@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spaceops-orbit-ops
-  namespace: spaceops
+  name: orbitlogs-orbit-ops
+  namespace: orbitlogs
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-orbit-ops
+      app: orbitlogs-orbit-ops
   template:
     metadata:
       labels:
-        app: spaceops-orbit-ops
+        app: orbitlogs-orbit-ops
     spec:
       securityContext:
         runAsNonRoot: true
@@ -19,8 +19,8 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
       containers:
-      - name: spaceops-orbit-ops
-        image: spaceops/spaceops-orbit-ops:latest
+      - name: orbitlogs-orbit-ops
+        image: orbitlogs/orbitlogs-orbit-ops:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
@@ -48,12 +48,12 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: database_url
         - name: RUN_MIGRATIONS
           value: "false"
         - name: KAFKA_BROKERS
-          value: "spaceops-kafka-headless:9092"
+          value: "orbitlogs-kafka-headless:9092"
         - name: PORT
           value: "8095"
         - name: PROCESSED_TOPIC
@@ -77,11 +77,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spaceops-orbit-ops
-  namespace: spaceops
+  name: orbitlogs-orbit-ops
+  namespace: orbitlogs
 spec:
   ports:
   - port: 8095
     targetPort: 8095
   selector:
-    app: spaceops-orbit-ops
+    app: orbitlogs-orbit-ops

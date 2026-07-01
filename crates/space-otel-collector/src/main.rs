@@ -2,8 +2,8 @@ use clap::Parser;
 use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
-use spaceops_models::kafka::KafkaConfigBuilder;
-use spaceops_models::TelemetryRecord;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::TelemetryRecord;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tracing::{error, info};
@@ -244,7 +244,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
 
     // Init tracing & OTel
-    spaceops_models::telemetry::init_telemetry("space-otel-collector", &cli.otel_endpoint)?;
+    orbitlogs_models::telemetry::init_telemetry("space-otel-collector", &cli.otel_endpoint)?;
 
     info!("Starting Space OTel Collector...");
     register_metrics();
@@ -400,7 +400,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         );
                     }
                 } else if topic == cli.gs_health_topic {
-                    if let Ok(gs) = serde_json::from_str::<spaceops_models::GroundStationHealth>(payload) {
+                    if let Ok(gs) = serde_json::from_str::<orbitlogs_models::GroundStationHealth>(payload) {
                         let span = tracing::info_span!("groundstation_telemetry", station_id = %gs.station_id);
                         span.set_parent(parent_context.clone());
                         let _enter = span.enter();
@@ -463,7 +463,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     info!("Cleaning up telemetry before exit...");
-    spaceops_models::telemetry::shutdown_telemetry();
+    orbitlogs_models::telemetry::shutdown_telemetry();
     Ok(())
 }
 

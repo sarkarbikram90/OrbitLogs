@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: spaceops-timescaledb
-  namespace: spaceops
+  name: orbitlogs-timescaledb
+  namespace: orbitlogs
 spec:
-  serviceName: spaceops-timescaledb
+  serviceName: orbitlogs-timescaledb
   replicas: 1
   selector:
     matchLabels:
-      app: spaceops-timescaledb
+      app: orbitlogs-timescaledb
   template:
     metadata:
       labels:
-        app: spaceops-timescaledb
+        app: orbitlogs-timescaledb
     spec:
       containers:
       - name: timescaledb
@@ -22,13 +22,13 @@ spec:
           name: postgres
         env:
         - name: POSTGRES_DB
-          value: "spaceops"
+          value: "orbitlogs"
         - name: POSTGRES_USER
           value: "postgres"
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: spaceops-secrets
+              name: orbitlogs-secrets
               key: postgres_password
         volumeMounts:
         - name: data
@@ -45,11 +45,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: spaceops-timescaledb
-  namespace: spaceops
+  name: orbitlogs-timescaledb
+  namespace: orbitlogs
 spec:
   ports:
   - port: 5432
     targetPort: 5432
   selector:
-    app: spaceops-timescaledb
+    app: orbitlogs-timescaledb

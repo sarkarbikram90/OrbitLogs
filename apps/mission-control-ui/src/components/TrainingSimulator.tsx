@@ -72,7 +72,7 @@ export function TrainingSimulator({ selectedSatId }: TrainingSimulatorProps) {
         'ATTITUDE_DRIFT': 'adcs',
       };
       const sub = subMap[scenario];
-      const twin_key = sessionStorage.getItem('VITE_API_KEY') || 'spaceops-secret-api-key';
+      const twin_key = sessionStorage.getItem('VITE_API_KEY') || 'orbitlogs-secret-api-key';
 
       await fetch(`${BACKEND_TWIN_URL}/api/twin/${selectedSatId}/simulate-failure`, {
         method: 'POST',
@@ -143,7 +143,7 @@ export function TrainingSimulator({ selectedSatId }: TrainingSimulatorProps) {
   return (
     <div className="glass-panel" style={{ height: '100%', padding: '20px', overflowY: 'auto' }}>
       <div className="panel-header" style={{ marginBottom: '20px', background: 'transparent', padding: 0 }}>
-        <span>SpaceOps Training Simulator Mode</span>
+        <span>OrbitLogs Training Simulator Mode</span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '24px' }}>

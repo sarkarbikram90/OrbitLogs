@@ -1,5 +1,5 @@
 [package]
-name = "spaceops-models"
+name = "orbitlogs-models"
 version = "1.0.0"
 edition = "2021"
 description = "Shared domain models for the OrbitLogs satellite telemetry platform"

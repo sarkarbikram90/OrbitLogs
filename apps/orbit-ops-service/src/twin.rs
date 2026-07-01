@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 use dashmap::DashMap;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
-use spaceops_models::TelemetryRecord;
+use orbitlogs_models::TelemetryRecord;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
