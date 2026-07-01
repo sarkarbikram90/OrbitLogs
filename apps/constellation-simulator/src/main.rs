@@ -170,7 +170,7 @@ async fn main() -> Result<(), anyhow::Error> {
             _ = sleep(Duration::from_millis(cli.tick_interval_ms)) => {}
         }
     }
-    info!("Constellation simulator stopped.");
+    info!("Constellation simulator is stopped.");
     Ok(())
 }
 
