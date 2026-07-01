@@ -7,13 +7,13 @@ pub async fn establish_db_connection(
     max_connections: u32,
 ) -> Result<PgPool, sqlx::Error> {
     info!("Connecting to TimescaleDB with retry logic...");
-    let mut retries: u32 = 5;
+    let mut retries: u32 = 7;
     loop {
         match PgPoolOptions::new()
             .max_connections(max_connections)
             .min_connections(2.max(max_connections / 4)) // tune min connections
-            .idle_timeout(Some(Duration::from_secs(30))) // tune idle timeout
-            .acquire_timeout(Duration::from_secs(3))
+            .idle_timeout(Some(Duration::from_secs_f64(30.0))) // tune idle timeout
+            .acquire_timeout(Duration::from_secs_f64(3.0))
             .connect(database_url)
             .await
         {
