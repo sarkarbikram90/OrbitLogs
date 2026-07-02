@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IssPosition {
     pub latitude: f64,
@@ -13,13 +14,18 @@ pub struct OrbitAdapters;
 
 impl OrbitAdapters {
     /// ISS Adapter: Fetches live ISS position from public API, falls back to simulation if offline
+    #[allow(dead_code)]
     pub async fn fetch_iss_position() -> IssPosition {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build();
 
         if let Ok(c) = client {
-            if let Ok(resp) = c.get("http://api.open-notify.org/iss-now.json").send().await {
+            if let Ok(resp) = c
+                .get("http://api.open-notify.org/iss-now.json")
+                .send()
+                .await
+            {
                 if let Ok(val) = resp.json::<serde_json::Value>().await {
                     if let (Some(lat_s), Some(lon_s)) = (
                         val["iss_position"]["latitude"].as_str(),
@@ -50,7 +56,11 @@ impl OrbitAdapters {
     }
 
     /// TLE (Two-Line Element) Adapter: Simulates orbital propagation based on TLE parameters
-    pub fn propagate_tle(_tle_line1: &str, tle_line2: &str, epoch_offset_sec: f64) -> (f64, f64, f64) {
+    pub fn propagate_tle(
+        _tle_line1: &str,
+        tle_line2: &str,
+        epoch_offset_sec: f64,
+    ) -> (f64, f64, f64) {
         // Basic Keplerian propagation derived from TLE line parses
         // Extracts mean motion (revs per day) from line 2
         let mean_motion = if tle_line2.len() >= 68 {
@@ -100,12 +110,7 @@ impl OrbitAdapters {
 
     /// N2YO Adapter: Calculates ground station passes (azimuth/elevation) for satellite tracking
     #[allow(dead_code)]
-    pub fn calculate_passes(
-        sat_lat: f64,
-        sat_lon: f64,
-        gs_lat: f64,
-        gs_lon: f64,
-    ) -> (f64, f64) {
+    pub fn calculate_passes(sat_lat: f64, sat_lon: f64, gs_lat: f64, gs_lon: f64) -> (f64, f64) {
         // Compute difference vectors on simplified spherical projection
         let d_lat = gs_lat - sat_lat;
         let d_lon = gs_lon - sat_lon;

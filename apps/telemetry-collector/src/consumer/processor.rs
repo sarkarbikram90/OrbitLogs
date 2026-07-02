@@ -67,7 +67,6 @@ pub struct ConsumerConfig {
     pub cache_capacity: usize,
 }
 
-
 pub struct TelemetryConsumer {
     config: ConsumerConfig,
     db_pool: PgPool,

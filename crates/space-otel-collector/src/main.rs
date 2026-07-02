@@ -1,16 +1,16 @@
 use clap::Parser;
+use dashmap::DashMap;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::TelemetryRecord;
 use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
-use orbitlogs_models::kafka::KafkaConfigBuilder;
-use orbitlogs_models::TelemetryRecord;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tracing::{error, info};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-use std::sync::LazyLock;
-use std::sync::Arc;
-use dashmap::DashMap;
 
 pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
 
@@ -48,7 +48,10 @@ pub static CPU_USAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
 
 pub static MEMORY_USAGE: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
-        Opts::new("memory_usage", "Flight computer memory usage in percentage (%)"),
+        Opts::new(
+            "memory_usage",
+            "Flight computer memory usage in percentage (%)",
+        ),
         &["satellite_id"],
     )
     .unwrap()
@@ -136,13 +139,19 @@ pub static GS_GAUGES_CACHE: LazyLock<DashMap<String, Arc<GroundStationGauges>>> 
     LazyLock::new(DashMap::new);
 
 fn register_metrics() {
-    REGISTRY.register(Box::new(BATTERY_VOLTAGE.clone())).unwrap();
-    REGISTRY.register(Box::new(BATTERY_CURRENT.clone())).unwrap();
+    REGISTRY
+        .register(Box::new(BATTERY_VOLTAGE.clone()))
+        .unwrap();
+    REGISTRY
+        .register(Box::new(BATTERY_CURRENT.clone()))
+        .unwrap();
     REGISTRY.register(Box::new(SOLAR_OUTPUT.clone())).unwrap();
     REGISTRY.register(Box::new(CPU_USAGE.clone())).unwrap();
     REGISTRY.register(Box::new(MEMORY_USAGE.clone())).unwrap();
     REGISTRY.register(Box::new(FUEL_REMAINING.clone())).unwrap();
-    REGISTRY.register(Box::new(SIGNAL_STRENGTH.clone())).unwrap();
+    REGISTRY
+        .register(Box::new(SIGNAL_STRENGTH.clone()))
+        .unwrap();
     REGISTRY.register(Box::new(PACKET_LOSS.clone())).unwrap();
     REGISTRY.register(Box::new(LINK_LATENCY.clone())).unwrap();
 }
@@ -200,11 +209,17 @@ async fn start_metrics_server(port: u16) {
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
-            error!("Failed to bind Space OTel Collector metrics server to port {}: {}", port, e);
+            error!(
+                "Failed to bind Space OTel Collector metrics server to port {}: {}",
+                port, e
+            );
             return;
         }
     };
-    info!("Space OTel Collector metrics server running on http://localhost:{}/metrics", port);
+    info!(
+        "Space OTel Collector metrics server running on http://localhost:{}/metrics",
+        port
+    );
     if let Err(e) = axum::serve(listener, app).await {
         error!("Metrics server error: {}", e);
     }
@@ -216,7 +231,11 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(long, env = "OTEL_EXPORTER_OTLP_ENDPOINT", default_value = "http://localhost:4317")]
+    #[arg(
+        long,
+        env = "OTEL_EXPORTER_OTLP_ENDPOINT",
+        default_value = "http://localhost:4317"
+    )]
     otel_endpoint: String,
 
     #[arg(long, env = "PROCESSED_TOPIC", default_value = "telemetry.processed")]

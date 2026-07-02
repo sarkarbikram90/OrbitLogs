@@ -1,14 +1,14 @@
-use serde::{Serialize, Deserialize};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use std::sync::Arc;
-use dashmap::DashMap;
-use sqlx::{PgPool, Row};
-use rdkafka::producer::{FutureProducer, FutureRecord};
 use chrono::Utc;
+use dashmap::DashMap;
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Row};
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::error;
 
@@ -31,11 +31,7 @@ pub struct FlightDynamicsManager {
 }
 
 impl FlightDynamicsManager {
-    pub fn new(
-        db_pool: PgPool,
-        kafka_producer: FutureProducer,
-        timeline_topic: String,
-    ) -> Self {
+    pub fn new(db_pool: PgPool, kafka_producer: FutureProducer, timeline_topic: String) -> Self {
         Self {
             states: DashMap::new(),
             db_pool,
@@ -45,16 +41,17 @@ impl FlightDynamicsManager {
     }
 
     pub async fn update_dynamics(&self, sat_id: &str, current_altitude: f64, current_fuel: f32) {
-        let idx = sat_id.strip_prefix("SAT-")
+        let idx = sat_id
+            .strip_prefix("SAT-")
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(1);
-        
-        let base_decay = if current_altitude < 480.0 { 
-            180.0 
-        } else if current_altitude < 500.0 { 
-            85.0 
-        }else { 
-            35.0 
+
+        let base_decay = if current_altitude < 480.0 {
+            180.0
+        } else if current_altitude < 500.0 {
+            85.0
+        } else {
+            35.0
         };
 
         let decay = base_decay + (idx as f64 * 3.1) % 15.0;
@@ -81,7 +78,7 @@ impl FlightDynamicsManager {
             recommendation = Some(format!("Warning: propellant fuel levels low ({:.1}%). Station-keeping maneuvers should use sparse cold gas bursts.", current_fuel));
             days = 15;
             event_type = Some("FUEL_WARNING");
-        } else if (idx + 3) % 7 == 0 {
+        } else if (idx + 3).is_multiple_of(7) {
             recommendation = Some("Routine RAAN alignment maneuver recommended to maintain constellation plane spacing.".to_string());
             days = 5;
             event_type = Some("MANEUVER_RECOMMENDED");
@@ -90,15 +87,18 @@ impl FlightDynamicsManager {
             fuel_req_kg = 0.5;
         }
 
-        self.states.insert(sat_id.to_string(), FlightDynamicsState {
-            satellite_id: sat_id.to_string(),
-            altitude_decay_rate_m_day: decay,
-            raan_drift_deg_day: drift,
-            fuel_burn_rate_pct_day: fuel_burn,
-            maneuver_effectiveness_index: effectiveness,
-            recommendation: recommendation.clone(),
-            days_until_maneuver: days,
-        });
+        self.states.insert(
+            sat_id.to_string(),
+            FlightDynamicsState {
+                satellite_id: sat_id.to_string(),
+                altitude_decay_rate_m_day: decay,
+                raan_drift_deg_day: drift,
+                fuel_burn_rate_pct_day: fuel_burn,
+                maneuver_effectiveness_index: effectiveness,
+                recommendation: recommendation.clone(),
+                days_until_maneuver: days,
+            },
+        );
 
         // Persist maneuver to DB and publish event
         if let Some(ref rec_msg) = recommendation {
@@ -143,7 +143,11 @@ impl FlightDynamicsManager {
                 let record = FutureRecord::to(&self.timeline_topic)
                     .key(sat_id)
                     .payload(&payload);
-                if let Err(e) = self.kafka_producer.send(record, Duration::from_secs(5)).await {
+                if let Err(e) = self
+                    .kafka_producer
+                    .send(record, Duration::from_secs(5))
+                    .await
+                {
                     error!("Failed to publish flight dynamics event: {:?}", e);
                 }
             }
@@ -173,7 +177,7 @@ pub async fn get_flight_dynamics(
 #[derive(Serialize)]
 pub struct TrendAnalysis {
     pub satellite_id: String,
-    pub decay_trend: String,             // 'STABLE', 'ACCELERATING', 'RECOVERING'
+    pub decay_trend: String, // 'STABLE', 'ACCELERATING', 'RECOVERING'
     pub estimated_reentry_days: i32,
     pub total_maneuvers_executed: i64,
     pub total_fuel_spent_kg: f64,
@@ -193,17 +197,20 @@ pub async fn get_dynamics_trends(
     let fuel: f64 = count_row.get("fuel");
 
     let fd_state = state.flight_dynamics.states.get(&satellite);
-    let decay_rate = fd_state.as_ref().map(|s| s.altitude_decay_rate_m_day).unwrap_or(50.0);
-    
-    let trend = if decay_rate > 100.0 
-    { "ACCELERATING".to_string() 
-    } else { 
-        "STABLE".to_string() 
+    let decay_rate = fd_state
+        .as_ref()
+        .map(|s| s.altitude_decay_rate_m_day)
+        .unwrap_or(50.0);
+
+    let trend = if decay_rate > 100.0 {
+        "ACCELERATING".to_string()
+    } else {
+        "STABLE".to_string()
     };
-    let reentry_days = if decay_rate > 0.0 
-    { (400.0 * 1000.0 / decay_rate) as i32 
-    } else { 
-        9999 
+    let reentry_days = if decay_rate > 0.0 {
+        (400.0 * 1000.0 / decay_rate) as i32
+    } else {
+        9999
     };
 
     Ok(Json(TrendAnalysis {
@@ -228,4 +235,3 @@ impl crate::processor::TelemetryProcessor for FlightDynamicsManager {
         })
     }
 }
-

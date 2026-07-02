@@ -5,8 +5,8 @@
 )]
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use orbitlogs_models::TelemetryRecord;
+use serde::{Deserialize, Serialize};
 
 pub use orbitlogs_models::GroundStationHealth as GroundStationState;
 

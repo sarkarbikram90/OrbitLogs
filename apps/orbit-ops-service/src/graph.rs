@@ -1,10 +1,10 @@
-use serde::{Serialize, Deserialize};
-use sqlx::{PgPool, Row};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
+use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,7 +64,9 @@ pub async fn create_edge(
         relation: req.relation.to_uppercase(),
     };
 
-    state.graph.add_edge_internal(&edge)
+    state
+        .graph
+        .add_edge_internal(&edge)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -87,7 +89,7 @@ pub async fn query_impact(
 
     // Query downstream: this node is the SOURCE
     let down_rows = sqlx::query(
-        "SELECT * FROM knowledge_graph_edges WHERE source_type = $1 AND source_id = $2"
+        "SELECT * FROM knowledge_graph_edges WHERE source_type = $1 AND source_id = $2",
     )
     .bind(&n_type)
     .bind(&node_id)
@@ -95,17 +97,20 @@ pub async fn query_impact(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let downstream_relations = down_rows.into_iter().map(|row| GraphEdge {
-        source_type: row.get("source_type"),
-        source_id: row.get("source_id"),
-        target_type: row.get("target_type"),
-        target_id: row.get("target_id"),
-        relation: row.get("relation"),
-    }).collect();
+    let downstream_relations = down_rows
+        .into_iter()
+        .map(|row| GraphEdge {
+            source_type: row.get("source_type"),
+            source_id: row.get("source_id"),
+            target_type: row.get("target_type"),
+            target_id: row.get("target_id"),
+            relation: row.get("relation"),
+        })
+        .collect();
 
     // Query upstream: this node is the TARGET
     let up_rows = sqlx::query(
-        "SELECT * FROM knowledge_graph_edges WHERE target_type = $1 AND target_id = $2"
+        "SELECT * FROM knowledge_graph_edges WHERE target_type = $1 AND target_id = $2",
     )
     .bind(&n_type)
     .bind(&node_id)
@@ -113,13 +118,16 @@ pub async fn query_impact(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let upstream_relations = up_rows.into_iter().map(|row| GraphEdge {
-        source_type: row.get("source_type"),
-        source_id: row.get("source_id"),
-        target_type: row.get("target_type"),
-        target_id: row.get("target_id"),
-        relation: row.get("relation"),
-    }).collect();
+    let upstream_relations = up_rows
+        .into_iter()
+        .map(|row| GraphEdge {
+            source_type: row.get("source_type"),
+            source_id: row.get("source_id"),
+            target_type: row.get("target_type"),
+            target_id: row.get("target_id"),
+            relation: row.get("relation"),
+        })
+        .collect();
 
     Ok(Json(ImpactTrace {
         node_type: n_type,

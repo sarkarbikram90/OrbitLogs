@@ -1,20 +1,20 @@
-use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use std::sync::Arc;
+use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompositeHealthScore {
     pub satellite_id: String,
     pub timestamp: DateTime<Utc>,
-    pub composite_score: i32,           // 0 to 100
+    pub composite_score: i32, // 0 to 100
     pub subsystems: SubsystemScores,
-    pub health_trend: String,           // 'STABLE', 'IMPROVING', 'DEGRADED'
+    pub health_trend: String, // 'STABLE', 'IMPROVING', 'DEGRADED'
     pub remaining_useful_life_days: i32,
     pub failure_prediction: Option<String>,
 }
@@ -42,97 +42,121 @@ impl HealthScoringManager {
         }
     }
 
-    pub fn calculate_health(&self, sat_id: &str, temp: f64, battery_v: f64, pitch: f64, loss: f64, fuel: f32) {
+    pub fn calculate_health(
+        &self,
+        sat_id: &str,
+        temp: f64,
+        battery_v: f64,
+        pitch: f64,
+        loss: f64,
+        fuel: f32,
+    ) {
         // EPS (Power)
-        let power_score = if battery_v > 12.5 { 
-            100 
-        } else if battery_v > 11.0 { 
-            60 + ((battery_v - 11.0) / 1.5 * 40.0) as i32 
-        } else { 
-            20 
+        let power_score = if battery_v > 12.5 {
+            100
+        } else if battery_v > 11.0 {
+            60 + ((battery_v - 11.0) / 1.5 * 40.0) as i32
+        } else {
+            20
         };
 
         // TCS (Thermal)
-        let thermal_score = if temp < 45.0 { 
-            100 
-        } else if temp < 75.0 { 
-            100 - ((temp - 45.0) / 30.0 * 40.0) as i32 
-        } else { 
-            20 
+        let thermal_score = if temp < 45.0 {
+            100
+        } else if temp < 75.0 {
+            100 - ((temp - 45.0) / 30.0 * 40.0) as i32
+        } else {
+            20
         };
 
         // ADCS (Attitude)
-        let adcs_score = if pitch.abs() < 5.0 { 
-            100 
-        } else if pitch.abs() < 15.0 { 
-            100 - ((pitch.abs() - 5.0) / 10.0 * 50.0) as i32 
-        } else { 
-            30 
+        let adcs_score = if pitch.abs() < 5.0 {
+            100
+        } else if pitch.abs() < 15.0 {
+            100 - ((pitch.abs() - 5.0) / 10.0 * 50.0) as i32
+        } else {
+            30
         };
 
         // Comms
-        let comms_score = if loss < 1.0 { 
-            100 
-        } else if loss < 15.0 { 
-            100 - (loss * 3.0) as i32 
-        } else { 
-            40 
+        let comms_score = if loss < 1.0 {
+            100
+        } else if loss < 15.0 {
+            100 - (loss * 3.0) as i32
+        } else {
+            40
         };
 
         // Propulsion
-        let prop_score = if fuel > 20.0 { 
-            100 
-        } else { 
-            30 + (fuel * 3.0) as i32 
+        let prop_score = if fuel > 20.0 {
+            100
+        } else {
+            30 + (fuel * 3.0) as i32
         };
 
         // Payload & OBC
         let payload_score = 100;
         let fc_score = 100;
 
-        let composite = (power_score + thermal_score + adcs_score + comms_score + prop_score + payload_score + fc_score) / 7;
+        let composite = (power_score
+            + thermal_score
+            + adcs_score
+            + comms_score
+            + prop_score
+            + payload_score
+            + fc_score)
+            / 7;
 
-        let trend = if composite < 60 { 
-            "DEGRADED".to_string() 
-        } else if composite < 85 { 
-            "WARNING".to_string() 
-        } else { 
+        let trend = if composite < 60 {
+            "DEGRADED".to_string()
+        } else if composite < 85 {
+            "WARNING".to_string()
+        } else {
             "STABLE".to_string()
         };
 
-        let useful_life = if composite < 50 { 
-            90 
-        } else if composite < 80 { 
-            730 
-        } else { 
-            1825 
+        let useful_life = if composite < 50 {
+            90
+        } else if composite < 80 {
+            730
+        } else {
+            1825
         }; // 5 years max
 
         let failure_prediction = if composite < 60 {
-            Some("Critical battery aging or thermal overload cascade predicted within 7 days.".to_string())
+            Some(
+                "Critical battery aging or thermal overload cascade predicted within 7 days."
+                    .to_string(),
+            )
         } else if composite < 85 {
-            Some("Attitude control gyroscopic momentum dump alignment required within 14 days.".to_string())
+            Some(
+                "Attitude control gyroscopic momentum dump alignment required within 14 days."
+                    .to_string(),
+            )
         } else {
             None
         };
 
-        self.scores.insert(sat_id.to_string(), CompositeHealthScore {
-            satellite_id: sat_id.to_string(),
-            timestamp: Utc::now(),
-            composite_score: composite,
-            subsystems: SubsystemScores {
-                power: power_score,
-                thermal: thermal_score,
-                adcs: adcs_score,
-                comms: comms_score,
-                payload: payload_score,
-                flight_computer: fc_score,
-                propulsion: prop_score,
+        self.scores.insert(
+            sat_id.to_string(),
+            CompositeHealthScore {
+                satellite_id: sat_id.to_string(),
+                timestamp: Utc::now(),
+                composite_score: composite,
+                subsystems: SubsystemScores {
+                    power: power_score,
+                    thermal: thermal_score,
+                    adcs: adcs_score,
+                    comms: comms_score,
+                    payload: payload_score,
+                    flight_computer: fc_score,
+                    propulsion: prop_score,
+                },
+                health_trend: trend,
+                remaining_useful_life_days: useful_life,
+                failure_prediction,
             },
-            health_trend: trend,
-            remaining_useful_life_days: useful_life,
-            failure_prediction,
-        });
+        );
     }
 }
 
@@ -174,9 +198,9 @@ impl crate::processor::TelemetryProcessor for HealthScoringManager {
         let pitch = record.orientation_pitch.unwrap_or(0.0) as f64;
         let loss = record.packet_loss.unwrap_or(0.0) as f64;
         let fuel = record.fuel_remaining.unwrap_or(100.0);
-        
+
         self.calculate_health(sat_id, temp, batt, pitch, loss, fuel);
-        
+
         Box::pin(async move {})
     }
 }
@@ -196,7 +220,7 @@ mod tests {
         let manager = HealthScoringManager::new();
         // High battery, low temp, low pitch, low packet loss, good fuel
         manager.calculate_health("SAT-NOMINAL", 30.0, 13.0, 2.0, 0.5, 30.0);
-        
+
         let score = manager.scores.get("SAT-NOMINAL").unwrap();
         assert_eq!(score.composite_score, 100);
         assert_eq!(score.subsystems.power, 100);
@@ -258,4 +282,3 @@ mod tests {
         );
     }
 }
-

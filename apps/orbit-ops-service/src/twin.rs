@@ -1,13 +1,13 @@
-use serde::{Serialize, Deserialize};
-use dashmap::DashMap;
-use chrono::{DateTime, Utc};
-use std::sync::Arc;
-use orbitlogs_models::TelemetryRecord;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
+use chrono::{DateTime, Utc};
+use dashmap::DashMap;
+use orbitlogs_models::TelemetryRecord;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubsystemTwin {
@@ -83,7 +83,8 @@ impl TwinManager {
         // Cascade 1: Thermal spike causes CPU throttling & ADCS drift
         if temp > 70.0 {
             rec.cpu_usage = Some(rec.cpu_usage.unwrap_or(15.0) + 30.0);
-            rec.orientation_pitch = Some(rec.orientation_pitch.unwrap_or(0.0) + 8.5); // drift
+            rec.orientation_pitch = Some(rec.orientation_pitch.unwrap_or(0.0) + 8.5);
+            // drift
         }
 
         // Cascade 2: Battery drop triggers payload shutdown
@@ -97,7 +98,10 @@ impl TwinManager {
     }
 
     pub fn apply_command(&self, sat_id: &str, cmd_type: &str) {
-        self.active_commands.entry(sat_id.to_string()).or_insert_with(Vec::new).push(cmd_type.to_string());
+        self.active_commands
+            .entry(sat_id.to_string())
+            .or_default()
+            .push(cmd_type.to_string());
     }
 
     pub fn clear_commands(&self, sat_id: &str) {
@@ -109,14 +113,27 @@ pub async fn get_twin_model(
     State(state): State<Arc<crate::ServiceState>>,
     Path(satellite): Path<String>,
 ) -> Result<Json<TwinState>, StatusCode> {
-    let rec = state.twin.twins.get(&satellite).ok_or(StatusCode::NOT_FOUND)?.clone();
+    let rec = state
+        .twin
+        .twins
+        .get(&satellite)
+        .ok_or(StatusCode::NOT_FOUND)?
+        .clone();
 
     // Model structured parameters
     let subsystems = vec![
         SubsystemTwin {
             name: "EPS (Power)".to_string(),
-            status: if rec.battery_voltage.unwrap_or(13.5) < 11.5 { "DEGRADED".to_string() } else { "NOMINAL".to_string() },
-            health_score: if rec.battery_voltage.unwrap_or(13.5) < 11.5 { 60 } else { 100 },
+            status: if rec.battery_voltage.unwrap_or(13.5) < 11.5 {
+                "DEGRADED".to_string()
+            } else {
+                "NOMINAL".to_string()
+            },
+            health_score: if rec.battery_voltage.unwrap_or(13.5) < 11.5 {
+                60
+            } else {
+                100
+            },
             parameters: serde_json::json!({
                 "voltage": rec.battery_voltage,
                 "current": rec.battery_current,
@@ -125,16 +142,32 @@ pub async fn get_twin_model(
         },
         SubsystemTwin {
             name: "TCS (Thermal)".to_string(),
-            status: if rec.temperature.unwrap_or(20.0) > 65.0 { "DEGRADED".to_string() } else { "NOMINAL".to_string() },
-            health_score: if rec.temperature.unwrap_or(20.0) > 65.0 { 50 } else { 100 },
+            status: if rec.temperature.unwrap_or(20.0) > 65.0 {
+                "DEGRADED".to_string()
+            } else {
+                "NOMINAL".to_string()
+            },
+            health_score: if rec.temperature.unwrap_or(20.0) > 65.0 {
+                50
+            } else {
+                100
+            },
             parameters: serde_json::json!({
                 "core_temp_c": rec.temperature,
             }),
         },
         SubsystemTwin {
             name: "ADCS (Attitude)".to_string(),
-            status: if rec.orientation_pitch.unwrap_or(0.0).abs() > 10.0 { "DEGRADED".to_string() } else { "NOMINAL".to_string() },
-            health_score: if rec.orientation_pitch.unwrap_or(0.0).abs() > 10.0 { 65 } else { 100 },
+            status: if rec.orientation_pitch.unwrap_or(0.0).abs() > 10.0 {
+                "DEGRADED".to_string()
+            } else {
+                "NOMINAL".to_string()
+            },
+            health_score: if rec.orientation_pitch.unwrap_or(0.0).abs() > 10.0 {
+                65
+            } else {
+                100
+            },
             parameters: serde_json::json!({
                 "pitch_err": rec.orientation_pitch,
                 "roll": rec.orientation_roll,
@@ -257,7 +290,7 @@ mod tests {
         let rec = default_telemetry_record(sat_id);
         let updated = manager.update_twin(sat_id, rec);
         assert_eq!(updated.signal_strength, Some(-63.0)); // -75.0 + 12.0
-        assert_eq!(updated.packet_loss, Some(0.1));       // 0.5 * 0.2
+        assert_eq!(updated.packet_loss, Some(0.1)); // 0.5 * 0.2
 
         // Test propulsion thrust
         manager.clear_commands(sat_id);
@@ -277,7 +310,7 @@ mod tests {
         let mut rec = default_telemetry_record(sat_id);
         rec.temperature = Some(75.0);
         let updated = manager.update_twin(sat_id, rec);
-        assert!(updated.cpu_usage.unwrap() > 25.0);       // should be 25.0 + 30.0 = 55.0
+        assert!(updated.cpu_usage.unwrap() > 25.0); // should be 25.0 + 30.0 = 55.0
         assert_eq!(updated.orientation_pitch, Some(8.5)); // 0.0 + 8.5
 
         // 2. Low battery
@@ -288,4 +321,3 @@ mod tests {
         assert_eq!(updated.payload_power_draw, Some(0.0));
     }
 }
-

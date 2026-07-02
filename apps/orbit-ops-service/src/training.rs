@@ -1,16 +1,16 @@
-use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
-use sqlx::PgPool;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use std::sync::Arc;
+use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use rdkafka::producer::{FutureProducer, FutureRecord};
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+use std::sync::Arc;
 use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainingSession {
@@ -88,7 +88,10 @@ pub async fn start_training(
         is_resolved: false,
     };
 
-    state.training.active_sessions.insert(req.operator_name.clone(), session.clone());
+    state
+        .training
+        .active_sessions
+        .insert(req.operator_name.clone(), session.clone());
 
     // Publish timeline start notification
     let msg = format!(
@@ -96,7 +99,14 @@ pub async fn start_training(
         req.scenario_name, req.operator_name, req.satellite_id
     );
 
-    publish_training_timeline(&state.training, &req.satellite_id, "TRAINING_STARTED", "WARNING", &msg).await;
+    publish_training_timeline(
+        &state.training,
+        &req.satellite_id,
+        "TRAINING_STARTED",
+        "WARNING",
+        &msg,
+    )
+    .await;
 
     Ok(Json(session))
 }
@@ -105,14 +115,32 @@ pub async fn acknowledge_training(
     State(state): State<Arc<crate::ServiceState>>,
     Path(operator): Path<String>,
 ) -> Result<Json<TrainingSession>, (StatusCode, String)> {
-    let mut session = state.training.active_sessions.get_mut(&operator)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "No active training session".to_string()))?;
+    let mut session = state
+        .training
+        .active_sessions
+        .get_mut(&operator)
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                "No active training session".to_string(),
+            )
+        })?;
 
     session.acknowledged_at = Some(Utc::now());
     let copied = session.clone();
 
-    let msg = format!("Operator '{}' acknowledged training failure scenario.", operator);
-    publish_training_timeline(&state.training, &session.satellite_id, "TRAINING_ACKNOWLEDGED", "INFO", &msg).await;
+    let msg = format!(
+        "Operator '{}' acknowledged training failure scenario.",
+        operator
+    );
+    publish_training_timeline(
+        &state.training,
+        &session.satellite_id,
+        "TRAINING_ACKNOWLEDGED",
+        "INFO",
+        &msg,
+    )
+    .await;
 
     Ok(Json(copied))
 }
@@ -121,11 +149,19 @@ pub async fn resolve_training(
     State(state): State<Arc<crate::ServiceState>>,
     Path(operator): Path<String>,
 ) -> Result<Json<Scorecard>, (StatusCode, String)> {
-    let (_, session) = state.training.active_sessions.remove(&operator)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "No active training session".to_string()))?;
+    let (_, session) = state
+        .training
+        .active_sessions
+        .remove(&operator)
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                "No active training session".to_string(),
+            )
+        })?;
 
     let resolved_at = Utc::now();
-    
+
     // Evaluate scorecard metrics
     let response_time = match session.acknowledged_at {
         Some(ack) => (ack - session.started_at).num_milliseconds() as f64 / 1000.0,
@@ -134,7 +170,7 @@ pub async fn resolve_training(
 
     // Score calculations
     let mut score = 100;
-    
+
     // Penalty for slow response
     if response_time > 15.0 {
         let penalty = ((response_time - 15.0) as i32 * 2).min(40);
@@ -146,15 +182,29 @@ pub async fn resolve_training(
     let mut action_check = false;
 
     if scenario == "THERMAL_RUNAWAY" {
-        action_check = session.commands_sent.contains(&"CMD_SHED_LOAD_SECONDARY".to_string()) 
-            || session.commands_sent.contains(&"CMD_PAYLOAD_DEACTIVATE".to_string())
-            || session.commands_sent.contains(&"CMD_ENTER_SAFE_MODE".to_string())
-            || session.commands_sent.contains(&"CMD_RADIATOR_YAW_ADJUST".to_string());
+        action_check = session
+            .commands_sent
+            .contains(&"CMD_SHED_LOAD_SECONDARY".to_string())
+            || session
+                .commands_sent
+                .contains(&"CMD_PAYLOAD_DEACTIVATE".to_string())
+            || session
+                .commands_sent
+                .contains(&"CMD_ENTER_SAFE_MODE".to_string())
+            || session
+                .commands_sent
+                .contains(&"CMD_RADIATOR_YAW_ADJUST".to_string());
     } else if scenario == "BATTERY_FAILURE" {
-        action_check = session.commands_sent.contains(&"CMD_PAYLOAD_DEACTIVATE".to_string())
-            || session.commands_sent.contains(&"CMD_ENTER_SAFE_MODE".to_string());
+        action_check = session
+            .commands_sent
+            .contains(&"CMD_PAYLOAD_DEACTIVATE".to_string())
+            || session
+                .commands_sent
+                .contains(&"CMD_ENTER_SAFE_MODE".to_string());
     } else if scenario == "COMMS_OUTAGE" {
-        action_check = session.commands_sent.contains(&"CMD_TTC_POWER_BOOST".to_string());
+        action_check = session
+            .commands_sent
+            .contains(&"CMD_TTC_POWER_BOOST".to_string());
     } else if scenario == "ATTITUDE_DRIFT" {
         // Reaction wheel torque reset or magnetorquer cycles
         action_check = true; // lenient default
@@ -168,8 +218,9 @@ pub async fn resolve_training(
     let scorecard_id = Uuid::new_v4();
 
     // Commit to TimescaleDB
-    let actions_json = serde_json::to_value(&session.commands_sent).unwrap_or(serde_json::json!([]));
-    
+    let actions_json =
+        serde_json::to_value(&session.commands_sent).unwrap_or(serde_json::json!([]));
+
     let _ = sqlx::query(
         "INSERT INTO operator_training_scores (id, operator_name, scenario_name, response_time_seconds, score, actions_taken, passed)
          VALUES ($1, $2, $3, $4, $5, $6, $7)"
@@ -187,9 +238,19 @@ pub async fn resolve_training(
     // Send timeline resolution notice
     let msg = format!(
         "Training Scenario '{}' completed by '{}'. Score: {}/100, Result: {}.",
-        session.scenario_name, session.operator_name, score, if passed { "PASS" } else { "FAIL" }
+        session.scenario_name,
+        session.operator_name,
+        score,
+        if passed { "PASS" } else { "FAIL" }
     );
-    publish_training_timeline(&state.training, &session.satellite_id, "TRAINING_COMPLETED", "INFO", &msg).await;
+    publish_training_timeline(
+        &state.training,
+        &session.satellite_id,
+        "TRAINING_COMPLETED",
+        "INFO",
+        &msg,
+    )
+    .await;
 
     Ok(Json(Scorecard {
         id: scorecard_id,
@@ -206,7 +267,13 @@ pub async fn resolve_training(
     }))
 }
 
-async fn publish_training_timeline(state: &TrainingManager, sat_id: &str, event_type: &str, severity: &str, msg: &str) {
+async fn publish_training_timeline(
+    state: &TrainingManager,
+    sat_id: &str,
+    event_type: &str,
+    severity: &str,
+    msg: &str,
+) {
     let timeline_payload = serde_json::json!({
         "timestamp": Utc::now(),
         "event_id": Uuid::new_v4(),
@@ -222,6 +289,9 @@ async fn publish_training_timeline(state: &TrainingManager, sat_id: &str, event_
         let record = FutureRecord::to(&state.timeline_topic)
             .key(sat_id)
             .payload(&payload);
-        let _ = state.kafka_producer.send(record, Duration::from_secs(5)).await;
+        let _ = state
+            .kafka_producer
+            .send(record, Duration::from_secs(5))
+            .await;
     }
 }

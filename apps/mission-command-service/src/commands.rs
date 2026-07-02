@@ -1,18 +1,18 @@
+use crate::audit::log_audit;
+use crate::auth::{check_role, Role};
+use crate::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     Json,
 };
+use rdkafka::producer::FutureRecord;
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::sync::Arc;
 use std::time::Duration;
-use uuid::Uuid;
 use tracing::{error, instrument};
-use rdkafka::producer::FutureRecord;
-use sqlx::Row;
-use crate::AppState;
-use crate::auth::{check_role, Role};
-use crate::audit::log_audit;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Command {
@@ -100,7 +100,7 @@ pub async fn create_command(
     // Write to DB
     sqlx::query(
         "INSERT INTO commands (id, satellite_id, command_type, status, parameters, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)"
+         VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(id)
     .bind(&req.satellite_id)
@@ -118,7 +118,15 @@ pub async fn create_command(
     })?;
 
     // Audit trail
-    log_audit(&state, id, None, status, &user_name, "Command registered in system").await?;
+    log_audit(
+        &state,
+        id,
+        None,
+        status,
+        &user_name,
+        "Command registered in system",
+    )
+    .await?;
 
     let cmd = Command {
         id,
@@ -174,7 +182,15 @@ pub async fn approve_command(
             )
         })?;
 
-    log_audit(&state, id, Some(&prev_status), "APPROVED", &approver, "Command approved by flight operations").await?;
+    log_audit(
+        &state,
+        id,
+        Some(&prev_status),
+        "APPROVED",
+        &approver,
+        "Command approved by flight operations",
+    )
+    .await?;
 
     publish_command_event(&state, &cmd).await;
     publish_timeline_event(&state, &cmd, "INFO", "Command approved").await;
@@ -215,7 +231,15 @@ pub async fn queue_command(
             )
         })?;
 
-    log_audit(&state, id, Some(&prev_status), "QUEUED", &operator, "Command queued for transmission").await?;
+    log_audit(
+        &state,
+        id,
+        Some(&prev_status),
+        "QUEUED",
+        &operator,
+        "Command queued for transmission",
+    )
+    .await?;
 
     publish_command_event(&state, &cmd).await;
     publish_timeline_event(&state, &cmd, "INFO", "Command queued").await;
@@ -250,16 +274,32 @@ pub async fn execute_command(
         .bind(id)
         .execute(&state.db_pool)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+        })?;
 
-    log_audit(&state, id, Some(&prev_status), "TRANSMITTED", &operator, "Uplink carrier lock confirmed, command transmitted").await?;
+    log_audit(
+        &state,
+        id,
+        Some(&prev_status),
+        "TRANSMITTED",
+        &operator,
+        "Uplink carrier lock confirmed, command transmitted",
+    )
+    .await?;
     publish_command_event(&state, &cmd).await;
     publish_timeline_event(&state, &cmd, "INFO", "Command transmitted to satellite").await;
 
     Ok(Json(cmd))
 }
 
-pub async fn fetch_command_by_id(state: &AppState, id: Uuid) -> Result<Command, (StatusCode, Json<serde_json::Value>)> {
+pub async fn fetch_command_by_id(
+    state: &AppState,
+    id: Uuid,
+) -> Result<Command, (StatusCode, Json<serde_json::Value>)> {
     let row = sqlx::query("SELECT id, satellite_id, command_type, status, parameters, created_by, approved_by, scheduled_time, executed_at, created_at FROM commands WHERE id = $1")
         .bind(id)
         .fetch_optional(&state.db_pool)
@@ -287,7 +327,11 @@ pub async fn publish_command_event(state: &AppState, cmd: &Command) {
         let record = FutureRecord::to(&state.command_topic)
             .key(&key)
             .payload(&payload);
-        if let Err((e, _)) = state.kafka_producer.send(record, Duration::from_secs(5)).await {
+        if let Err((e, _)) = state
+            .kafka_producer
+            .send(record, Duration::from_secs(5))
+            .await
+        {
             error!("Failed to publish command event: {}", e);
         }
     }
@@ -314,7 +358,11 @@ pub async fn publish_timeline_event(state: &AppState, cmd: &Command, severity: &
         let record = FutureRecord::to(&state.timeline_topic)
             .key(&cmd.satellite_id)
             .payload(&payload);
-        if let Err((e, _)) = state.kafka_producer.send(record, Duration::from_secs(5)).await {
+        if let Err((e, _)) = state
+            .kafka_producer
+            .send(record, Duration::from_secs(5))
+            .await
+        {
             error!("Failed to publish command to timeline: {}", e);
         }
     }

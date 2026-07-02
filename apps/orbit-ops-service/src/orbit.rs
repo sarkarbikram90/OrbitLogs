@@ -1,9 +1,9 @@
-use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Row};
 use std::f64::consts::PI;
 use std::time::Duration;
-use sqlx::{PgPool, Row};
-use rdkafka::producer::{FutureProducer, FutureRecord};
 
 pub const EARTH_RADIUS_KM: f64 = 6378.137;
 pub const GM_KM3_S2: f64 = 398600.4418; // G * Earth Mass
@@ -13,19 +13,19 @@ pub const EARTH_ROTATION_RAD_S: f64 = 7.29211510e-5;
 pub struct OrbitState {
     pub satellite_id: String,
     pub timestamp: DateTime<Utc>,
-    pub position_eci: [f64; 3],  // km
-    pub velocity_eci: [f64; 3],  // km/s
-    pub latitude: f64,           // degrees
-    pub longitude: f64,          // degrees
-    pub altitude: f64,           // km
-    pub velocity: f64,           // km/s
-    pub orbital_period: f64,     // minutes
-    pub semi_major_axis: f64,    // km
+    pub position_eci: [f64; 3], // km
+    pub velocity_eci: [f64; 3], // km/s
+    pub latitude: f64,          // degrees
+    pub longitude: f64,         // degrees
+    pub altitude: f64,          // km
+    pub velocity: f64,          // km/s
+    pub orbital_period: f64,    // minutes
+    pub semi_major_axis: f64,   // km
     pub eccentricity: f64,
-    pub inclination: f64,        // degrees
-    pub raan: f64,               // degrees
-    pub arg_of_perigee: f64,     // degrees
-    pub mean_anomaly: f64,       // degrees
+    pub inclination: f64,    // degrees
+    pub raan: f64,           // degrees
+    pub arg_of_perigee: f64, // degrees
+    pub mean_anomaly: f64,   // degrees
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,8 +33,8 @@ pub struct PassPrediction {
     pub station: String,
     pub aos: DateTime<Utc>,
     pub los: DateTime<Utc>,
-    pub duration: f64,          // minutes
-    pub max_elevation: f64,     // degrees
+    pub duration: f64,      // minutes
+    pub max_elevation: f64, // degrees
 }
 
 #[derive(Debug, Clone)]
@@ -47,23 +47,64 @@ pub struct GroundStationInfo {
 
 pub fn get_ground_stations() -> Vec<GroundStationInfo> {
     vec![
-        GroundStationInfo { name: "Svalbard", latitude: 78.2297, longitude: 15.6469, altitude_km: 0.5 },
-        GroundStationInfo { name: "Troll", latitude: -72.0119, longitude: 2.5330, altitude_km: 1.3 },
-        GroundStationInfo { name: "Kiruna", latitude: 67.8558, longitude: 20.9629, altitude_km: 0.4 },
-        GroundStationInfo { name: "McMurdo", latitude: -77.8463, longitude: 166.6682, altitude_km: 0.1 },
-        GroundStationInfo { name: "Bangalore", latitude: 13.0300, longitude: 77.5600, altitude_km: 0.9 },
-        GroundStationInfo { name: "Hyderabad", latitude: 17.3850, longitude: 78.4867, altitude_km: 0.5 },
-        GroundStationInfo { name: "Delhi", latitude: 28.6139, longitude: 77.2090, altitude_km: 0.20 },
-        GroundStationInfo { name: "Siliguri", latitude: 26.7271, longitude: 88.3953, altitude_km: 0.11 },
+        GroundStationInfo {
+            name: "Svalbard",
+            latitude: 78.2297,
+            longitude: 15.6469,
+            altitude_km: 0.5,
+        },
+        GroundStationInfo {
+            name: "Troll",
+            latitude: -72.0119,
+            longitude: 2.5330,
+            altitude_km: 1.3,
+        },
+        GroundStationInfo {
+            name: "Kiruna",
+            latitude: 67.8558,
+            longitude: 20.9629,
+            altitude_km: 0.4,
+        },
+        GroundStationInfo {
+            name: "McMurdo",
+            latitude: -77.8463,
+            longitude: 166.6682,
+            altitude_km: 0.1,
+        },
+        GroundStationInfo {
+            name: "Bangalore",
+            latitude: 13.0300,
+            longitude: 77.5600,
+            altitude_km: 0.9,
+        },
+        GroundStationInfo {
+            name: "Hyderabad",
+            latitude: 17.3850,
+            longitude: 78.4867,
+            altitude_km: 0.5,
+        },
+        GroundStationInfo {
+            name: "Delhi",
+            latitude: 28.6139,
+            longitude: 77.2090,
+            altitude_km: 0.20,
+        },
+        GroundStationInfo {
+            name: "Siliguri",
+            latitude: 26.7271,
+            longitude: 88.3953,
+            altitude_km: 0.11,
+        },
     ]
 }
 
 // Generates dynamic deterministic TLE lines for SAT-0001 through SAT-0010
 pub fn generate_default_tle(sat_id: &str) -> (String, String) {
-    let idx = sat_id.strip_prefix("SAT-")
+    let idx = sat_id
+        .strip_prefix("SAT-")
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(1);
-    
+
     let sat_num = 25500 + idx;
     let inc = 53.0 + (idx as f64 * 3.7) % 45.0;
     let raan = (idx as f64 * 36.0) % 360.0;
@@ -93,11 +134,9 @@ pub fn propagate_tle_sgp4(
     line2: &str,
     time: DateTime<Utc>,
 ) -> Result<OrbitState, String> {
-    let elements = sgp4::Elements::from_tle(
-        Some(sat_id.to_string()),
-        line1.as_bytes(),
-        line2.as_bytes(),
-    ).map_err(|e| format!("SGP4 parse error: {:?}", e))?;
+    let elements =
+        sgp4::Elements::from_tle(Some(sat_id.to_string()), line1.as_bytes(), line2.as_bytes())
+            .map_err(|e| format!("SGP4 parse error: {:?}", e))?;
 
     let constants = sgp4::Constants::from_elements(&elements)
         .map_err(|e| format!("SGP4 constants error: {:?}", e))?;
@@ -106,7 +145,8 @@ pub fn propagate_tle_sgp4(
     let diff_ms = (time - epoch_time).num_milliseconds() as f64;
     let minutes = diff_ms / 60000.0;
 
-    let prediction = constants.propagate(minutes)
+    let prediction = constants
+        .propagate(minutes)
         .map_err(|e| format!("SGP4 propagation error: {:?}", e))?;
 
     let position_eci = prediction.position; // km
@@ -116,7 +156,7 @@ pub fn propagate_tle_sgp4(
     let dt_seconds = diff_ms / 1000.0;
     let theta = (EARTH_ROTATION_RAD_S * dt_seconds) % (2.0 * PI);
     let mut lon = position_eci[1].atan2(position_eci[0]) - theta;
-    lon = lon % (2.0 * PI);
+    lon %= 2.0 * PI;
     if lon < -PI {
         lon += 2.0 * PI;
     } else if lon > PI {
@@ -125,7 +165,8 @@ pub fn propagate_tle_sgp4(
 
     let r_xy = (position_eci[0].powi(2) + position_eci[1].powi(2)).sqrt();
     let lat = position_eci[2].atan2(r_xy);
-    let alt = (position_eci[0].powi(2) + position_eci[1].powi(2) + position_eci[2].powi(2)).sqrt() - EARTH_RADIUS_KM;
+    let alt = (position_eci[0].powi(2) + position_eci[1].powi(2) + position_eci[2].powi(2)).sqrt()
+        - EARTH_RADIUS_KM;
 
     // Extract parameters
     let inc = line2[8..16].trim().parse::<f64>().unwrap_or(53.0);
@@ -166,7 +207,7 @@ pub fn calculate_elevation(
     sat_lat: f64,
     sat_lon: f64,
     sat_alt_km: f64,
-    gs: &GroundStationInfo
+    gs: &GroundStationInfo,
 ) -> f64 {
     let lat_s = sat_lat * PI / 180.0;
     let lon_s = sat_lon * PI / 180.0;
@@ -198,14 +239,14 @@ pub fn predict_passes(
     line1: &str,
     line2: &str,
     start_time: DateTime<Utc>,
-    duration_hours: i64
+    duration_hours: i64,
 ) -> Vec<PassPrediction> {
     let stations = get_ground_stations();
     let mut passes = Vec::new();
 
     // Sample every 30 seconds
     let total_steps = duration_hours * 120;
-    
+
     for gs in &stations {
         let mut in_pass = false;
         let mut aos_time = start_time;
@@ -259,7 +300,7 @@ pub async fn calculate_and_persist_passes(
 ) -> Result<Vec<PassPrediction>, String> {
     let (line1, line2) = get_latest_tle_or_default(db_pool, sat_id).await;
     let passes = predict_passes(sat_id, &line1, &line2, start_time, duration_hours);
-    
+
     for pass in &passes {
         let id = uuid::Uuid::new_v4();
         let _ = sqlx::query(
@@ -410,7 +451,15 @@ pub async fn import_tle_internal(
     }
 
     // Pre-calculate and persist passes for the next 24 hours
-    let _ = calculate_and_persist_passes(db_pool, kafka_producer, timeline_topic, &req.satellite_id, Utc::now(), 24).await;
+    let _ = calculate_and_persist_passes(
+        db_pool,
+        kafka_producer,
+        timeline_topic,
+        &req.satellite_id,
+        Utc::now(),
+        24,
+    )
+    .await;
 
     Ok(id)
 }
@@ -422,15 +471,20 @@ pub async fn check_tle_expiration(
     active_satellites: &[String],
 ) {
     for sat_id in active_satellites {
-        let row = sqlx::query("SELECT epoch FROM tle_records WHERE satellite_id = $1 ORDER BY epoch DESC LIMIT 1")
-            .bind(sat_id)
-            .fetch_optional(db_pool)
-            .await;
-        
+        let row = sqlx::query(
+            "SELECT epoch FROM tle_records WHERE satellite_id = $1 ORDER BY epoch DESC LIMIT 1",
+        )
+        .bind(sat_id)
+        .fetch_optional(db_pool)
+        .await;
+
         if let Ok(Some(r)) = row {
             let epoch: DateTime<Utc> = r.get("epoch");
             if Utc::now().signed_duration_since(epoch).num_days() > 14 {
-                let msg = format!("TLE has expired for satellite {}. Latest epoch: {} is older than 14 days.", sat_id, epoch);
+                let msg = format!(
+                    "TLE has expired for satellite {}. Latest epoch: {} is older than 14 days.",
+                    sat_id, epoch
+                );
                 let timeline_payload = serde_json::json!({
                     "timestamp": Utc::now(),
                     "event_id": uuid::Uuid::new_v4(),
@@ -457,17 +511,19 @@ pub async fn check_tle_expiration(
 }
 
 pub async fn get_latest_tle_or_default(db_pool: &PgPool, sat_id: &str) -> (String, String) {
-    let row = sqlx::query("SELECT line1, line2 FROM tle_records WHERE satellite_id = $1 ORDER BY epoch DESC LIMIT 1")
-        .bind(sat_id)
-        .fetch_optional(db_pool)
-        .await;
+    let row = sqlx::query(
+        "SELECT line1, line2 FROM tle_records WHERE satellite_id = $1 ORDER BY epoch DESC LIMIT 1",
+    )
+    .bind(sat_id)
+    .fetch_optional(db_pool)
+    .await;
     match row {
         Ok(Some(r)) => {
             let l1: String = r.get("line1");
             let l2: String = r.get("line2");
             (l1, l2)
         }
-        _ => generate_default_tle(sat_id)
+        _ => generate_default_tle(sat_id),
     }
 }
 
@@ -479,47 +535,50 @@ pub async fn scrape_celestrak_tles(
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()?;
-    
+
     // Fetch Starlink TLEs from Celestrak in standard 3-line format
     let url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle";
     let body = client.get(url).send().await?.text().await?;
-    
+
     let lines: Vec<&str> = body.lines().map(|l| l.trim()).collect();
     let mut mapped_count = 0;
-    
+
     for chunk in lines.chunks_exact(3) {
         if mapped_count >= 10 {
             break;
         }
-        
+
         let name = chunk[0];
         let line1 = chunk[1];
         let line2 = chunk[2];
-        
+
         if line1.starts_with('1') && line2.starts_with('2') {
             mapped_count += 1;
             let sat_id = format!("SAT-{:04}", mapped_count);
-            
+
             tracing::info!("Scraped TLE for {} (NORAD name: {})", sat_id, name);
-            
+
             let req = ImportTleRequest {
                 satellite_id: sat_id.clone(),
                 line1: line1.to_string(),
                 line2: line2.to_string(),
             };
-            
-            if let Err(e) = import_tle_internal(db_pool, kafka_producer, timeline_topic, req).await {
+
+            if let Err(e) = import_tle_internal(db_pool, kafka_producer, timeline_topic, req).await
+            {
                 tracing::error!("Failed to import scraped TLE for {}: {}", sat_id, e);
             }
         }
     }
-    
+
     if mapped_count > 0 {
-        tracing::info!("Successfully scraped and updated TLEs for {} satellites from CelesTrak", mapped_count);
+        tracing::info!(
+            "Successfully scraped and updated TLEs for {} satellites from CelesTrak",
+            mapped_count
+        );
     } else {
         anyhow::bail!("No valid TLEs parsed from CelesTrak response");
     }
-    
+
     Ok(())
 }
-

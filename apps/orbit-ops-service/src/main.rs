@@ -2,38 +2,37 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     routing::{get, post},
-    Router,
-    Json,
+    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use clap::Parser;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::TelemetryRecord;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde::{Deserialize, Serialize};
-use orbitlogs_models::kafka::KafkaConfigBuilder;
-use orbitlogs_models::TelemetryRecord;
 use sqlx::{PgPool, Row};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio_util::sync::CancellationToken;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info, Level};
 use uuid::Uuid;
-use tokio_util::sync::CancellationToken;
 
-mod orbit;
-mod ground_ops;
-mod planner;
-mod ssa;
-mod flight_dynamics;
 mod director;
-mod twin;
-mod training;
-mod health;
-mod postmortem;
+mod flight_dynamics;
 mod graph;
+mod ground_ops;
+mod health;
+mod orbit;
+mod planner;
+mod postmortem;
 mod processor;
+mod ssa;
+mod training;
+mod twin;
 
 #[derive(Parser, Debug)]
 #[command(name = "Orbit Operations Service")]
@@ -44,11 +43,7 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(
-        long,
-        env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
-    )]
+    #[arg(long, env = "DATABASE_URL", default_value = "")]
     database_url: String,
 
     #[arg(
@@ -87,7 +82,7 @@ struct ServiceState {
     kafka_producer: FutureProducer,
     _orbit_topic: String,
     timeline_topic: String,
-    
+
     // Core engine managers
     ground_ops: Arc<ground_ops::GroundOpsManager>,
     planner: Arc<planner::PlannerState>,
@@ -108,13 +103,21 @@ async fn main() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
 
     // Start logging subscriber
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     info!("Starting Orbit Operations Service V4...");
 
-    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 10).await?;
+    let db_url = if !cli.database_url.trim().is_empty() {
+        cli.database_url.clone()
+    } else if let Some(val) =
+        orbitlogs_models::load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty())
+    {
+        val
+    } else {
+        return Err(anyhow::anyhow!("DATABASE_URL is required. Set env var DATABASE_URL, pass --database-url, or use Docker secrets DATABASE_URL."));
+    };
+
+    let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 10).await?;
 
     let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
     let kafka_producer: FutureProducer = producer_config.create()?;
@@ -147,7 +150,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let director = Arc::new(director::DirectorManager::new());
     let twin = Arc::new(twin::TwinManager::new());
-    
+
     let training = Arc::new(training::TrainingManager::new(
         db_pool.clone(),
         kafka_producer.clone(),
@@ -158,11 +161,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let postmortem = Arc::new(postmortem::PostmortemManager::new(db_pool.clone()));
     let graph = Arc::new(graph::GraphManager::new(db_pool.clone()));
 
-    let processors: Vec<Arc<dyn crate::processor::TelemetryProcessor>> = vec![
-        flight_dynamics.clone(),
-        health.clone(),
-        director.clone(),
-    ];
+    let processors: Vec<Arc<dyn crate::processor::TelemetryProcessor>> =
+        vec![flight_dynamics.clone(), health.clone(), director.clone()];
 
     let shared_state = Arc::new(ServiceState {
         db_pool,
@@ -329,50 +329,74 @@ async fn main() -> Result<(), anyhow::Error> {
         // Orbit routes
         .route("/api/orbit/:satellite", get(get_satellite_orbit))
         .route("/api/orbit/:satellite/future", get(get_satellite_future))
-        .route("/api/orbit/:satellite/ground-track", get(get_satellite_ground_track))
+        .route(
+            "/api/orbit/:satellite/ground-track",
+            get(get_satellite_ground_track),
+        )
         .route("/api/orbit/:satellite/passes", get(get_satellite_passes))
         .route("/api/orbit/stream", get(ws_orbit_handler))
-        
         // TLE routes
         .route("/api/tle/import", post(import_tle))
-        
         // Ground station ops
         .route("/api/ground-ops", get(list_ground_ops))
-
         // Planner routes
-        .route("/api/planner/plans", get(planner::list_plans).post(planner::create_plan))
-        .route("/api/planner/plans/:id/status", post(planner::update_plan_status))
-
+        .route(
+            "/api/planner/plans",
+            get(planner::list_plans).post(planner::create_plan),
+        )
+        .route(
+            "/api/planner/plans/:id/status",
+            post(planner::update_plan_status),
+        )
         // SSA routes
         .route("/api/ssa/:satellite/status", get(ssa::get_ssa_status))
-        .route("/api/ssa/:satellite/conjunctions", get(ssa::get_conjunctions))
-
+        .route(
+            "/api/ssa/:satellite/conjunctions",
+            get(ssa::get_conjunctions),
+        )
         // Flight Dynamics
-        .route("/api/flight-dynamics/:satellite", get(flight_dynamics::get_flight_dynamics))
-        .route("/api/flight-dynamics/:satellite/trends", get(flight_dynamics::get_dynamics_trends))
-
+        .route(
+            "/api/flight-dynamics/:satellite",
+            get(flight_dynamics::get_flight_dynamics),
+        )
+        .route(
+            "/api/flight-dynamics/:satellite/trends",
+            get(flight_dynamics::get_dynamics_trends),
+        )
         // AI Director
-        .route("/api/director/:satellite", get(director::get_director_status))
-
+        .route(
+            "/api/director/:satellite",
+            get(director::get_director_status),
+        )
         // Twin routes
         .route("/api/twin/:satellite/model", get(twin::get_twin_model))
         .route("/api/twin/:satellite/command", post(apply_twin_command))
-
         // Operator Training Mode
         .route("/api/training/start", post(training::start_training))
-        .route("/api/training/:operator/acknowledge", post(training::acknowledge_training))
-        .route("/api/training/:operator/resolve", post(training::resolve_training))
-
+        .route(
+            "/api/training/:operator/acknowledge",
+            post(training::acknowledge_training),
+        )
+        .route(
+            "/api/training/:operator/resolve",
+            post(training::resolve_training),
+        )
         // Health Scoring
-        .route("/api/health-scoring/:satellite", get(health::get_health_score))
-
+        .route(
+            "/api/health-scoring/:satellite",
+            get(health::get_health_score),
+        )
         // Incident Postmortem
-        .route("/api/postmortem/:satellite", get(postmortem::generate_postmortem))
-
+        .route(
+            "/api/postmortem/:satellite",
+            get(postmortem::generate_postmortem),
+        )
         // Knowledge Graph
         .route("/api/graph/edge", post(graph::create_edge))
-        .route("/api/graph/impact/:node_type/:node_id", get(graph::query_impact))
-
+        .route(
+            "/api/graph/impact/:node_type/:node_id",
+            get(graph::query_impact),
+        )
         // Operations Analytics
         .route("/api/analytics", get(get_operations_analytics))
         .route("/health", get(health_check))
@@ -383,7 +407,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("Orbit Operations Service listening on http://localhost:{}", cli.port);
+    info!(
+        "Orbit Operations Service listening on http://localhost:{}",
+        cli.port
+    );
 
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
@@ -414,7 +441,10 @@ async fn run_telemetry_loop(
     let consumer: StreamConsumer = config.create()?;
     consumer.subscribe(&[&topic])?;
 
-    info!("Operations background listener subscribed to topic {}", topic);
+    info!(
+        "Operations background listener subscribed to topic {}",
+        topic
+    );
 
     loop {
         tokio::select! {
@@ -425,7 +455,7 @@ async fn run_telemetry_loop(
                         if let Some(Ok(payload)) = msg.payload_view::<str>() {
                             if let Ok(rec) = serde_json::from_str::<TelemetryRecord>(payload) {
                                 let sat_id = rec.satellite_id.clone();
-                                
+
                                 // 1. Pass telemetry through Twin Engine
                                 let rec_twin = state.twin.update_twin(&sat_id, rec);
 
@@ -464,7 +494,7 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
     for row in rows {
         let cmd_id: Uuid = row.get("id");
         let cmd_type: String = row.get("command_type");
-        
+
         let mut matched = false;
         let expected_field;
         let expected_val;
@@ -506,13 +536,18 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
 
         if matched {
             // Update command status in DB to CONFIRMED
-            if let Err(e) = sqlx::query("UPDATE commands SET status = 'CONFIRMED', executed_at = $1 WHERE id = $2")
-                .bind(Utc::now())
-                .bind(cmd_id)
-                .execute(&state.db_pool)
-                .await
+            if let Err(e) = sqlx::query(
+                "UPDATE commands SET status = 'CONFIRMED', executed_at = $1 WHERE id = $2",
+            )
+            .bind(Utc::now())
+            .bind(cmd_id)
+            .execute(&state.db_pool)
+            .await
             {
-                error!("Failed to update command status to CONFIRMED for command {}: {}", cmd_id, e);
+                error!(
+                    "Failed to update command status to CONFIRMED for command {}: {}",
+                    cmd_id, e
+                );
             }
 
             let v_id = Uuid::new_v4();
@@ -543,7 +578,10 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
                 let record = FutureRecord::to("command.verification.events")
                     .key(&rec.satellite_id)
                     .payload(&payload);
-                let _ = state.kafka_producer.send(record, Duration::from_secs(5)).await;
+                let _ = state
+                    .kafka_producer
+                    .send(record, Duration::from_secs(5))
+                    .await;
             }
 
             let timeline_payload = serde_json::json!({
@@ -564,7 +602,10 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
                 let record = FutureRecord::to(&state.timeline_topic)
                     .key(&rec.satellite_id)
                     .payload(&payload);
-                let _ = state.kafka_producer.send(record, Duration::from_secs(5)).await;
+                let _ = state
+                    .kafka_producer
+                    .send(record, Duration::from_secs(5))
+                    .await;
             }
         }
     }
@@ -588,7 +629,7 @@ async fn get_satellite_future(
     let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, &satellite).await;
     let now = Utc::now();
     let mut tracks = Vec::new();
-    
+
     for step in 0..45 {
         let t = now + chrono::Duration::minutes(step * 2);
         if let Ok(st) = orbit::propagate_tle_sgp4(&satellite, &line1, &line2, t) {
@@ -605,7 +646,7 @@ async fn get_satellite_ground_track(
     let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, &satellite).await;
     let now = Utc::now();
     let mut tracks = Vec::new();
-    
+
     for step in 0..95 {
         let t = now + chrono::Duration::minutes(step);
         if let Ok(st) = orbit::propagate_tle_sgp4(&satellite, &line1, &line2, t) {
@@ -657,7 +698,10 @@ async fn apply_twin_command(
         relation: "AFFECTS".to_string(),
     };
     let _ = state.graph.add_edge_internal(&edge).await;
-    state.training.log_operator_command(&satellite, &req.cmd_type).await;
+    state
+        .training
+        .log_operator_command(&satellite, &req.cmd_type)
+        .await;
 
     let twin_clone = state.twin.clone();
     let sat_clone = satellite;
@@ -674,8 +718,18 @@ async fn import_tle(
     State(state): State<Arc<ServiceState>>,
     Json(req): Json<orbit::ImportTleRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, String)> {
-    match orbit::import_tle_internal(&state.db_pool, &state.kafka_producer, &state.timeline_topic, req).await {
-        Ok(id) => Ok((StatusCode::CREATED, Json(serde_json::json!({ "id": id, "status": "success" })))),
+    match orbit::import_tle_internal(
+        &state.db_pool,
+        &state.kafka_producer,
+        &state.timeline_topic,
+        req,
+    )
+    .await
+    {
+        Ok(id) => Ok((
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "id": id, "status": "success" })),
+        )),
         Err(e) => Err((StatusCode::BAD_REQUEST, e)),
     }
 }
@@ -704,10 +758,11 @@ async fn get_operations_analytics(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let contact_total: i64 = contact_total_row.get("count");
 
-    let contact_executed_row = sqlx::query("SELECT COUNT(*) as count FROM contact_schedules WHERE status = 'EXECUTED'")
-        .fetch_one(&state.db_pool)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let contact_executed_row =
+        sqlx::query("SELECT COUNT(*) as count FROM contact_schedules WHERE status = 'EXECUTED'")
+            .fetch_one(&state.db_pool)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let contact_executed: i64 = contact_executed_row.get("count");
 
     let avg_dur_row = sqlx::query("SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (end_time - start_time))/60.0), 0.0) as avg_duration FROM contact_schedules WHERE status = 'EXECUTED'")
@@ -722,15 +777,25 @@ async fn get_operations_analytics(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let cmd_total: i64 = cmd_total_row.get("count");
 
-    let cmd_verified_row = sqlx::query("SELECT COUNT(*) as count FROM commands WHERE status = 'CONFIRMED' OR status = 'VERIFIED'")
-        .fetch_one(&state.db_pool)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let cmd_verified_row = sqlx::query(
+        "SELECT COUNT(*) as count FROM commands WHERE status = 'CONFIRMED' OR status = 'VERIFIED'",
+    )
+    .fetch_one(&state.db_pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let cmd_verified: i64 = cmd_verified_row.get("count");
 
     let pass_success_rate = if pass_total > 0 { 95.0 } else { 100.0 };
-    let contact_success_rate = if contact_total > 0 { (contact_executed as f64 / contact_total as f64) * 100.0 } else { 100.0 };
-    let command_success_rate = if cmd_total > 0 { (cmd_verified as f64 / cmd_total as f64) * 100.0 } else { 100.0 };
+    let contact_success_rate = if contact_total > 0 {
+        (contact_executed as f64 / contact_total as f64) * 100.0
+    } else {
+        100.0
+    };
+    let command_success_rate = if cmd_total > 0 {
+        (cmd_verified as f64 / cmd_total as f64) * 100.0
+    } else {
+        100.0
+    };
     let fleet_availability = 99.85;
 
     Ok(Json(OperationsAnalytics {
@@ -795,9 +860,7 @@ struct ServiceStatus {
     database: String,
 }
 
-async fn health_check(
-    State(state): State<Arc<ServiceState>>,
-) -> impl axum::response::IntoResponse {
+async fn health_check(State(state): State<Arc<ServiceState>>) -> impl axum::response::IntoResponse {
     let db_status = match sqlx::query("SELECT 1").execute(&state.db_pool).await {
         Ok(_) => "UP".to_string(),
         Err(e) => {
@@ -806,21 +869,19 @@ async fn health_check(
         }
     };
 
-    let status = if db_status == "UP" { 
-        "UP" 
-    } else { 
-        "DOWN" 
-    };
-    let code = if status == "UP" { 
-        StatusCode::OK 
-    } else { 
-        StatusCode::SERVICE_UNAVAILABLE 
+    let status = if db_status == "UP" { "UP" } else { "DOWN" };
+    let code = if status == "UP" {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
     };
 
     let resp = HealthResponse {
         status: status.to_string(),
         timestamp: Utc::now(),
-        services: ServiceStatus { database: db_status },
+        services: ServiceStatus {
+            database: db_status,
+        },
     };
 
     (code, Json(resp))
@@ -841,11 +902,14 @@ struct ReadinessChecks {
 async fn readiness_check(
     State(state): State<Arc<ServiceState>>,
 ) -> impl axum::response::IntoResponse {
-    let db_ready = sqlx::query("SELECT 1").execute(&state.db_pool).await.is_ok();
-    let code = if db_ready { 
-        StatusCode::OK 
-    } else { 
-        StatusCode::SERVICE_UNAVAILABLE 
+    let db_ready = sqlx::query("SELECT 1")
+        .execute(&state.db_pool)
+        .await
+        .is_ok();
+    let code = if db_ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
     };
 
     let resp = ReadinessResponse {
@@ -870,4 +934,3 @@ async fn liveness_check() -> impl axum::response::IntoResponse {
     };
     (StatusCode::OK, Json(resp))
 }
-

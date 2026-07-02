@@ -27,11 +27,7 @@ mod metrics;
 #[command(name = "OrbitLogs - Mission Replay Engine")]
 #[command(about = "Historical data playback engine for telemetry and events", long_about = None)]
 struct Cli {
-    #[arg(
-        long,
-        env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
-    )]
+    #[arg(long, env = "DATABASE_URL", default_value = "")]
     database_url: String,
 
     #[arg(long, env = "PORT", default_value = "8084")]
@@ -111,9 +107,14 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let mut cli = Cli::parse();
-    if let Some(val) = load_secret("DATABASE_URL") {
-        cli.database_url = val;
-    }
+    let db_url = if !cli.database_url.trim().is_empty() {
+        cli.database_url.clone()
+    } else if let Some(val) = load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty()) {
+        val
+    } else {
+        return Err(anyhow::anyhow!("DATABASE_URL is required. Set env var DATABASE_URL, pass --database-url, or use Docker secrets DATABASE_URL."));
+    };
+    cli.database_url = db_url;
     let api_key = cli.api_key.clone()
         .or_else(|| load_secret("API_KEY"))
         .filter(|s| !s.trim().is_empty())
@@ -196,7 +197,9 @@ async fn main() -> Result<(), anyhow::Error> {
             state.clone(),
             cors_middleware,
         ))
-        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(30)))
+        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(
+            30,
+        )))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
@@ -864,8 +867,6 @@ async fn list_events(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         }
     }
 }
-
-
 
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,

@@ -32,8 +32,6 @@ pub struct AppState {
     pub rate_limiter: std::sync::Arc<dashmap::DashMap<String, std::sync::Mutex<TokenBucket>>>,
 }
 
-
-
 #[derive(Serialize)]
 pub struct IngestionResponse {
     pub message: String,

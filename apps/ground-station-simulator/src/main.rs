@@ -1,8 +1,8 @@
 use clap::Parser;
-use std::sync::LazyLock;
 use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::net::SocketAddr;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tracing::{error, info};
 
@@ -17,11 +17,7 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(
-        long,
-        env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
-    )]
+    #[arg(long, env = "DATABASE_URL", default_value = "")]
     database_url: String,
 
     #[arg(long, env = "HEALTH_TOPIC", default_value = "groundstation.health")]
@@ -54,9 +50,9 @@ pub static GS_STATUS: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "ground_station_status",
-            "Status score of the ground station (1.0 = ONLINE, 0.5 = DEGRADED, 0.0 = OUTAGE)"
+            "Status score of the ground station (1.0 = ONLINE, 0.5 = DEGRADED, 0.0 = OUTAGE)",
         ),
-        &["station_id"]
+        &["station_id"],
     )
     .expect("ground_station_status metric must be created")
 });
@@ -64,9 +60,9 @@ pub static GS_ANTENNA_HEALTH: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "ground_station_antenna_health",
-            "Antenna hardware health in percentage (0-100)"
+            "Antenna hardware health in percentage (0-100)",
         ),
-        &["station_id"]
+        &["station_id"],
     )
     .expect("ground_station_antenna_health metric must be created")
 });
@@ -74,9 +70,9 @@ pub static GS_LATENCY: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "ground_station_latency",
-            "Ground station uplink/downlink network latency in ms (milli seconds)"
+            "Ground station uplink/downlink network latency in ms (milli seconds)",
         ),
-        &["station_id"]
+        &["station_id"],
     )
     .expect("ground_station_latency metric must be created")
 });
@@ -84,9 +80,9 @@ pub static GS_BANDWIDTH: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "ground_station_bandwidth",
-            "Available ground station downlink bandwidth (Mbps)"
+            "Available ground station downlink bandwidth (Mbps)",
         ),
-        &["station_id"]
+        &["station_id"],
     )
     .expect("ground_station_bandwidth metric must be created")
 });
@@ -149,9 +145,14 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let mut cli = Cli::parse();
-    if let Some(val) = load_secret("DATABASE_URL") {
-        cli.database_url = val;
-    }
+    let db_url = if !cli.database_url.trim().is_empty() {
+        cli.database_url.clone()
+    } else if let Some(val) = load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty()) {
+        val
+    } else {
+        return Err(anyhow::anyhow!("DATABASE_URL is required. Set env var DATABASE_URL, pass --database-url, or use Docker secrets DATABASE_URL."));
+    };
+    cli.database_url = db_url;
     if let Some(val) = load_secret("KAFKA_SASL_PASSWORD") {
         cli.kafka_sasl_password = Some(val);
     }
@@ -314,7 +315,8 @@ async fn main() -> Result<(), anyhow::Error> {
             // Scenario 5: Maintenance Window at McMurdo (GS-0003)
             gs_mcmurdo.status = "MAINTENANCE".to_string();
             gs_mcmurdo.maintenance = Some(true);
-            gs_mcmurdo.explanation = "Scheduled antenna receiver array calibration window.".to_string();
+            gs_mcmurdo.explanation =
+                "Scheduled antenna receiver array calibration window.".to_string();
         }
 
         let stations = vec![gs_svalbard, gs_troll, gs_mcmurdo, gs_kiruna];

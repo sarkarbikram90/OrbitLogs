@@ -1,5 +1,3 @@
-
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -217,19 +215,88 @@ pub enum HealthState {
     Red,
 }
 
-impl HealthState {
-    pub fn to_string(&self) -> String {
+impl std::fmt::Display for HealthState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HealthState::Green => "GREEN".to_string(),
-            HealthState::Yellow => "YELLOW".to_string(),
-            HealthState::Red => "RED".to_string(),
+            HealthState::Green => write!(f, "GREEN"),
+            HealthState::Yellow => write!(f, "YELLOW"),
+            HealthState::Red => write!(f, "RED"),
         }
     }
 }
 
-impl std::fmt::Display for HealthState {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SubsystemStatus {
+    #[serde(rename = "NOMINAL")]
+    Nominal,
+    #[serde(rename = "DEGRADED")]
+    Degraded,
+    #[serde(rename = "FAILED")]
+    Failed,
+}
+
+impl std::fmt::Display for SubsystemStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        match self {
+            SubsystemStatus::Nominal => write!(f, "NOMINAL"),
+            SubsystemStatus::Degraded => write!(f, "DEGRADED"),
+            SubsystemStatus::Failed => write!(f, "FAILED"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ErrorCode {
+    #[serde(rename = "ERR_UNAUTHORIZED")]
+    Unauthorized,
+    #[serde(rename = "ERR_FORBIDDEN")]
+    Forbidden,
+    #[serde(rename = "ERR_NOT_FOUND")]
+    NotFound,
+    #[serde(rename = "ERR_VALIDATION_FAILED")]
+    ValidationFailed,
+    #[serde(rename = "ERR_INTERNAL_ERROR")]
+    InternalError,
+    #[serde(rename = "ERR_RATE_LIMITED")]
+    RateLimited,
+    #[serde(rename = "ERR_COMMAND_INVALID_STATE")]
+    CommandInvalidState,
+}
+
+impl std::fmt::Display for ErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorCode::Unauthorized => write!(f, "ERR_UNAUTHORIZED"),
+            ErrorCode::Forbidden => write!(f, "ERR_FORBIDDEN"),
+            ErrorCode::NotFound => write!(f, "ERR_NOT_FOUND"),
+            ErrorCode::ValidationFailed => write!(f, "ERR_VALIDATION_FAILED"),
+            ErrorCode::InternalError => write!(f, "ERR_INTERNAL_ERROR"),
+            ErrorCode::RateLimited => write!(f, "ERR_RATE_LIMITED"),
+            ErrorCode::CommandInvalidState => write!(f, "ERR_COMMAND_INVALID_STATE"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiError {
+    pub code: ErrorCode,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace_id: Option<String>,
+}
+
+impl ApiError {
+    pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            trace_id: None,
+        }
+    }
+
+    pub fn with_trace_id(mut self, trace_id: impl Into<String>) -> Self {
+        self.trace_id = Some(trace_id.into());
+        self
     }
 }
 

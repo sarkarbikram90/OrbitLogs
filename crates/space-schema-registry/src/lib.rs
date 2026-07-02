@@ -164,10 +164,16 @@ impl SchemaRegistry {
         // V1 -> V2 Migration
         if from == TelemetryVersion::V1 && to >= TelemetryVersion::V2 {
             if !obj.contains_key("subsystem_id") {
-                obj.insert("subsystem_id".to_string(), Value::String("unified".to_string()));
+                obj.insert(
+                    "subsystem_id".to_string(),
+                    Value::String("unified".to_string()),
+                );
             }
             if !obj.contains_key("mission_id") {
-                obj.insert("mission_id".to_string(), Value::String("unknown".to_string()));
+                obj.insert(
+                    "mission_id".to_string(),
+                    Value::String("unknown".to_string()),
+                );
             }
             if !obj.contains_key("payload_power_draw") {
                 obj.insert("payload_power_draw".to_string(), Value::Null);
@@ -236,9 +242,18 @@ mod tests {
 
     #[test]
     fn test_compatibility_and_migration() {
-        assert!(SchemaRegistry::is_compatible(TelemetryVersion::V1, TelemetryVersion::V2));
-        assert!(SchemaRegistry::is_compatible(TelemetryVersion::V1, TelemetryVersion::V3));
-        assert!(!SchemaRegistry::is_compatible(TelemetryVersion::V3, TelemetryVersion::V1));
+        assert!(SchemaRegistry::is_compatible(
+            TelemetryVersion::V1,
+            TelemetryVersion::V2
+        ));
+        assert!(SchemaRegistry::is_compatible(
+            TelemetryVersion::V1,
+            TelemetryVersion::V3
+        ));
+        assert!(!SchemaRegistry::is_compatible(
+            TelemetryVersion::V3,
+            TelemetryVersion::V1
+        ));
 
         let v1_data = json!({
             "satellite_id": "SAT-0001",
@@ -261,7 +276,8 @@ mod tests {
             "signal_strength": -55.0
         });
 
-        let migrated = SchemaRegistry::migrate(v1_data, TelemetryVersion::V1, TelemetryVersion::V3).unwrap();
+        let migrated =
+            SchemaRegistry::migrate(v1_data, TelemetryVersion::V1, TelemetryVersion::V3).unwrap();
         assert_eq!(migrated["subsystem_id"], "unified");
         assert_eq!(migrated["mission_id"], "unknown");
         assert!(migrated["adcs_gyro_x"].is_null());

@@ -1,4 +1,3 @@
-
 extern crate orbitlogs_models;
 
 use clap::{Parser, Subcommand};
@@ -18,11 +17,7 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(
-        long,
-        env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
-    )]
+    #[arg(long, env = "DATABASE_URL", default_value = "")]
     database_url: String,
 
     #[arg(
@@ -97,9 +92,14 @@ async fn main() -> Result<(), anyhow::Error> {
     let _ = dotenvy::dotenv();
 
     let mut cli = Cli::parse();
-    if let Some(val) = load_secret("DATABASE_URL") {
-        cli.database_url = val;
-    }
+    let db_url = if !cli.database_url.trim().is_empty() {
+        cli.database_url.clone()
+    } else if let Some(val) = load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty()) {
+        val
+    } else {
+        return Err(anyhow::anyhow!("DATABASE_URL is required. Set env var DATABASE_URL, pass --database-url, or use Docker secrets DATABASE_URL."));
+    };
+    cli.database_url = db_url;
     let api_key = cli.api_key.clone()
         .or_else(|| load_secret("API_KEY"))
         .filter(|s| !s.trim().is_empty())
@@ -109,7 +109,9 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Start OpenTelemetry & tracing
-    if let Err(e) = orbitlogs_models::telemetry::init_telemetry("orbitlogs-collector", &cli.otel_endpoint) {
+    if let Err(e) =
+        orbitlogs_models::telemetry::init_telemetry("orbitlogs-collector", &cli.otel_endpoint)
+    {
         error!(
             "Failed to initialize OTel tracing: {}. Local console logger initialized.",
             e
@@ -154,7 +156,10 @@ async fn main() -> Result<(), anyhow::Error> {
     // DB Connection Pool configuration (configured with fallback retries for self-bootstrapping Compose setups)
     // Only connect to DB if we need consumer or health checking
     let db_pool = match run_mode {
-        Commands::RunConsumer | Commands::RunAll | Commands::RunServer | Commands::RunMigrations => {
+        Commands::RunConsumer
+        | Commands::RunAll
+        | Commands::RunServer
+        | Commands::RunMigrations => {
             info!("Configuring database connection pool...");
             match orbitlogs_models::db::establish_db_connection(&cli.database_url, 20).await {
                 Ok(p) => Some(p),
@@ -175,10 +180,12 @@ async fn main() -> Result<(), anyhow::Error> {
             if db_pool.is_some() {
                 info!("Database migrations run/check completed successfully.");
             } else {
-                return Err(anyhow::anyhow!("Database migration failed: could not connect to database"));
+                return Err(anyhow::anyhow!(
+                    "Database migration failed: could not connect to database"
+                ));
             }
         }
-        
+
         Commands::RunServer => {
             let app_state = AppState {
                 kafka_producer,

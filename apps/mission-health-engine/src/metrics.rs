@@ -1,11 +1,11 @@
-use std::sync::LazyLock;
 use prometheus::{Gauge, GaugeVec, Opts, Registry};
+use std::sync::LazyLock;
 
 pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
 pub static FLEET_HEALTH_SCORE: LazyLock<Gauge> = LazyLock::new(|| {
     Gauge::new(
         "fleet_health_score",
-        "Average health score of the entire satellite fleet (0-100)"
+        "Average health score of the entire satellite fleet (0-100)",
     )
     .expect("fleet_health_score metric must be created")
 });
@@ -13,9 +13,9 @@ pub static SATELLITE_HEALTH_SCORE: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "satellite_health_score",
-            "Health score of each individual satellite (0-100)"
+            "Health score of each individual satellite (0-100)",
         ),
-        &["satellite_id"]
+        &["satellite_id"],
     )
     .expect("satellite_health_score metric must be created")
 });
@@ -23,9 +23,9 @@ pub static SUBSYSTEM_HEALTH_SCORE: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "subsystem_health_score",
-            "Health score of each subsystem (0-100)"
+            "Health score of each subsystem (0-100)",
         ),
-        &["satellite_id", "subsystem_id"]
+        &["satellite_id", "subsystem_id"],
     )
     .expect("subsystem_health_score metric must be created")
 });
@@ -33,9 +33,9 @@ pub static KAFKA_CONSUMER_LAG: LazyLock<GaugeVec> = LazyLock::new(|| {
     GaugeVec::new(
         Opts::new(
             "kafka_consumer_lag",
-            "Lag of the Kafka consumer group (offsets behind high watermark)"
+            "Lag of the Kafka consumer group (offsets behind high watermark)",
         ),
-        &["topic", "partition"]
+        &["topic", "partition"],
     )
     .expect("kafka_consumer_lag metric must be created")
 });

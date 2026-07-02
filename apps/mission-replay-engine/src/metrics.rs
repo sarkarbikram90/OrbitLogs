@@ -1,11 +1,11 @@
-use std::sync::LazyLock;
 use prometheus::{CounterVec, Gauge, Opts, Registry};
+use std::sync::LazyLock;
 
 pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
 pub static ACTIVE_REPLAYS: LazyLock<Gauge> = LazyLock::new(|| {
     Gauge::new(
         "active_replay_sessions",
-        "Number of active replay sessions currently playing"
+        "Number of active replay sessions currently playing",
     )
     .expect("active_replay_sessions metric must be created")
 });
@@ -13,9 +13,9 @@ pub static REPLAY_EVENTS_STREAMED: LazyLock<CounterVec> = LazyLock::new(|| {
     CounterVec::new(
         Opts::new(
             "replay_events_streamed_total",
-            "Total number of events streamed during replay"
+            "Total number of events streamed during replay",
         ),
-        &["session_id", "data_type"]
+        &["session_id", "data_type"],
     )
     .expect("replay_events_streamed_total metric must be created")
 });
@@ -23,9 +23,9 @@ pub static REPLAY_CONTROLS: LazyLock<CounterVec> = LazyLock::new(|| {
     CounterVec::new(
         Opts::new(
             "replay_controls_total",
-            "Total number of control actions received"
+            "Total number of control actions received",
         ),
-        &["action"]
+        &["action"],
     )
     .expect("replay_controls_total metric must be created")
 });

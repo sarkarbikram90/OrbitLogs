@@ -171,25 +171,20 @@ impl SatelliteSimulator {
         let mut yaw = (self.ticks as f32 * 0.01 + 1.2).sin() * 4.0 + self.rng.gen_range(-0.4..0.4);
 
         if self.id == "SAT-0001" {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                let iss = tokio::task::block_in_place(|| {
-                    handle.block_on(crate::adapters::OrbitAdapters::fetch_iss_position())
-                });
-                self.altitude = iss.altitude;
-                self.velocity = iss.velocity;
-                pitch = iss.latitude as f32;
-                roll = iss.longitude as f32;
-            } else {
-                // Fallback for tests or contexts without a tokio runtime running
-                self.altitude = 420.0;
-                self.velocity = 7.66;
-                pitch = 51.64;
-                roll = 195.14;
-            }
+            let ts = chrono::Utc::now().timestamp() as f64;
+            let phase = ts * 0.001;
+            self.altitude = 421.5;
+            self.velocity = 7.66;
+            pitch = (phase.sin() * 51.64) as f32;
+            roll = ((phase * 1.5).cos() * 180.0) as f32;
         } else if self.id == "SAT-0002" {
             let tle_l1 = "1 25544U 98067A   26166.57790509  .00015525  00000-0  28286-3 0  9997";
             let tle_l2 = "2 25544  51.6416 195.1432 0005211  92.5188  64.2188 15.49896541571216";
-            let (lat, lon, alt) = crate::adapters::OrbitAdapters::propagate_tle(tle_l1, tle_l2, self.ticks as f64 * 5.0);
+            let (lat, lon, alt) = crate::adapters::OrbitAdapters::propagate_tle(
+                tle_l1,
+                tle_l2,
+                self.ticks as f64 * 5.0,
+            );
             self.altitude = alt;
             pitch = lat as f32;
             roll = lon as f32;

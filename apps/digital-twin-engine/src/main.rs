@@ -6,19 +6,18 @@ use axum::{
 };
 use clap::Parser;
 use dashmap::DashMap;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
+use orbitlogs_models::TelemetryRecord;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde::{Deserialize, Serialize};
-use orbitlogs_models::kafka::KafkaConfigBuilder;
-use orbitlogs_models::TelemetryRecord;
 use sqlx::{PgPool, Row};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{error, info};
-use uuid::Uuid;
 use tokio_util::sync::CancellationToken;
+use tracing::{error, info};
 
 #[derive(Parser, Debug)]
 #[command(name = "Digital Twin Engine")]
@@ -29,11 +28,7 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(
-        long,
-        env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
-    )]
+    #[arg(long, env = "DATABASE_URL", default_value = "")]
     database_url: String,
 
     #[arg(
@@ -62,6 +57,15 @@ struct Cli {
     )]
     cors_allowed_origin: String,
 }
+
+// Threshold Constants for Health Projections
+const BATTERY_WARN_VOLTAGE: f64 = 11.5;
+const BATTERY_CRIT_VOLTAGE: f64 = 10.5;
+const THERMAL_WARN_TEMP: f64 = 75.0;
+const THERMAL_CRIT_TEMP: f64 = 90.0;
+const ADCS_WARN_PITCH_DRIFT: f32 = 10.0;
+const COMM_WARN_PACKET_LOSS: f32 = 10.0;
+const PROPULSION_WARN_FUEL: f32 = 20.0;
 
 struct AppState {
     twins: DashMap<String, TelemetryRecord>,
@@ -94,7 +98,7 @@ struct SubsystemsHealthProjection {
 
 #[derive(Debug, Serialize)]
 struct SubsystemState {
-    status: String, // "NOMINAL", "DEGRADED", "FAILED"
+    status: orbitlogs_models::SubsystemStatus,
     score: i32,
     details: String,
 }
@@ -258,7 +262,15 @@ async fn main() -> Result<(), anyhow::Error> {
     let group_id = cli.group_id.clone();
     let cancel_token_clone = cancel_token.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_telemetry_consumer(state_clone, brokers, processed_topic, group_id, cancel_token_clone).await {
+        if let Err(e) = run_telemetry_consumer(
+            state_clone,
+            brokers,
+            processed_topic,
+            group_id,
+            cancel_token_clone,
+        )
+        .await
+        {
             error!("Background digital twin consumer failed: {}", e);
         }
     });
@@ -269,21 +281,34 @@ async fn main() -> Result<(), anyhow::Error> {
         cancel_token_trigger.cancel();
     });
 
-    let state_routes = Router::new()
-        .route("/:satellite/simulate-failure", post(simulate_failure).layer(axum::middleware::from_fn_with_state(state.clone(), auth_middleware)));
+    let state_routes = Router::new().route(
+        "/:satellite/simulate-failure",
+        post(simulate_failure).layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        )),
+    );
 
     let app = Router::new()
         .route("/api/twin/:satellite", get(get_twin))
         .route("/api/twin/:satellite/health", get(get_twin_health))
         .route("/api/twin/:satellite/timeline", get(get_twin_timeline))
         .nest("/api/twin", state_routes)
-        .layer(axum::middleware::from_fn_with_state(state.clone(), cors_middleware))
-        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(30)))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            cors_middleware,
+        ))
+        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(
+            30,
+        )))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("Digital Twin Engine listening on http://localhost:{}", cli.port);
+    info!(
+        "Digital Twin Engine listening on http://localhost:{}",
+        cli.port
+    );
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
@@ -380,103 +405,145 @@ async fn get_twin(
 }
 
 fn project_twin_health(satellite: String, rec: &TelemetryRecord) -> TwinHealthProjection {
+    use orbitlogs_models::SubsystemStatus;
+
     // Formulate a dynamic projection based on twin metrics
     let mut recommendations = Vec::new();
     let mut life_expectancy: f64 = 1800.0; // nominal 5 years
 
     // Power Subsystem Assessment
-    let mut power_status = "NOMINAL".to_string();
+    let mut power_status = SubsystemStatus::Nominal;
     let mut power_score = 100;
-    let mut power_details = "Solar arrays fully deployed and generating adequate wattage. Battery banks balanced.".to_string();
+    let mut power_details =
+        "Solar arrays fully deployed and generating adequate wattage. Battery banks balanced."
+            .to_string();
 
     let battery = rec.battery_voltage.unwrap_or(13.8);
     let solar = rec.solar_panel_output.unwrap_or(100.0);
-    if battery < 11.5 {
-        power_status = "DEGRADED".to_string();
+    if battery < BATTERY_WARN_VOLTAGE {
+        power_status = SubsystemStatus::Degraded;
         power_score = 60;
-        power_details = format!("Battery voltage low: {}V. Solar generating: {}W.", battery, solar);
-        recommendations.push("Charge cycle optimization: Disable secondary payloads to reduce battery strain.".to_string());
+        power_details = format!(
+            "Battery voltage low: {}V. Solar generating: {}W.",
+            battery, solar
+        );
+        recommendations.push(
+            "Charge cycle optimization: Disable secondary payloads to reduce battery strain."
+                .to_string(),
+        );
         life_expectancy -= 300.0;
     }
-    if battery < 10.5 || solar == 0.0 {
-        power_status = "FAILED".to_string();
+    if battery < BATTERY_CRIT_VOLTAGE || solar == 0.0 {
+        power_status = SubsystemStatus::Failed;
         power_score = 20;
-        power_details = "Battery under-voltage lockout threshold reached or solar array generation failure.".to_string();
-        recommendations.push("Emergency power mode: Shed all non-vital systems immediately.".to_string());
+        power_details =
+            "Battery under-voltage lockout threshold reached or solar array generation failure."
+                .to_string();
+        recommendations
+            .push("Emergency power mode: Shed all non-vital systems immediately.".to_string());
         life_expectancy -= 1000.0;
     }
 
     // Thermal Subsystem Assessment
-    let mut thermal_status = "NOMINAL".to_string();
+    let mut thermal_status = SubsystemStatus::Nominal;
     let mut thermal_score = 100;
-    let mut thermal_details = "Radiators operating within design bounds. Internal temperatures nominal.".to_string();
+    let mut thermal_details =
+        "Radiators operating within design bounds. Internal temperatures nominal.".to_string();
 
     let temp = rec.temperature.unwrap_or(25.0);
-    if temp > 75.0 {
-        thermal_status = "DEGRADED".to_string();
+    if temp > THERMAL_WARN_TEMP {
+        thermal_status = SubsystemStatus::Degraded;
         thermal_score = 55;
-        thermal_details = format!("Thermal radiator capacity constrained. Component temperature: {}°C.", temp);
+        thermal_details = format!(
+            "Thermal radiator capacity constrained. Component temperature: {}°C.",
+            temp
+        );
         recommendations.push("Yaw satellite to align radiator arrays with cold space.".to_string());
         life_expectancy -= 200.0;
     }
-    if temp > 90.0 {
-        thermal_status = "FAILED".to_string();
+    if temp > THERMAL_CRIT_TEMP {
+        thermal_status = SubsystemStatus::Failed;
         thermal_score = 10;
-        thermal_details = format!("Critical hardware thermal limit exceeded: {}°C. Risk of immediate chip fusion.", temp);
-        recommendations.push("Immediate reboot and deep power saving to prevent silicon decay.".to_string());
+        thermal_details = format!(
+            "Critical hardware thermal limit exceeded: {}°C. Risk of immediate chip fusion.",
+            temp
+        );
+        recommendations
+            .push("Immediate reboot and deep power saving to prevent silicon decay.".to_string());
         life_expectancy -= 800.0;
     }
 
     // ADCS Assessment
-    let mut adcs_status = "NOMINAL".to_string();
+    let mut adcs_status = SubsystemStatus::Nominal;
     let mut adcs_score = 100;
-    let mut adcs_details = "Attitude control holding target star lock. Reaction wheel torque minimal.".to_string();
+    let mut adcs_details =
+        "Attitude control holding target star lock. Reaction wheel torque minimal.".to_string();
 
     let pitch = rec.orientation_pitch.unwrap_or(0.0);
-    if pitch.abs() > 10.0 {
-        adcs_status = "DEGRADED".to_string();
+    if pitch.abs() > ADCS_WARN_PITCH_DRIFT {
+        adcs_status = SubsystemStatus::Degraded;
         adcs_score = 65;
-        adcs_details = format!("Attitude drift detected. Star tracker lock unstable. Pitch error: {:.1}°.", pitch);
-        recommendations.push("Trigger magnetorquer alignment sequence to dump reaction wheel momentum.".to_string());
+        adcs_details = format!(
+            "Attitude drift detected. Star tracker lock unstable. Pitch error: {:.1}°.",
+            pitch
+        );
+        recommendations.push(
+            "Trigger magnetorquer alignment sequence to dump reaction wheel momentum.".to_string(),
+        );
         life_expectancy -= 150.0;
     }
 
     // Communications Assessment
-    let mut comm_status = "NOMINAL".to_string();
+    let mut comm_status = SubsystemStatus::Nominal;
     let mut comm_score = 100;
-    let mut comm_details = "Uplink and downlink carriers locked. Bit error rate at standard noise floor.".to_string();
+    let mut comm_details =
+        "Uplink and downlink carriers locked. Bit error rate at standard noise floor.".to_string();
 
     let ploss = rec.packet_loss.unwrap_or(0.0);
-    if ploss > 10.0 {
-        comm_status = "DEGRADED".to_string();
+    if ploss > COMM_WARN_PACKET_LOSS {
+        comm_status = SubsystemStatus::Degraded;
         comm_score = 70;
-        comm_details = format!("Uplink jitter detected. Packet loss: {:.1}%. Link margin tight.", ploss);
-        recommendations.push("Increase transmitter power or schedule passes with high-gain ground station arrays.".to_string());
+        comm_details = format!(
+            "Uplink jitter detected. Packet loss: {:.1}%. Link margin tight.",
+            ploss
+        );
+        recommendations.push(
+            "Increase transmitter power or schedule passes with high-gain ground station arrays."
+                .to_string(),
+        );
     }
 
     // Propulsion Assessment
-    let mut prop_status = "NOMINAL".to_string();
+    let mut prop_status = SubsystemStatus::Nominal;
     let mut prop_score = 100;
-    let mut prop_details = "Fuel levels adequate for scheduled orbital maintenance maneuvers.".to_string();
+    let mut prop_details =
+        "Fuel levels adequate for scheduled orbital maintenance maneuvers.".to_string();
 
     let fuel = rec.fuel_remaining.unwrap_or(100.0);
-    if fuel < 20.0 {
-        prop_status = "DEGRADED".to_string();
+    if fuel < PROPULSION_WARN_FUEL {
+        prop_status = SubsystemStatus::Degraded;
         prop_score = 40;
-        prop_details = format!("Propellant supply depleted: {:.1}%. Maneuver window constrained.", fuel);
-        recommendations.push("Transition to high-efficiency sparse burns. Plan orbit decay path.".to_string());
+        prop_details = format!(
+            "Propellant supply depleted: {:.1}%. Maneuver window constrained.",
+            fuel
+        );
+        recommendations
+            .push("Transition to high-efficiency sparse burns. Plan orbit decay path.".to_string());
         life_expectancy -= 500.0;
     }
 
     // Payload Assessment
-    let mut pay_status = "NOMINAL".to_string();
+    let mut pay_status = SubsystemStatus::Nominal;
     let mut pay_score = 100;
-    let mut pay_details = "Payload instrument telemetry streams active. Calibration logs clean.".to_string();
+    let mut pay_details =
+        "Payload instrument telemetry streams active. Calibration logs clean.".to_string();
 
     if rec.payload_active.unwrap_or(false) && rec.payload_power_draw.unwrap_or(0.0) < 2.0 {
-        pay_status = "DEGRADED".to_string();
+        pay_status = SubsystemStatus::Degraded;
         pay_score = 50;
-        pay_details = "Payload active but drawing minimal power. Sensor integration loop suspended.".to_string();
+        pay_details =
+            "Payload active but drawing minimal power. Sensor integration loop suspended."
+                .to_string();
         recommendations.push("Perform payload diagnostics self-test.".to_string());
     }
 
@@ -484,12 +551,36 @@ fn project_twin_health(satellite: String, rec: &TelemetryRecord) -> TwinHealthPr
         satellite_id: satellite,
         timestamp: chrono::Utc::now(),
         subsystems: SubsystemsHealthProjection {
-            power: SubsystemState { status: power_status, score: power_score, details: power_details },
-            thermal: SubsystemState { status: thermal_status, score: thermal_score, details: thermal_details },
-            adcs: SubsystemState { status: adcs_status, score: adcs_score, details: adcs_details },
-            communications: SubsystemState { status: comm_status, score: comm_score, details: comm_details },
-            payload: SubsystemState { status: pay_status, score: pay_score, details: pay_details },
-            propulsion: SubsystemState { status: prop_status, score: prop_score, details: prop_details },
+            power: SubsystemState {
+                status: power_status,
+                score: power_score,
+                details: power_details,
+            },
+            thermal: SubsystemState {
+                status: thermal_status,
+                score: thermal_score,
+                details: thermal_details,
+            },
+            adcs: SubsystemState {
+                status: adcs_status,
+                score: adcs_score,
+                details: adcs_details,
+            },
+            communications: SubsystemState {
+                status: comm_status,
+                score: comm_score,
+                details: comm_details,
+            },
+            payload: SubsystemState {
+                status: pay_status,
+                score: pay_score,
+                details: pay_details,
+            },
+            propulsion: SubsystemState {
+                status: prop_status,
+                score: prop_score,
+                details: prop_details,
+            },
         },
         life_expectancy_days: life_expectancy.max(0.0),
         recommendations,
@@ -500,7 +591,11 @@ async fn get_twin_health(
     State(state): State<Arc<AppState>>,
     Path(satellite): Path<String>,
 ) -> Result<Json<TwinHealthProjection>, StatusCode> {
-    let rec = state.twins.get(&satellite).ok_or(StatusCode::NOT_FOUND)?.clone();
+    let rec = state
+        .twins
+        .get(&satellite)
+        .ok_or(StatusCode::NOT_FOUND)?
+        .clone();
     let projection = project_twin_health(satellite, &rec);
     Ok(Json(projection))
 }
@@ -509,22 +604,32 @@ async fn get_twin_timeline(
     State(state): State<Arc<AppState>>,
     Path(satellite): Path<String>,
 ) -> Result<Json<Vec<serde_json::Value>>, (StatusCode, Json<serde_json::Value>)> {
-    let rows = sqlx::query("SELECT timestamp, event_type, severity, message, details FROM events WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 50")
-        .bind(&satellite)
-        .fetch_all(&state.db_pool)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+    let rows = sqlx::query(
+        "SELECT * FROM events WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 50",
+    )
+    .bind(&satellite)
+    .fetch_all(&state.db_pool)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+    })?;
 
-    let events = rows.into_iter().map(|row| {
-        let ts: chrono::DateTime<chrono::Utc> = row.get("timestamp");
-        serde_json::json!({
-            "timestamp": ts,
-            "event_type": row.get::<String, _>("event_type"),
-            "severity": row.get::<String, _>("severity"),
-            "message": row.get::<String, _>("message"),
-            "details": row.get::<Option<serde_json::Value>, _>("details")
+    let events = rows
+        .into_iter()
+        .map(|row| {
+            serde_json::json!({
+                "timestamp": row.get::<chrono::DateTime<chrono::Utc>, _>("timestamp"),
+                "satellite_id": row.get::<String, _>("satellite_id"),
+                "event_type": row.get::<String, _>("event_type"),
+                "severity": row.get::<String, _>("severity"),
+                "message": row.get::<String, _>("message"),
+                "details": row.get::<Option<serde_json::Value>, _>("details"),
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(Json(events))
 }
@@ -532,22 +637,26 @@ async fn get_twin_timeline(
 async fn simulate_failure(
     State(state): State<Arc<AppState>>,
     Path(satellite): Path<String>,
-    Json(req): Json<SimulateFailureRequest>,
+    Json(payload): Json<SimulateFailureRequest>,
 ) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
-    let sub = req.subsystem.to_lowercase();
-    if !["power", "thermal", "adcs", "communications", "propulsion"].contains(&sub.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid subsystem specified" }))));
+    let sub = payload.subsystem.to_lowercase();
+    let mut failures = state
+        .simulated_failures
+        .entry(satellite.clone())
+        .or_default();
+    if !failures.contains(&sub) {
+        failures.push(sub.clone());
     }
 
-    state.simulated_failures.entry(satellite.clone()).or_insert_with(Vec::new).push(sub.clone());
+    info!(
+        "Injected failure simulation on satellite {} for subsystem: {}",
+        satellite, sub
+    );
 
-    // Publish timeline failure event
     let timeline_payload = serde_json::json!({
         "timestamp": chrono::Utc::now(),
-        "event_id": Uuid::new_v4(),
-        "source": "DIGITAL_TWIN",
         "satellite_id": satellite,
-        "event_type": format!("SIMULATED_FAILURE_{}", sub.to_uppercase()),
+        "event_type": "SIMULATED_FAILURE_INJECTED",
         "severity": "CRITICAL",
         "message": format!("Digital twin simulated failure injected on subsystem: {}", sub.to_uppercase()),
         "details": {
@@ -559,7 +668,10 @@ async fn simulate_failure(
         let record = FutureRecord::to(&state.timeline_topic)
             .key(&satellite)
             .payload(&payload);
-        let _ = state.kafka_producer.send(record, Duration::from_secs(5)).await;
+        let _ = state
+            .kafka_producer
+            .send(record, Duration::from_secs(5))
+            .await;
     }
 
     Ok(StatusCode::OK)
@@ -568,6 +680,8 @@ async fn simulate_failure(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use orbitlogs_models::SubsystemStatus;
+    use uuid::Uuid;
 
     fn mock_nominal_telemetry() -> TelemetryRecord {
         TelemetryRecord {
@@ -602,17 +716,20 @@ mod tests {
         let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
 
         assert_eq!(proj.satellite_id, "STARLINK-9999");
-        assert_eq!(proj.subsystems.power.status, "NOMINAL");
+        assert_eq!(proj.subsystems.power.status, SubsystemStatus::Nominal);
         assert_eq!(proj.subsystems.power.score, 100);
-        assert_eq!(proj.subsystems.thermal.status, "NOMINAL");
+        assert_eq!(proj.subsystems.thermal.status, SubsystemStatus::Nominal);
         assert_eq!(proj.subsystems.thermal.score, 100);
-        assert_eq!(proj.subsystems.adcs.status, "NOMINAL");
+        assert_eq!(proj.subsystems.adcs.status, SubsystemStatus::Nominal);
         assert_eq!(proj.subsystems.adcs.score, 100);
-        assert_eq!(proj.subsystems.communications.status, "NOMINAL");
+        assert_eq!(
+            proj.subsystems.communications.status,
+            SubsystemStatus::Nominal
+        );
         assert_eq!(proj.subsystems.communications.score, 100);
-        assert_eq!(proj.subsystems.propulsion.status, "NOMINAL");
+        assert_eq!(proj.subsystems.propulsion.status, SubsystemStatus::Nominal);
         assert_eq!(proj.subsystems.propulsion.score, 100);
-        assert_eq!(proj.subsystems.payload.status, "NOMINAL");
+        assert_eq!(proj.subsystems.payload.status, SubsystemStatus::Nominal);
         assert_eq!(proj.subsystems.payload.score, 100);
         assert_eq!(proj.life_expectancy_days, 1800.0);
         assert!(proj.recommendations.is_empty());
@@ -624,9 +741,12 @@ mod tests {
         rec.battery_voltage = Some(11.2); // < 11.5
 
         let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
-        assert_eq!(proj.subsystems.power.status, "DEGRADED");
+        assert_eq!(proj.subsystems.power.status, SubsystemStatus::Degraded);
         assert_eq!(proj.subsystems.power.score, 60);
-        assert!(proj.recommendations.iter().any(|r| r.contains("Charge cycle optimization")));
+        assert!(proj
+            .recommendations
+            .iter()
+            .any(|r| r.contains("Charge cycle optimization")));
         assert_eq!(proj.life_expectancy_days, 1800.0 - 300.0);
     }
 
@@ -637,9 +757,12 @@ mod tests {
         rec.solar_panel_output = Some(0.0);
 
         let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
-        assert_eq!(proj.subsystems.power.status, "FAILED");
+        assert_eq!(proj.subsystems.power.status, SubsystemStatus::Failed);
         assert_eq!(proj.subsystems.power.score, 20);
-        assert!(proj.recommendations.iter().any(|r| r.contains("Emergency power mode")));
+        assert!(proj
+            .recommendations
+            .iter()
+            .any(|r| r.contains("Emergency power mode")));
         assert_eq!(proj.life_expectancy_days, 1800.0 - 300.0 - 1000.0);
     }
 
@@ -649,16 +772,22 @@ mod tests {
         rec.temperature = Some(78.0); // > 75.0
 
         let proj1 = project_twin_health("STARLINK-9999".to_string(), &rec);
-        assert_eq!(proj1.subsystems.thermal.status, "DEGRADED");
+        assert_eq!(proj1.subsystems.thermal.status, SubsystemStatus::Degraded);
         assert_eq!(proj1.subsystems.thermal.score, 55);
-        assert!(proj1.recommendations.iter().any(|r| r.contains("Yaw satellite to align radiator")));
+        assert!(proj1
+            .recommendations
+            .iter()
+            .any(|r| r.contains("Yaw satellite to align radiator")));
         assert_eq!(proj1.life_expectancy_days, 1800.0 - 200.0);
 
         rec.temperature = Some(92.0); // > 90.0
         let proj2 = project_twin_health("STARLINK-9999".to_string(), &rec);
-        assert_eq!(proj2.subsystems.thermal.status, "FAILED");
+        assert_eq!(proj2.subsystems.thermal.status, SubsystemStatus::Failed);
         assert_eq!(proj2.subsystems.thermal.score, 10);
-        assert!(proj2.recommendations.iter().any(|r| r.contains("Immediate reboot")));
+        assert!(proj2
+            .recommendations
+            .iter()
+            .any(|r| r.contains("Immediate reboot")));
         assert_eq!(proj2.life_expectancy_days, 1800.0 - 200.0 - 800.0);
     }
 
@@ -668,9 +797,12 @@ mod tests {
         rec.orientation_pitch = Some(12.5); // > 10.0
 
         let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
-        assert_eq!(proj.subsystems.adcs.status, "DEGRADED");
+        assert_eq!(proj.subsystems.adcs.status, SubsystemStatus::Degraded);
         assert_eq!(proj.subsystems.adcs.score, 65);
-        assert!(proj.recommendations.iter().any(|r| r.contains("Trigger magnetorquer alignment")));
+        assert!(proj
+            .recommendations
+            .iter()
+            .any(|r| r.contains("Trigger magnetorquer alignment")));
         assert_eq!(proj.life_expectancy_days, 1800.0 - 150.0);
     }
 
@@ -680,9 +812,12 @@ mod tests {
         rec.fuel_remaining = Some(15.0); // < 20.0
 
         let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
-        assert_eq!(proj.subsystems.propulsion.status, "DEGRADED");
+        assert_eq!(proj.subsystems.propulsion.status, SubsystemStatus::Degraded);
         assert_eq!(proj.subsystems.propulsion.score, 40);
-        assert!(proj.recommendations.iter().any(|r| r.contains("Transition to high-efficiency sparse burns")));
+        assert!(proj
+            .recommendations
+            .iter()
+            .any(|r| r.contains("Transition to high-efficiency sparse burns")));
         assert_eq!(proj.life_expectancy_days, 1800.0 - 500.0);
     }
 }

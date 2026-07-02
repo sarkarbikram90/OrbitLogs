@@ -76,8 +76,7 @@ pub async fn establish_db_connection(
                 // Random jitter (0-500 ms)
                 let jitter_ms = rand::thread_rng().gen_range(0..500);
 
-                let wait = Duration::from_secs(base_delay)
-                    + Duration::from_millis(jitter_ms);
+                let wait = Duration::from_secs(base_delay) + Duration::from_millis(jitter_ms);
 
                 warn!(
                     retries_left,

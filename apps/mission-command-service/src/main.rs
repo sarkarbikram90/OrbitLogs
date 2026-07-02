@@ -3,8 +3,8 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use rdkafka::producer::FutureProducer;
 use orbitlogs_models::kafka::KafkaConfigBuilder;
+use rdkafka::producer::FutureProducer;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -12,8 +12,8 @@ use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
-pub mod auth;
 pub mod audit;
+pub mod auth;
 pub mod commands;
 
 pub use auth::{Claims, Role};
@@ -27,11 +27,7 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(
-        long,
-        env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
-    )]
+    #[arg(long, env = "DATABASE_URL", default_value = "")]
     database_url: String,
 
     #[arg(
@@ -90,7 +86,9 @@ async fn main() -> Result<(), anyhow::Error> {
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
 
-    let jwt_secret = cli.jwt_secret.clone()
+    let jwt_secret = cli
+        .jwt_secret
+        .clone()
         .or_else(|| orbitlogs_models::load_secret("JWT_SECRET"))
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| {
@@ -98,7 +96,17 @@ async fn main() -> Result<(), anyhow::Error> {
             uuid::Uuid::new_v4().to_string()
         });
 
-    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
+    let db_url = if !cli.database_url.trim().is_empty() {
+        cli.database_url.clone()
+    } else if let Some(val) =
+        orbitlogs_models::load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty())
+    {
+        val
+    } else {
+        return Err(anyhow::anyhow!("DATABASE_URL is required. Set env var DATABASE_URL, pass --database-url, or use Docker secrets DATABASE_URL."));
+    };
+
+    let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 5).await?;
 
     let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
     let kafka_producer: FutureProducer = producer_config.create()?;
@@ -118,7 +126,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let cors = if let Ok(origin_val) = cli.cors_allowed_origin.parse::<axum::http::HeaderValue>() {
         CorsLayer::new()
             .allow_origin(origin_val)
-            .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::OPTIONS])
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::OPTIONS,
+            ])
             .allow_headers([
                 axum::http::header::CONTENT_TYPE,
                 axum::http::header::AUTHORIZATION,
@@ -133,21 +145,32 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let app = Router::new()
         .route("/api/auth/login", post(auth::login_handler))
-        .route("/api/commands", get(commands::list_commands).post(commands::create_command))
+        .route(
+            "/api/commands",
+            get(commands::list_commands).post(commands::create_command),
+        )
         .route("/api/commands/:id/approve", post(commands::approve_command))
         .route("/api/commands/:id/queue", post(commands::queue_command))
         .route("/api/commands/:id/execute", post(commands::execute_command))
         .layer(cors)
-        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(30)))
+        .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(
+            30,
+        )))
         .with_state(app_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("Mission Command Service listening on http://localhost:{}", cli.port);
+    info!(
+        "Mission Command Service listening on http://localhost:{}",
+        cli.port
+    );
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
 
     info!("Cleaning up telemetry logs before shutdown...");
     orbitlogs_models::telemetry::shutdown_telemetry();
@@ -184,16 +207,31 @@ mod tests {
 
     #[test]
     fn test_secure_compare() {
-        assert!(orbitlogs_models::auth::secure_compare("secretkey", "secretkey"));
-        assert!(!orbitlogs_models::auth::secure_compare("secretkey", "wrongkey"));
-        assert!(!orbitlogs_models::auth::secure_compare("secretkey", "short"));
+        assert!(orbitlogs_models::auth::secure_compare(
+            "secretkey",
+            "secretkey"
+        ));
+        assert!(!orbitlogs_models::auth::secure_compare(
+            "secretkey",
+            "wrongkey"
+        ));
+        assert!(!orbitlogs_models::auth::secure_compare(
+            "secretkey",
+            "short"
+        ));
     }
 
     #[test]
     fn test_role_parsing() {
         assert_eq!(Role::from_str("OPERATOR"), Some(Role::Operator));
-        assert_eq!(Role::from_str("FLIGHT_DIRECTOR"), Some(Role::FlightDirector));
-        assert_eq!(Role::from_str("MISSION_MANAGER"), Some(Role::MissionManager));
+        assert_eq!(
+            Role::from_str("FLIGHT_DIRECTOR"),
+            Some(Role::FlightDirector)
+        );
+        assert_eq!(
+            Role::from_str("MISSION_MANAGER"),
+            Some(Role::MissionManager)
+        );
         assert_eq!(Role::from_str("ADMINISTRATOR"), Some(Role::Administrator));
         assert_eq!(Role::from_str("UNKNOWN"), None);
     }
@@ -203,7 +241,7 @@ mod tests {
         assert!(Role::Operator < Role::FlightDirector);
         assert!(Role::FlightDirector < Role::MissionManager);
         assert!(Role::MissionManager < Role::Administrator);
-        
+
         assert!(Role::Administrator >= Role::Operator);
         assert!(Role::FlightDirector >= Role::Operator);
         assert!(Role::Operator >= Role::Operator);
@@ -222,7 +260,8 @@ mod tests {
             &jsonwebtoken::Header::default(),
             &claims,
             &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
-        ).unwrap();
+        )
+        .unwrap();
 
         let mut validation = jsonwebtoken::Validation::default();
         validation.validate_exp = true;
@@ -231,7 +270,8 @@ mod tests {
             &token,
             &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
             &validation,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(token_data.claims.sub, "test-user");
         assert_eq!(token_data.claims.role, "OPERATOR");

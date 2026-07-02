@@ -1,11 +1,11 @@
-use serde::{Serialize, Deserialize};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use std::sync::Arc;
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectorRecommendation {
@@ -35,14 +35,13 @@ impl DirectorManager {
     }
 
     pub fn evaluate_telemetry(
-        &self, 
-        sat_id: &str, 
-        temp: f64, 
-        battery_v: f64, 
-        packet_loss: f64, 
-        fuel: f32
-    )
-    {
+        &self,
+        sat_id: &str,
+        temp: f64,
+        battery_v: f64,
+        packet_loss: f64,
+        fuel: f32,
+    ) {
         let mut recs = Vec::new();
 
         if temp > 60.0 {
@@ -104,7 +103,10 @@ pub async fn get_director_status(
     State(state): State<Arc<crate::ServiceState>>,
     Path(satellite): Path<String>,
 ) -> Result<Json<DirectorStatus>, StatusCode> {
-    let recs = state.director.active_recommendations.get(&satellite)
+    let recs = state
+        .director
+        .active_recommendations
+        .get(&satellite)
         .map(|entry| entry.value().clone())
         .unwrap_or_else(Vec::new);
 
@@ -131,9 +133,9 @@ impl crate::processor::TelemetryProcessor for DirectorManager {
         let batt = record.battery_voltage.unwrap_or(13.8);
         let loss = record.packet_loss.unwrap_or(0.0) as f64;
         let fuel = record.fuel_remaining.unwrap_or(100.0);
-        
+
         self.evaluate_telemetry(sat_id, temp, batt, loss, fuel);
-        
+
         Box::pin(async move {})
     }
 }
@@ -164,7 +166,10 @@ mod tests {
         assert_eq!(recs.len(), 1);
         assert_eq!(recs[0].category, "CRITICAL");
         assert_eq!(recs[0].title, "TCS Thermal Overload Detected");
-        assert_eq!(recs[0].proposed_commands, vec!["CMD_SHED_LOAD_SECONDARY", "CMD_RADIATOR_YAW_ADJUST"]);
+        assert_eq!(
+            recs[0].proposed_commands,
+            vec!["CMD_SHED_LOAD_SECONDARY", "CMD_RADIATOR_YAW_ADJUST"]
+        );
     }
 
     #[test]
@@ -175,7 +180,10 @@ mod tests {
         assert_eq!(recs.len(), 1);
         assert_eq!(recs[0].category, "CRITICAL");
         assert_eq!(recs[0].title, "EPS Low Battery Voltage");
-        assert_eq!(recs[0].proposed_commands, vec!["CMD_PAYLOAD_DEACTIVATE", "CMD_ENTER_SAFE_MODE"]);
+        assert_eq!(
+            recs[0].proposed_commands,
+            vec!["CMD_PAYLOAD_DEACTIVATE", "CMD_ENTER_SAFE_MODE"]
+        );
     }
 
     #[test]
@@ -186,7 +194,10 @@ mod tests {
         assert_eq!(recs.len(), 1);
         assert_eq!(recs[0].category, "WARNING");
         assert_eq!(recs[0].title, "TTC Link Degraded");
-        assert_eq!(recs[0].proposed_commands, vec!["CMD_TTC_POWER_BOOST", "CMD_SCHEDULE_PASS_BANGALORE"]);
+        assert_eq!(
+            recs[0].proposed_commands,
+            vec!["CMD_TTC_POWER_BOOST", "CMD_SCHEDULE_PASS_BANGALORE"]
+        );
     }
 
     #[test]
@@ -198,11 +209,17 @@ mod tests {
         assert_eq!(recs.len(), 1);
         assert_eq!(recs[0].category, "OPTIMIZATION");
         assert_eq!(recs[0].title, "PROP Fuel Management");
-        assert_eq!(recs[0].proposed_commands, vec!["CMD_PROP_SPARSE_CYCLE_ENABLE"]);
+        assert_eq!(
+            recs[0].proposed_commands,
+            vec!["CMD_PROP_SPARSE_CYCLE_ENABLE"]
+        );
 
         // fuel <= 5.0 should not trigger PROP fuel management rule
         manager.evaluate_telemetry("SAT-VERY-LOW-FUEL", 25.0, 13.8, 1.0, 4.0);
-        let recs = manager.active_recommendations.get("SAT-VERY-LOW-FUEL").unwrap();
+        let recs = manager
+            .active_recommendations
+            .get("SAT-VERY-LOW-FUEL")
+            .unwrap();
         assert!(recs.is_empty());
     }
 
@@ -214,8 +231,7 @@ mod tests {
         assert_eq!(recs.len(), 4);
         assert_eq!(recs[0].category, "CRITICAL"); // Thermal
         assert_eq!(recs[1].category, "CRITICAL"); // Battery
-        assert_eq!(recs[2].category, "WARNING");  // Packet loss
+        assert_eq!(recs[2].category, "WARNING"); // Packet loss
         assert_eq!(recs[3].category, "OPTIMIZATION"); // Fuel
     }
 }
-

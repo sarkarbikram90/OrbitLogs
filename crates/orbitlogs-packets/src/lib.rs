@@ -10,7 +10,7 @@ pub enum PacketError {
     InvalidCrc { expected: u16, calculated: u16 },
     UnknownApid(u16),
     SubsystemMismatch(String),
-    ParserError(String)
+    ParserError(String),
 }
 
 impl std::fmt::Display for PacketError {
@@ -429,13 +429,15 @@ pub fn encode_record_to_frame(
 }
 
 fn parse_f64(slice: &[u8]) -> Result<f64, PacketError> {
-    slice.try_into()
+    slice
+        .try_into()
         .map(f64::from_be_bytes)
         .map_err(|_| PacketError::ParserError("Failed to parse f64".to_string()))
 }
 
 fn parse_f32(slice: &[u8]) -> Result<f32, PacketError> {
-    slice.try_into()
+    slice
+        .try_into()
         .map(f32::from_be_bytes)
         .map_err(|_| PacketError::ParserError("Failed to parse f32".to_string()))
 }
@@ -557,9 +559,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
         }
         APID_PAYLOAD => {
             if payload.len() < 9 {
-                return Err(PacketError::ParserError(
-                    "Payload is too short".to_string(),
-                ));
+                return Err(PacketError::ParserError("Payload is too short".to_string()));
             }
             record.payload_power_draw = Some(parse_f64(&payload[0..8])?);
             record.payload_active = Some(payload[8] != 0);

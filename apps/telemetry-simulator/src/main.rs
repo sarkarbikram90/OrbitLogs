@@ -1,27 +1,27 @@
 #![allow(clippy::needless_borrows_for_generic_args)]
 
 use clap::Parser;
+use dashmap::DashMap;
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use dashmap::DashMap;
-use tokio::time::sleep;
 use tokio::sync::Mutex;
+use tokio::time::sleep;
 use tracing::{debug, error, info};
 
+mod adapters;
 mod config;
 mod generator;
 mod scenario;
-mod adapters;
 
 use config::Config;
 use generator::{GroundStationState, SatelliteSimulator};
-use std::sync::LazyLock;
 use rdkafka::client::ClientContext;
 use rdkafka::consumer::ConsumerContext;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
+use std::sync::LazyLock;
 
 struct MetricsContext;
 
@@ -65,21 +65,21 @@ pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
 pub static TELEMETRY_GENERATED_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
     IntCounter::new(
         "telemetry_generated_total",
-        "Total number of satellite telemetry records simulated"
+        "Total number of satellite telemetry records simulated",
     )
     .unwrap()
 });
 pub static TELEMETRY_POST_SUCCESS_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
     IntCounter::new(
         "telemetry_post_success_total",
-        "Total successful HTTP posts to collector"
+        "Total successful HTTP posts to collector",
     )
     .unwrap()
 });
 pub static TELEMETRY_POST_FAILURE_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
     IntCounter::new(
         "telemetry_post_failure_total",
-        "Total failed HTTP posts to collector"
+        "Total failed HTTP posts to collector",
     )
     .unwrap()
 });
@@ -87,9 +87,9 @@ pub static KAFKA_CONSUMER_LAG: LazyLock<prometheus::GaugeVec> = LazyLock::new(||
     prometheus::GaugeVec::new(
         prometheus::Opts::new(
             "kafka_consumer_lag",
-            "Lag of the Kafka consumer group (offsets behind high watermark)"
+            "Lag of the Kafka consumer group (offsets behind high watermark)",
         ),
-        &["topic", "partition"]
+        &["topic", "partition"],
     )
     .unwrap()
 });
@@ -187,8 +187,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let config = Arc::new(config);
 
     // Track ground station states
-    let gs_states: Arc<DashMap<String, GroundStationState>> =
-        Arc::new(DashMap::new());
+    let gs_states: Arc<DashMap<String, GroundStationState>> = Arc::new(DashMap::new());
     let gs_states_clone = Arc::clone(&gs_states);
     let brokers = config.kafka_brokers.clone();
     let topic = config.health_topic.clone();

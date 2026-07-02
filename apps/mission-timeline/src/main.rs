@@ -5,17 +5,17 @@ use axum::{
     Json, Router,
 };
 use clap::Parser;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use serde::{Deserialize, Serialize};
-use orbitlogs_models::kafka::KafkaConfigBuilder;
 use sqlx::{PgPool, Row};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use uuid::Uuid;
-use tokio_util::sync::CancellationToken;
 
 #[derive(Parser, Debug)]
 #[command(name = "Mission Timeline Engine")]
@@ -26,11 +26,7 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(
-        long,
-        env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
-    )]
+    #[arg(long, env = "DATABASE_URL", default_value = "")]
     database_url: String,
 
     #[arg(
@@ -85,8 +81,6 @@ struct TimelineQuery {
     severity: Option<String>,
     limit: Option<i64>,
 }
-
-
 
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,
@@ -217,7 +211,17 @@ async fn main() -> Result<(), anyhow::Error> {
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
 
-    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
+    let db_url = if !cli.database_url.trim().is_empty() {
+        cli.database_url.clone()
+    } else if let Some(val) =
+        orbitlogs_models::load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty())
+    {
+        val
+    } else {
+        return Err(anyhow::anyhow!("DATABASE_URL is required. Set env var DATABASE_URL, pass --database-url, or use Docker secrets DATABASE_URL."));
+    };
+
+    let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 5).await?;
 
     let state = Arc::new(AppState {
         db_pool,
@@ -236,7 +240,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let group_id = cli.group_id.clone();
     let cancel_token_clone = cancel_token.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_events_consumer(state_clone, brokers, timeline_topic, health_topic, group_id, cancel_token_clone).await {
+        if let Err(e) = run_events_consumer(
+            state_clone,
+            brokers,
+            timeline_topic,
+            health_topic,
+            group_id,
+            cancel_token_clone,
+        )
+        .await
+        {
             error!("Background events consumer failed: {}", e);
         }
     });
@@ -248,13 +261,24 @@ async fn main() -> Result<(), anyhow::Error> {
     });
 
     let app = Router::new()
-        .route("/api/timeline", get(get_timeline).post(create_timeline_event).layer(axum::middleware::from_fn_with_state(state.clone(), auth_middleware)))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), cors_middleware))
+        .route(
+            "/api/timeline",
+            get(get_timeline).post(create_timeline_event).layer(
+                axum::middleware::from_fn_with_state(state.clone(), auth_middleware),
+            ),
+        )
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            cors_middleware,
+        ))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("Mission Timeline Engine listening on http://localhost:{}", cli.port);
+    info!(
+        "Mission Timeline Engine listening on http://localhost:{}",
+        cli.port
+    );
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
@@ -284,7 +308,10 @@ async fn run_events_consumer(
     let consumer: StreamConsumer = config.create()?;
     consumer.subscribe(&[&timeline_topic, &health_topic])?;
 
-    info!("Timeline consumer subscribed to topics: {}, {}", timeline_topic, health_topic);
+    info!(
+        "Timeline consumer subscribed to topics: {}, {}",
+        timeline_topic, health_topic
+    );
 
     loop {
         tokio::select! {

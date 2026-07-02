@@ -1,15 +1,15 @@
-use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
-use sqlx::{PgPool, Row};
 use axum::{
-    extract::{State, Query, Path},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
-use std::sync::Arc;
+use chrono::{DateTime, Utc};
 use rdkafka::producer::{FutureProducer, FutureRecord};
+use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Row};
+use std::sync::Arc;
 use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MissionPlan {
@@ -73,21 +73,24 @@ pub async fn list_plans(
             .await
     }.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let plans = rows.into_iter().map(|row| MissionPlan {
-        id: row.get("id"),
-        satellite_id: row.get("satellite_id"),
-        plan_type: row.get("plan_type"),
-        description: row.get("description"),
-        objectives: row.get("objectives"),
-        required_contacts: row.get("required_contacts"),
-        required_commands: row.get("required_commands"),
-        required_payloads: row.get("required_payloads"),
-        scheduled_time: row.get("scheduled_time"),
-        status: row.get("status"),
-        created_by: row.get("created_by"),
-        approved_by: row.get("approved_by"),
-        created_at: row.get("created_at"),
-    }).collect();
+    let plans = rows
+        .into_iter()
+        .map(|row| MissionPlan {
+            id: row.get("id"),
+            satellite_id: row.get("satellite_id"),
+            plan_type: row.get("plan_type"),
+            description: row.get("description"),
+            objectives: row.get("objectives"),
+            required_contacts: row.get("required_contacts"),
+            required_commands: row.get("required_commands"),
+            required_payloads: row.get("required_payloads"),
+            scheduled_time: row.get("scheduled_time"),
+            status: row.get("status"),
+            created_by: row.get("created_by"),
+            approved_by: row.get("approved_by"),
+            created_at: row.get("created_at"),
+        })
+        .collect();
 
     Ok(Json(plans))
 }
@@ -140,7 +143,13 @@ pub async fn create_plan(
         created_at,
     };
 
-    publish_planning_event(&state.planner, &plan, "PLAN_CREATED", "Plan created as draft").await;
+    publish_planning_event(
+        &state.planner,
+        &plan,
+        "PLAN_CREATED",
+        "Plan created as draft",
+    )
+    .await;
 
     Ok((StatusCode::CREATED, Json(plan)))
 }
@@ -150,12 +159,22 @@ pub async fn update_plan_status(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<MissionPlan>, (StatusCode, String)> {
-    if !["DRAFT", "REVIEW", "APPROVED", "SCHEDULED", "EXECUTING", "COMPLETED", "CANCELLED"].contains(&req.status.to_uppercase().as_str()) {
+    if ![
+        "DRAFT",
+        "REVIEW",
+        "APPROVED",
+        "SCHEDULED",
+        "EXECUTING",
+        "COMPLETED",
+        "CANCELLED",
+    ]
+    .contains(&req.status.to_uppercase().as_str())
+    {
         return Err((StatusCode::BAD_REQUEST, "Invalid plan status".to_string()));
     }
 
     let status = req.status.to_uppercase();
-    
+
     let row = sqlx::query("SELECT * FROM mission_plans WHERE id = $1")
         .bind(id)
         .fetch_optional(&state.planner.db_pool)
@@ -211,7 +230,12 @@ pub async fn update_plan_status(
     Ok(Json(plan))
 }
 
-async fn publish_planning_event(state: &PlannerState, plan: &MissionPlan, event_type: &str, msg: &str) {
+async fn publish_planning_event(
+    state: &PlannerState,
+    plan: &MissionPlan,
+    event_type: &str,
+    msg: &str,
+) {
     let timeline_payload = serde_json::json!({
         "timestamp": Utc::now(),
         "event_id": Uuid::new_v4(),
@@ -235,6 +259,9 @@ async fn publish_planning_event(state: &PlannerState, plan: &MissionPlan, event_
         let record = FutureRecord::to(&state.timeline_topic)
             .key(&plan.satellite_id)
             .payload(&payload);
-        let _ = state.kafka_producer.send(record, Duration::from_secs(5)).await;
+        let _ = state
+            .kafka_producer
+            .send(record, Duration::from_secs(5))
+            .await;
     }
 }

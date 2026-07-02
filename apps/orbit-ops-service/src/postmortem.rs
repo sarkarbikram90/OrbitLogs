@@ -1,11 +1,11 @@
-use serde::Serialize;
-use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Row};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
+use chrono::{DateTime, Utc};
+use serde::Serialize;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 
 #[derive(Serialize)]
@@ -53,49 +53,72 @@ pub async fn generate_postmortem(
     // 1. Fetch recent events (limiting to 20 for brief analysis)
     let event_rows = sqlx::query(
         "SELECT timestamp, event_type, severity, message FROM timeline_events 
-         WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 30"
+         WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 30",
     )
     .bind(&satellite)
     .fetch_all(&state.postmortem.db_pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let incident_timeline: Vec<TimelineEntry> = event_rows.into_iter().map(|row| TimelineEntry {
-        timestamp: row.get("timestamp"),
-        event_type: row.get("event_type"),
-        severity: row.get("severity"),
-        message: row.get("message"),
-    }).collect();
+    let incident_timeline: Vec<TimelineEntry> = event_rows
+        .into_iter()
+        .map(|row| TimelineEntry {
+            timestamp: row.get("timestamp"),
+            event_type: row.get("event_type"),
+            severity: row.get("severity"),
+            message: row.get("message"),
+        })
+        .collect();
 
     // 2. Fetch executed commands
     let cmd_rows = sqlx::query(
         "SELECT command_type, status FROM commands 
-         WHERE satellite_id = $1 ORDER BY created_at DESC LIMIT 20"
+         WHERE satellite_id = $1 ORDER BY created_at DESC LIMIT 20",
     )
     .bind(&satellite)
     .fetch_all(&state.postmortem.db_pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let commands_executed: Vec<String> = cmd_rows.into_iter().map(|row| {
-        format!("{} [{}]", row.get::<String, _>("command_type"), row.get::<String, _>("status"))
-    }).collect();
+    let commands_executed: Vec<String> = cmd_rows
+        .into_iter()
+        .map(|row| {
+            format!(
+                "{} [{}]",
+                row.get::<String, _>("command_type"),
+                row.get::<String, _>("status")
+            )
+        })
+        .collect();
 
     // 3. Formulate root cause & recommended fixes based on timeline events
-    let mut root_cause = "Nominal operations. No anomalous trigger events detected in telemetry histories.".to_string();
+    let mut root_cause =
+        "Nominal operations. No anomalous trigger events detected in telemetry histories."
+            .to_string();
     let mut impacted_subsystems = Vec::new();
     let mut recommended_fixes = Vec::new();
 
-    let has_thermal = incident_timeline.iter().any(|e| e.event_type.contains("THERMAL") || e.message.contains("temp"));
-    let has_battery = incident_timeline.iter().any(|e| e.event_type.contains("BATTERY") || e.message.contains("voltage") || e.message.contains("power"));
-    let has_comms = incident_timeline.iter().any(|e| e.event_type.contains("COMMS") || e.message.contains("loss") || e.message.contains("latency"));
+    let has_thermal = incident_timeline
+        .iter()
+        .any(|e| e.event_type.contains("THERMAL") || e.message.contains("temp"));
+    let has_battery = incident_timeline.iter().any(|e| {
+        e.event_type.contains("BATTERY")
+            || e.message.contains("voltage")
+            || e.message.contains("power")
+    });
+    let has_comms = incident_timeline.iter().any(|e| {
+        e.event_type.contains("COMMS")
+            || e.message.contains("loss")
+            || e.message.contains("latency")
+    });
 
     if has_thermal {
         root_cause = "Subsystem TCS radiator pointing angle was misaligned with cold-space, causing high solar irradiance exposure and chip throttling.".to_string();
         impacted_subsystems.push("TCS (Thermal Control)".to_string());
         impacted_subsystems.push("OBC (Flight Computer)".to_string());
         recommended_fixes.push("Calibrate radiator pointing control loops.".to_string());
-        recommended_fixes.push("Optimize secondary payload scheduling during solar peaks.".to_string());
+        recommended_fixes
+            .push("Optimize secondary payload scheduling during solar peaks.".to_string());
     }
 
     if has_battery {
@@ -103,12 +126,16 @@ pub async fn generate_postmortem(
             root_cause = "Secondary payload activity exceeded EPS solar charging rate, leading to deep battery discharge cascade.".to_string();
         }
         impacted_subsystems.push("EPS (Electrical Power)".to_string());
-        recommended_fixes.push("Implement mandatory battery state-of-charge lockouts for high-power payloads.".to_string());
+        recommended_fixes.push(
+            "Implement mandatory battery state-of-charge lockouts for high-power payloads."
+                .to_string(),
+        );
     }
 
     if has_comms {
         impacted_subsystems.push("TTC (Comms)".to_string());
-        recommended_fixes.push("Schedule high-gain ground station passes during storm periods.".to_string());
+        recommended_fixes
+            .push("Schedule high-gain ground station passes during storm periods.".to_string());
     }
 
     if impacted_subsystems.is_empty() {
@@ -138,7 +165,10 @@ pub async fn generate_postmortem(
     for entry in &incident_timeline {
         doc.push_str(&format!(
             "- **{}** | *{}* | {} | {}\n",
-            entry.timestamp.format("%H:%M:%S"), entry.severity, entry.event_type, entry.message
+            entry.timestamp.format("%H:%M:%S"),
+            entry.severity,
+            entry.event_type,
+            entry.message
         ));
     }
 

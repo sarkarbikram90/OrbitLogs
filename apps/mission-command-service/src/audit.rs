@@ -1,10 +1,10 @@
+use crate::AppState;
 use axum::http::StatusCode;
 use axum::Json;
-use uuid::Uuid;
+use opentelemetry::trace::TraceContextExt;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-use opentelemetry::trace::TraceContextExt;
-use crate::AppState;
+use uuid::Uuid;
 
 pub async fn log_audit(
     state: &AppState,
@@ -14,7 +14,6 @@ pub async fn log_audit(
     by: &str,
     notes: &str,
 ) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
-
     let trace_id = Span::current()
         .context()
         .span()

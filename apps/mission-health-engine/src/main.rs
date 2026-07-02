@@ -1,18 +1,18 @@
 #![allow(clippy::needless_borrows_for_generic_args)]
 
 use clap::Parser;
+use dashmap::DashMap;
+use orbitlogs_models::db::establish_db_connection;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
 use prometheus::{Encoder, TextEncoder};
 use rdkafka::client::ClientContext;
 use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
-use orbitlogs_models::db::establish_db_connection;
-use orbitlogs_models::kafka::KafkaConfigBuilder;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use dashmap::DashMap;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
@@ -58,11 +58,7 @@ struct Cli {
     #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
     kafka_brokers: String,
 
-    #[arg(
-        long,
-        env = "DATABASE_URL",
-        default_value = "postgres://postgres:postgrespassword@localhost:5432/orbitlogs"
-    )]
+    #[arg(long, env = "DATABASE_URL", default_value = "")]
     database_url: String,
 
     #[arg(long, env = "PROCESSED_TOPIC", default_value = "telemetry.processed")]
@@ -143,9 +139,14 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let mut cli = Cli::parse();
-    if let Some(val) = load_secret("DATABASE_URL") {
-        cli.database_url = val;
-    }
+    let db_url = if !cli.database_url.trim().is_empty() {
+        cli.database_url.clone()
+    } else if let Some(val) = load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty()) {
+        val
+    } else {
+        return Err(anyhow::anyhow!("DATABASE_URL is required. Set env var DATABASE_URL, pass --database-url, or use Docker secrets DATABASE_URL."));
+    };
+    cli.database_url = db_url;
 
     info!(
         "Starting Mission Health Engine with configuration: {:?}",
@@ -431,10 +432,20 @@ async fn process_telemetry_health(
 
     // Update fleet health average score
     let avg_fleet = {
-        state.satellite_scores.insert(assessment.satellite_id.clone(), assessment.overall_score);
-        let total: i32 = state.satellite_scores.iter().map(|entry| *entry.value()).sum();
+        state
+            .satellite_scores
+            .insert(assessment.satellite_id.clone(), assessment.overall_score);
+        let total: i32 = state
+            .satellite_scores
+            .iter()
+            .map(|entry| *entry.value())
+            .sum();
         let len = state.satellite_scores.len();
-        if len > 0 { total as f64 / len as f64 } else { 0.0 }
+        if len > 0 {
+            total as f64 / len as f64
+        } else {
+            0.0
+        }
     };
     metrics::FLEET_HEALTH_SCORE.set(avg_fleet);
 
