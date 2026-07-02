@@ -104,8 +104,6 @@ struct SimulateFailureRequest {
     subsystem: String, // e.g. "thermal", "power", "adcs", "communications", "propulsion"
 }
 
-
-
 async fn auth_middleware(
     State(state): State<Arc<AppState>>,
     req: axum::extract::Request,
