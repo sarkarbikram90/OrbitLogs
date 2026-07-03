@@ -12,7 +12,7 @@ use std::time::Duration;
 use tracing::info;
 
 #[derive(Parser, Debug)]
-#[command(name = "AI Driven Incident Commander")]
+#[command(name = "AI Enabled Incident Commander")]
 struct Cli {
     #[arg(long, env = "PORT", default_value = "8088")]
     port: u16,
