@@ -52,11 +52,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Init tracing
     orbitlogs_models::telemetry::init_telemetry(
-        "ai-driven-incident-commander",
+        "ai-enabled-incident-commander",
         &cli.otel_endpoint,
     )?;
 
-    info!("Starting AI Driven Incident Commander...");
+    info!("Starting AI Enabled Incident Commander...");
 
     let api_key = cli.api_key.clone()
         .or_else(|| orbitlogs_models::load_secret("API_KEY"))

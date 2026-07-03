@@ -6,7 +6,18 @@ pub async fn get_latest_telemetry(
     sat_id: &str,
 ) -> Result<Option<serde_json::Value>, sqlx::Error> {
     let row_opt = sqlx::query(
-        "SELECT * FROM telemetry WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 1",
+        "SELECT
+    satellite_id,
+    timestamp,
+    latitude,
+    longitude,
+    altitude,
+    velocity,
+    payload
+    FROM telemetry
+    WHERE satellite_id = $1
+    ORDER BY timestamp DESC
+    LIMIT 1",
     )
     .bind(sat_id)
     .fetch_optional(pool)
