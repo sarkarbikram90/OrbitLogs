@@ -23,10 +23,7 @@ pub async fn get_latest_telemetry(
     .fetch_optional(pool)
     .await
     .map_err(|e| {
-        error!(
-            "Failed to fetch latest telemetry for satellite {}: {}",
-            sat_id, e
-        );
+        error!("Failed to fetch latest satellite telemetry {}: {}", sat_id, e);
         e
     })?;
 
@@ -49,7 +46,18 @@ pub async fn get_latest_telemetry(
 
 pub async fn get_recent_events(pool: &PgPool, sat_id: &str) -> Vec<serde_json::Value> {
     let rows = match sqlx::query(
-        "SELECT * FROM events WHERE satellite_id = $1 ORDER BY timestamp DESC LIMIT 5",
+        "SELECT
+    satellite_id,
+    timestamp,
+    latitude,
+    longitude,
+    altitude,
+    velocity,
+    payload
+    FROM telemetry
+    WHERE satellite_id = $1
+    ORDER BY timestamp DESC
+    LIMIT 5",
     )
     .bind(sat_id)
     .fetch_all(pool)
