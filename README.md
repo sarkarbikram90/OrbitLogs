@@ -192,6 +192,13 @@ OrbitLogs 2.0 introduces a decentralized suite of async Rust microservices and p
 *   High-efficiency constellation loop (Port `8089`) capable of generating concurrent states for up to **5,000 satellites**.
 *   Simulates orbit degradation, battery capacity decay, and hardware failures.
 
+### 12. Space Traffic Management & Conjunction Assessment (`apps/orbit-ops-service`)
+*   Automated close approach screening and Space Traffic Management (Port `8095`).
+*   Calculates Time of Closest Approach (TCA), 2D/3D spatial covariance, and Probability of Collision ($P_c$) every 10 seconds.
+*   Renders an interactive **250-particle orbital debris cloud** on the 3D Three.js Earth globe visualizer.
+*   Integrates with `ai-incident-commander` to generate autonomous Collision Avoidance Maneuvers (CAM), calculating optimal Delta-v ($\Delta v$) burn vectors, propellant mass cost, payload standby windows, and post-burn safety margins.
+
+
 ---
 
 ## ⚡ Recent Production & Security Hardening
@@ -239,6 +246,7 @@ Once fully initialized, the platform exposes the following developer interfaces:
 | **AI Incident Commander** | `8088` | HTTP | Operations Gemini RAG co-pilot |
 | **Constellation Simulator** | `8089` | HTTP | High-efficiency constellation state loop |
 | **Space OTel Collector** | `8091` | HTTP | OpenTelemetry metrics mapping scraper |
+| **Orbit Operations & STM Service** | `8095` | HTTP | Space Traffic Management & Conjunction Assessment API |
 | **TimescaleDB (Postgres)** | `5432` | TCP | Hypertable telemetry, command audits, and events |
 | **Prometheus** | `9090` | HTTP | Ingestion metrics database & scrapers |
 | **Grafana** | `3005` | HTTP | Fleet and SRE infrastructure dashboard |
@@ -317,3 +325,5 @@ OrbitLogs has been engineered to comply with enterprise-grade reliability and se
 - [x] **Phase 16**: ISS Orbit and TLE orbital propagator adapters.
 - [x] **Phase 17**: Ground Station Simulator weather/backhaul network attenuation.
 - [x] **Phase 18**: Advanced sidebar navigation layout & integrated sub-dashboards.
+- [x] **Phase 19**: Space Traffic Management (STM), Conjunction Alerts, Debris Risk Scoring & 3D Debris Visualizer.
+
