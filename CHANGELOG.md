@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [4.5.0] - 2026-07-04
+
+### Added
+- **Space Traffic Management (STM) & Conjunction Assessment (CA)**: Implemented full end-to-end Space Traffic Management capabilities across the backend and frontend microservices.
+- **Conjunction (Collision) Alerts**: Defined canonical `ConjunctionEvent` and `AvoidanceManeuverRecommendation` models alongside `conjunction.alerts` and `conjunction.maneuvers` Kafka topics in `orbitlogs-models` (`lib.rs`, `kafka.rs`). Created database migration `20260704000000_space_traffic_management.sql` for TimescaleDB indexing.
+- **Orbital Debris 3D Visualization**: Integrated a 250-particle orbital debris cloud into the 3D Three.js Earth globe visualizer in `mission-control-ui` (`OrbitViewer.tsx`).
+- **Debris Risk Scoring & Close Approach Screener**: Extended `orbit-ops-service` (`ssa.rs`, `main.rs`) with background close approach evaluation computing Time of Closest Approach (TCA), spatial covariance, and Probability of Collision ($P_c$). Exposed `/api/ssa/conjunctions` and `/api/ssa/debris` API endpoints.
+- **Autonomous Collision Recommendations & Mission Impact**: Added `CONJUNCTION_RUNBOOK` (DOC-SSA-201) to `ai-incident-commander` (`runbooks.rs`) to evaluate collision risk and auto-generate optimal Delta-V ($\Delta v$) maneuver burn vectors, propellant mass cost, payload standby windows, and post-burn miss distances.
+- **Space Traffic Management Dashboard**: Upgraded `SsaDashboard.tsx` in `mission-control-ui` with a Space Risk Scorecard, live Conjunction Alert log, and an interactive 1-click **Authorize Collision Avoidance Burn** action panel.
+
+### Changed
+- **Telemetry Query in AI Incident Commander**: Updated `get_recent_events` query in `ai-incident-commander` (`db.rs`) to explicitly select telemetry fields (`satellite_id`, `timestamp`, `latitude`, `longitude`, `altitude`, `velocity`, `payload`) from `telemetry` table.
+
+---
+
 ## [Unreleased]
 
 ### Added
