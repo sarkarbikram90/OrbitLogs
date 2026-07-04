@@ -341,3 +341,37 @@ pub async fn get_ssa_status(
         }))
     }
 }
+
+pub async fn get_all_conjunctions(
+    State(state): State<Arc<crate::ServiceState>>,
+) -> Result<Json<Vec<ConjunctionEvent>>, (StatusCode, String)> {
+    let rows = sqlx::query("SELECT id, satellite_id, object_id, object_name, object_type, probability, distance_meters, conjunction_time, severity, status FROM conjunction_events ORDER BY conjunction_time DESC LIMIT 100")
+        .fetch_all(&state.db_pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let events = rows
+        .into_iter()
+        .map(|row| ConjunctionEvent {
+            id: row.get("id"),
+            satellite_id: row.get("satellite_id"),
+            object_id: row.get("object_id"),
+            object_name: row.get("object_name"),
+            object_type: row.get("object_type"),
+            probability: row.get("probability"),
+            distance_meters: row.get("distance_meters"),
+            conjunction_time: row.get("conjunction_time"),
+            severity: row.get("severity"),
+            status: row.get("status"),
+        })
+        .collect();
+
+    Ok(Json(events))
+}
+
+pub async fn get_debris_catalog(
+    State(state): State<Arc<crate::ServiceState>>,
+) -> Result<Json<Vec<DebrisObject>>, StatusCode> {
+    Ok(Json(state.ssa.debris.clone()))
+}
+

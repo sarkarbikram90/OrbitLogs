@@ -103,3 +103,11 @@ impl KafkaConfigBuilder {
         config
     }
 }
+
+pub const TOPIC_TELEMETRY_RAW: &str = "telemetry.raw";
+pub const TOPIC_TELEMETRY_PROCESSED: &str = "telemetry.processed";
+pub const TOPIC_MISSION_HEALTH: &str = "mission.health";
+pub const TOPIC_GROUNDSTATION_HEALTH: &str = "groundstation.health";
+pub const TOPIC_CONJUNCTION_ALERTS: &str = "conjunction.alerts";
+pub const TOPIC_CONJUNCTION_MANEUVERS: &str = "conjunction.maneuvers";
+

@@ -108,24 +108,44 @@ export function SsaDashboard({ selectedSatId }: SsaDashboardProps) {
           </div>
         </div>
 
-        {/* Informational Guidelines */}
+        {/* Informational Guidelines & Autonomous Recommendation */}
         <div style={{
           padding: '16px',
-          backgroundColor: 'rgba(255, 255, 255, 0.01)',
-          border: '1px solid var(--border-color)',
+          backgroundColor: 'rgba(239, 68, 68, 0.05)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
           borderRadius: '6px',
           fontSize: '11px',
           color: 'var(--text-secondary)',
           lineHeight: '1.6'
         }}>
-          <span style={{ fontWeight: 'bold', fontSize: '12px', fontFamily: 'var(--font-display)', color: '#f59e0b', display: 'block', marginBottom: '8px' }}>
-            OPERATIONAL CHECKS:
+          <span style={{ fontWeight: 'bold', fontSize: '13px', fontFamily: 'var(--font-display)', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <span>🚨</span> AI Autonomous Collision Recommendation
           </span>
-          - Proximity warnings of &lt; 2000m trigger automatic alert escalation.
-          <br />
-          - Conjunction events with a collision probability &gt; 1e-4 require Flight Dynamics review.
-          <br />
-          - Maneuver commands must be submitted and approved at least 2 hours prior to close approach.
+          <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', marginBottom: '10px' }}>
+            <strong>Maneuver Proposal:</strong> In-Track Prograde Firing (+0.45 m/s Δv)
+            <br />
+            <strong>TCA Window:</strong> T-45 mins before close approach
+            <br />
+            <strong>Propellant Impact:</strong> 0.42 kg (Post-burn fuel: 92.1%)
+            <br />
+            <strong>Post-Burn Miss Distance:</strong> 6.82 km (Pc &lt; 10⁻⁷)
+          </div>
+          <button
+            onClick={() => alert(`Avoidance burn sequence authorized for ${selectedSatId}! Uplinking CMD_PROP_THRUST...`)}
+            style={{
+              padding: '6px 14px',
+              backgroundColor: '#ef4444',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '4px',
+              fontWeight: 'bold',
+              fontSize: '11px',
+              cursor: 'pointer',
+              boxShadow: '0 0 10px rgba(239, 68, 68, 0.4)'
+            }}
+          >
+            Authorize Collision Avoidance Burn
+          </button>
         </div>
       </div>
 

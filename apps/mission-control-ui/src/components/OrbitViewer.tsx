@@ -243,6 +243,30 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
       satMeshes.push({ id: sat.id, mesh, line, orbit });
     });
 
+    // 6b. Create Space Debris particle cloud (250 tracked objects)
+    const debrisCount = 250;
+    const debrisGeo = new THREE.BufferGeometry();
+    const debrisPositions = new Float32Array(debrisCount * 3);
+
+    for (let i = 0; i < debrisCount; i++) {
+      const radius = earthRadius + 0.3 + Math.random() * 0.8;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+
+      debrisPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      debrisPositions[i * 3 + 1] = radius * Math.cos(phi);
+      debrisPositions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+    }
+    debrisGeo.setAttribute('position', new THREE.BufferAttribute(debrisPositions, 3));
+    const debrisMat = new THREE.PointsMaterial({
+      color: 0xf59e0b,
+      size: 0.022,
+      transparent: true,
+      opacity: 0.8
+    });
+    const debrisPoints = new THREE.Points(debrisGeo, debrisMat);
+    scene.add(debrisPoints);
+
     // 7. Animation tick loop
     const clock = new THREE.Clock();
     let animationId: number;
@@ -250,6 +274,8 @@ export const OrbitViewer: React.FC<OrbitViewerProps> = ({ satellites, groundStat
     const animate = () => {
       animationId = requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
+
+      debrisPoints.rotation.y = elapsed * 0.035;
 
       // Update controls
       controls.update();

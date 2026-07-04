@@ -335,6 +335,8 @@ async fn main() -> Result<(), anyhow::Error> {
             "/api/ssa/:satellite/conjunctions",
             get(ssa::get_conjunctions),
         )
+        .route("/api/ssa/conjunctions", get(ssa::get_all_conjunctions))
+        .route("/api/ssa/debris", get(ssa::get_debris_catalog))
         .route(
             "/api/flight-dynamics/:satellite",
             get(flight_dynamics::get_flight_dynamics),

@@ -313,6 +313,64 @@ pub fn load_secret(env_var: &str) -> Option<String> {
     }
     None
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SecondaryObjectType {
+    Debris,
+    ActiveSatellite,
+    RocketBody,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConjunctionRiskTier {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConjunctionEvent {
+    pub conjunction_id: Uuid,
+    pub primary_satellite_id: String,
+    pub secondary_object_id: String,
+    pub secondary_object_type: SecondaryObjectType,
+    pub tca: DateTime<Utc>,
+    pub miss_distance_km: f64,
+    pub radial_miss_m: f64,
+    pub intrack_miss_m: f64,
+    pub crosstrack_miss_m: f64,
+    pub collision_probability: f64,
+    pub relative_velocity_kms: f64,
+    pub risk_tier: ConjunctionRiskTier,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MissionImpactSummary {
+    pub propellant_cost_kg: f64,
+    pub payload_downtime_minutes: u32,
+    pub post_burn_orbit_apogee_km: f64,
+    pub post_burn_orbit_perigee_km: f64,
+    pub downlink_window_disrupted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AvoidanceManeuverRecommendation {
+    pub recommendation_id: Uuid,
+    pub conjunction_id: Uuid,
+    pub satellite_id: String,
+    pub burn_execution_window_start: DateTime<Utc>,
+    pub delta_v_vector: [f64; 3],
+    pub post_burn_miss_distance_km: f64,
+    pub post_burn_pc: f64,
+    pub mission_impact: MissionImpactSummary,
+    pub recommended_action: String,
+    pub rationale: String,
+    pub timestamp: DateTime<Utc>,
+}
+
 pub mod auth;
 pub mod db;
 pub mod kafka;
