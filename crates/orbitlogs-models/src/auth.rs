@@ -11,3 +11,4 @@ pub fn secure_compare(provided: &str, expected: &str) -> bool {
 
     bool::from(provided_hash.ct_eq(&expected_hash))
 }
+

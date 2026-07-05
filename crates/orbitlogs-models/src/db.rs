@@ -12,7 +12,7 @@ pub async fn establish_db_connection(
     database_url: &str,
     max_connections: u32,
 ) -> Result<PgPool, sqlx::Error> {
-    info!("Connecting to TimescaleDB...");
+    info!("Connecting to Database (TimescaleDB)...");
 
     let mut retries_left = MAX_RETRIES;
     let startup = Instant::now();
@@ -50,7 +50,7 @@ pub async fn establish_db_connection(
 
                     info!("Database migrations completed successfully.");
                 } else {
-                    info!("Skipping database migrations.");
+                    info!("Skipping database migrations because RUN_MIGRATIONS is not set to true.");
                 }
 
                 return Ok(pool);
