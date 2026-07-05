@@ -11,13 +11,14 @@ fn default_mission() -> String {
 }
 
 /// Canonical satellite telemetry record shared across all Orbitlogs services.
-///
+
 /// This struct represents a single telemetry snapshot from a satellite subsystem, containing
 /// subsystem-specific electrical power, attitude, or operational parameters.
-///
+
 /// # Validation
 /// The `validate()` method enforces physical bounds checking on all present fields to reject
 /// payloads that fall outside plausible satellite operational ranges.
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TelemetryRecord {
