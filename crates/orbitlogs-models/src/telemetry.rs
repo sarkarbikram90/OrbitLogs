@@ -38,7 +38,7 @@ pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), any
         .init();
 
     info!(
-        "Tracing telemetry initialized for service '{}'",
+        "Tracing telemetry initialized for the service '{}'",
         service_name
     );
     Ok(())
