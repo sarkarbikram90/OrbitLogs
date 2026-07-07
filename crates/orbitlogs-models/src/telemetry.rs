@@ -44,6 +44,7 @@ pub fn init_telemetry(service_name: &str, otlp_endpoint: &str) -> Result<(), any
     Ok(())
 }
 
+// Shutdown Telemetry
 pub fn shutdown_telemetry() {
     global::shutdown_tracer_provider();
 }
