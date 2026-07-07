@@ -83,7 +83,7 @@ impl SatelliteSimulator {
         let temp_noise = self.rng.gen_range(-0.5..0.5);
         let alt_noise = self.rng.gen_range(-0.2..0.2);
 
-        // --- Core Subsystem State Logic ---
+        // Core Subsystem State Logic
 
         // 1. Power Subsystem Base Variables
         let mut solar_panel = if orbital_phase > 0.0 {
