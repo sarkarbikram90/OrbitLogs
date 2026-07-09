@@ -1,4 +1,4 @@
-#![allow(
+#[allow(
     clippy::upper_case_acronyms,
     clippy::wrong_self_convention,
     clippy::inherent_to_string
@@ -9,17 +9,6 @@ use orbitlogs_models::TelemetryRecord;
 use serde::{Deserialize, Serialize};
 
 pub use orbitlogs_models::GroundStationHealth as GroundStationState;
-
-fn get_linked_ground_station(satellite_id: &str) -> String {
-    if let Some(num_str) = satellite_id.strip_prefix("SAT-") {
-        if let Ok(num) = num_str.parse::<usize>() {
-            let gs_num = ((num - 1) % 4) + 1;
-            return format!("GS-{:04}", gs_num);
-        }
-    }
-    "GS-0001".to_string()
-}
-
 pub use orbitlogs_models::HealthState;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -41,8 +30,8 @@ fn lerp(val: f64, in_min: f64, in_max: f64, out_min: f64, out_max: f64) -> f64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SatelliteHealthAssessment {
     pub timestamp: DateTime<Utc>,
-    pub satellite_id: String,
-    pub mission_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
+    pub mission_id: orbitlogs_models::MissionId,
     pub overall_state: HealthState,
     pub overall_score: i32, // Average of subsystem scores
     pub power: SubsystemHealth,
@@ -55,160 +44,150 @@ pub struct SatelliteHealthAssessment {
     pub explanation: String,
 }
 
-pub fn assess_satellite_health(
+// =========================================================================
+// Subsystem Assessors
+// =========================================================================
+
+fn assess_power(record: &TelemetryRecord) -> SubsystemHealth {
+    let v = record.battery_voltage.unwrap_or(13.8);
+    if !(10.0..=16.0).contains(&v) {
+        let score = if v < 10.0 {
+            lerp(v, 8.0, 10.0, 0.0, 24.0) as i32
+        } else {
+            lerp(v, 16.0, 18.0, 24.0, 0.0) as i32
+        };
+        SubsystemHealth {
+            state: HealthState::Red,
+            score,
+            explanation: format!("Critical battery voltage: {:.2}V", v),
+        }
+    } else if v < 11.5 {
+        let score = lerp(v, 10.0, 11.5, 25.0, 74.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Yellow,
+            score,
+            explanation: format!("Low battery voltage: {:.2}V", v),
+        }
+    } else {
+        let score = if v < 13.8 {
+            lerp(v, 11.5, 12.5, 75.0, 100.0) as i32
+        } else {
+            lerp(v, 15.0, 16.0, 100.0, 75.0) as i32
+        };
+        SubsystemHealth {
+            state: HealthState::Green,
+            score,
+            explanation: format!("Power system normal ({:.2}V)", v),
+        }
+    }
+}
+
+fn assess_thermal(record: &TelemetryRecord) -> SubsystemHealth {
+    let t = record.temperature.unwrap_or(25.0);
+    if !(-20.0..=85.0).contains(&t) {
+        let score = if t < -20.0 {
+            lerp(t, -40.0, -20.0, 0.0, 24.0) as i32
+        } else {
+            lerp(t, 85.0, 110.0, 24.0, 0.0) as i32
+        };
+        SubsystemHealth {
+            state: HealthState::Red,
+            score,
+            explanation: format!("Critical temperature: {:.2}°C", t),
+        }
+    } else if !(0.0..=60.0).contains(&t) {
+        let score = if t < 0.0 {
+            lerp(t, -20.0, 0.0, 25.0, 74.0) as i32
+        } else {
+            lerp(t, 60.0, 85.0, 74.0, 25.0) as i32
+        };
+        SubsystemHealth {
+            state: HealthState::Yellow,
+            score,
+            explanation: format!("Elevated temperature: {:.2}°C", t),
+        }
+    } else {
+        let score = if t < 25.0 {
+            lerp(t, 0.0, 15.0, 75.0, 100.0) as i32
+        } else {
+            lerp(t, 35.0, 60.0, 100.0, 75.0) as i32
+        };
+        SubsystemHealth {
+            state: HealthState::Green,
+            score,
+            explanation: format!("Thermal system normal ({:.2}°C)", t),
+        }
+    }
+}
+
+fn assess_communications(
     record: &TelemetryRecord,
     gs_states: &std::collections::HashMap<String, GroundStationState>,
-) -> SatelliteHealthAssessment {
-    // 1. Assess Power Subsystem
-    let power = {
-        let v = record.battery_voltage.unwrap_or(13.8);
-        if !(10.0..=16.0).contains(&v) {
-            let score = if v < 10.0 {
-                lerp(v, 8.0, 10.0, 0.0, 24.0) as i32
-            } else {
-                lerp(v, 16.0, 18.0, 24.0, 0.0) as i32
-            };
-            SubsystemHealth {
-                state: HealthState::Red,
-                score,
-                explanation: format!("Critical battery voltage: {:.2}V", v),
-            }
-        } else if v < 11.5 {
-            let score = lerp(v, 10.0, 11.5, 25.0, 74.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Yellow,
-                score,
-                explanation: format!("Low battery voltage: {:.2}V", v),
-            }
-        } else {
-            let score = if v < 13.8 {
-                lerp(v, 11.5, 12.5, 75.0, 100.0) as i32
-            } else {
-                lerp(v, 15.0, 16.0, 100.0, 75.0) as i32
-            };
-            SubsystemHealth {
-                state: HealthState::Green,
-                score,
-                explanation: format!("Power system normal ({:.2}V)", v),
-            }
-        }
+) -> SubsystemHealth {
+    let loss = record.packet_loss.unwrap_or(0.0);
+    let latency = record.communication_latency.unwrap_or(45.0);
+    let signal = record.signal_strength.unwrap_or(-70.0);
+
+    let linked_gs_id = record.satellite_id.linked_ground_station();
+    let gs_state = gs_states.get(linked_gs_id.as_str());
+
+    let is_degraded = loss > 5.0 || latency > 800.0 || signal < -95.0;
+    let is_critical = loss > 15.0 || latency > 2000.0 || signal < -110.0;
+
+    let loss_score = if loss > 15.0 {
+        lerp(loss as f64, 15.0, 30.0, 24.0, 0.0) as i32
+    } else if loss > 5.0 {
+        lerp(loss as f64, 5.0, 15.0, 74.0, 25.0) as i32
+    } else {
+        lerp(loss as f64, 1.0, 5.0, 100.0, 75.0) as i32
     };
 
-    // 2. Assess Thermal Subsystem
-    let thermal = {
-        let t = record.temperature.unwrap_or(25.0);
-        if !(-20.0..=85.0).contains(&t) {
-            let score = if t < -20.0 {
-                lerp(t, -40.0, -20.0, 0.0, 24.0) as i32
-            } else {
-                lerp(t, 85.0, 110.0, 24.0, 0.0) as i32
-            };
-            SubsystemHealth {
-                state: HealthState::Red,
-                score,
-                explanation: format!("Critical temperature: {:.2}°C", t),
-            }
-        } else if !(0.0..=60.0).contains(&t) {
-            let score = if t < 0.0 {
-                lerp(t, -20.0, 0.0, 25.0, 74.0) as i32
-            } else {
-                lerp(t, 60.0, 85.0, 74.0, 25.0) as i32
-            };
-            SubsystemHealth {
-                state: HealthState::Yellow,
-                score,
-                explanation: format!("Elevated temperature: {:.2}°C", t),
-            }
-        } else {
-            let score = if t < 25.0 {
-                lerp(t, 0.0, 15.0, 75.0, 100.0) as i32
-            } else {
-                lerp(t, 35.0, 60.0, 100.0, 75.0) as i32
-            };
-            SubsystemHealth {
-                state: HealthState::Green,
-                score,
-                explanation: format!("Thermal system normal ({:.2}°C)", t),
-            }
-        }
+    let latency_score = if latency > 2000.0 {
+        lerp(latency as f64, 2000.0, 5000.0, 24.0, 0.0) as i32
+    } else if latency > 800.0 {
+        lerp(latency as f64, 800.0, 2000.0, 74.0, 25.0) as i32
+    } else {
+        lerp(latency as f64, 100.0, 800.0, 100.0, 75.0) as i32
     };
 
-    // 3. Assess Communications Subsystem
-    let communications = {
-        let loss = record.packet_loss.unwrap_or(0.0);
-        let latency = record.communication_latency.unwrap_or(45.0);
-        let signal = record.signal_strength.unwrap_or(-70.0);
+    let signal_score = if signal < -110.0 {
+        lerp(signal as f64, -120.0, -110.0, 0.0, 24.0) as i32
+    } else if signal < -95.0 {
+        lerp(signal as f64, -110.0, -95.0, 25.0, 74.0) as i32
+    } else {
+        lerp(signal as f64, -95.0, -75.0, 75.0, 100.0) as i32
+    };
 
-        let linked_gs_id = get_linked_ground_station(&record.satellite_id);
-        let gs_state = gs_states.get(&linked_gs_id);
+    let mut score = loss_score.min(latency_score).min(signal_score);
+    let mut state = if is_critical {
+        HealthState::Red
+    } else if is_degraded {
+        HealthState::Yellow
+    } else {
+        HealthState::Green
+    };
 
-        let is_degraded = loss > 5.0 || latency > 800.0 || signal < -95.0;
-        let is_critical = loss > 15.0 || latency > 2000.0 || signal < -110.0;
-
-        let loss_score = if loss > 15.0 {
-            lerp(loss as f64, 15.0, 30.0, 24.0, 0.0) as i32
-        } else if loss > 5.0 {
-            lerp(loss as f64, 5.0, 15.0, 74.0, 25.0) as i32
-        } else {
-            lerp(loss as f64, 1.0, 5.0, 100.0, 75.0) as i32
-        };
-
-        let latency_score = if latency > 2000.0 {
-            lerp(latency as f64, 2000.0, 5000.0, 24.0, 0.0) as i32
-        } else if latency > 800.0 {
-            lerp(latency as f64, 800.0, 2000.0, 74.0, 25.0) as i32
-        } else {
-            lerp(latency as f64, 100.0, 800.0, 100.0, 75.0) as i32
-        };
-
-        let signal_score = if signal < -110.0 {
-            lerp(signal as f64, -120.0, -110.0, 0.0, 24.0) as i32
-        } else if signal < -95.0 {
-            lerp(signal as f64, -110.0, -95.0, 25.0, 74.0) as i32
-        } else {
-            lerp(signal as f64, -95.0, -75.0, 75.0, 100.0) as i32
-        };
-
-        let mut score = loss_score.min(latency_score).min(signal_score);
-        let mut state = if is_critical {
-            HealthState::Red
-        } else if is_degraded {
-            HealthState::Yellow
-        } else {
-            HealthState::Green
-        };
-
-        let explanation = if let Some(gs) = gs_state {
-            if gs.status == "OUTAGE" || gs.status == "DEGRADED" {
-                if gs.status == "OUTAGE" {
-                    state = HealthState::Red;
-                    score = score.min(10);
-                } else {
-                    state = HealthState::Yellow;
-                    score = score.min(45);
-                }
-                let prefix = if state == HealthState::Red {
-                    "Critical communications degradation"
-                } else {
-                    "Communications degraded"
-                };
-                format!(
-                    "{} due to ground station {} {} (Weather: {})",
-                    prefix,
-                    gs.station_id,
-                    gs.status.to_lowercase(),
-                    gs.weather_state
-                )
-            } else if is_critical {
-                format!("Critical comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
-            } else if is_degraded {
-                format!("Comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
+    let explanation = if let Some(gs) = gs_state {
+        if gs.status == orbitlogs_models::StationStatus::Outage || gs.status == orbitlogs_models::StationStatus::Degraded {
+            if gs.status == orbitlogs_models::StationStatus::Outage {
+                state = HealthState::Red;
+                score = score.min(10);
             } else {
-                format!(
-                    "Communications normal (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)",
-                    loss, latency, signal
-                )
+                state = HealthState::Yellow;
+                score = score.min(45);
             }
+            let prefix = if state == HealthState::Red {
+                "Critical communications degradation"
+            } else {
+                "Communications degraded"
+            };
+            format!(
+                "{} due to ground station {} {} (Weather: {})",
+                prefix,
+                gs.station_id,
+                gs.status.to_string().to_lowercase(),
+                gs.weather_state
+            )
         } else if is_critical {
             format!("Critical comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
         } else if is_degraded {
@@ -218,189 +197,207 @@ pub fn assess_satellite_health(
                 "Communications normal (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)",
                 loss, latency, signal
             )
-        };
+        }
+    } else if is_critical {
+        format!("Critical comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
+    } else if is_degraded {
+        format!("Comm degradation due to onboard transponder anomaly (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)", loss, latency, signal)
+    } else {
+        format!(
+            "Communications normal (Loss: {:.1}%, Latency: {:.1}ms, Signal: {:.1}dBm)",
+            loss, latency, signal
+        )
+    };
 
+    SubsystemHealth {
+        state,
+        score,
+        explanation,
+    }
+}
+
+fn assess_propulsion(record: &TelemetryRecord) -> SubsystemHealth {
+    let fuel = record.fuel_remaining.unwrap_or(95.0);
+    let alt = record.altitude.unwrap_or(520.0);
+
+    let is_critical = fuel < 5.0 || alt < 150.0;
+    let is_degraded = fuel < 20.0 || alt < 300.0;
+
+    let fuel_score = if fuel < 5.0 {
+        lerp(fuel as f64, 0.0, 5.0, 0.0, 24.0) as i32
+    } else if fuel < 20.0 {
+        lerp(fuel as f64, 5.0, 20.0, 25.0, 74.0) as i32
+    } else {
+        lerp(fuel as f64, 20.0, 50.0, 75.0, 100.0) as i32
+    };
+
+    let alt_score = if alt < 150.0 {
+        lerp(alt, 100.0, 150.0, 0.0, 24.0) as i32
+    } else if alt < 300.0 {
+        lerp(alt, 150.0, 300.0, 25.0, 74.0) as i32
+    } else {
+        lerp(alt, 300.0, 400.0, 75.0, 100.0) as i32
+    };
+
+    let score = fuel_score.min(alt_score);
+
+    if is_critical {
         SubsystemHealth {
-            state,
+            state: HealthState::Red,
             score,
-            explanation,
+            explanation: format!(
+                "Critical propulsion/orbital decay (Fuel: {:.1}%, Altitude: {:.1}km)",
+                fuel, alt
+            ),
         }
-    };
-
-    // 4. Assess Propulsion Subsystem
-    let propulsion = {
-        let fuel = record.fuel_remaining.unwrap_or(95.0);
-        let alt = record.altitude.unwrap_or(520.0);
-
-        let is_critical = fuel < 5.0 || alt < 150.0;
-        let is_degraded = fuel < 20.0 || alt < 300.0;
-
-        let fuel_score = if fuel < 5.0 {
-            lerp(fuel as f64, 0.0, 5.0, 0.0, 24.0) as i32
-        } else if fuel < 20.0 {
-            lerp(fuel as f64, 5.0, 20.0, 25.0, 74.0) as i32
-        } else {
-            lerp(fuel as f64, 20.0, 50.0, 75.0, 100.0) as i32
-        };
-
-        let alt_score = if alt < 150.0 {
-            lerp(alt, 100.0, 150.0, 0.0, 24.0) as i32
-        } else if alt < 300.0 {
-            lerp(alt, 150.0, 300.0, 25.0, 74.0) as i32
-        } else {
-            lerp(alt, 300.0, 400.0, 75.0, 100.0) as i32
-        };
-
-        let score = fuel_score.min(alt_score);
-
-        if is_critical {
-            SubsystemHealth {
-                state: HealthState::Red,
-                score,
-                explanation: format!(
-                    "Critical propulsion/orbital decay (Fuel: {:.1}%, Altitude: {:.1}km)",
-                    fuel, alt
-                ),
-            }
-        } else if is_degraded {
-            SubsystemHealth {
-                state: HealthState::Yellow,
-                score,
-                explanation: format!(
-                    "Propulsion degraded/low orbit (Fuel: {:.1}%, Altitude: {:.1}km)",
-                    fuel, alt
-                ),
-            }
-        } else {
-            SubsystemHealth {
-                state: HealthState::Green,
-                score,
-                explanation: format!(
-                    "Propulsion normal (Fuel: {:.1}%, Altitude: {:.1}km)",
-                    fuel, alt
-                ),
-            }
+    } else if is_degraded {
+        SubsystemHealth {
+            state: HealthState::Yellow,
+            score,
+            explanation: format!(
+                "Propulsion degraded/low orbit (Fuel: {:.1}%, Altitude: {:.1}km)",
+                fuel, alt
+            ),
         }
-    };
-
-    // 5. Assess ADCS Subsystem
-    let adcs = {
-        let p = record.orientation_pitch.unwrap_or(0.0).abs();
-        let r = record.orientation_roll.unwrap_or(0.0).abs();
-        let y = record.orientation_yaw.unwrap_or(0.0).abs();
-        let max_drift = p.max(r).max(y);
-
-        if max_drift > 45.0 {
-            let score = lerp(max_drift as f64, 45.0, 90.0, 24.0, 0.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Red,
-                score,
-                explanation: format!(
-                    "Critical attitude drift (Pitch: {:.1}°, Roll: {:.1}°, Yaw: {:.1}°)",
-                    p, r, y
-                ),
-            }
-        } else if max_drift > 15.0 {
-            let score = lerp(max_drift as f64, 15.0, 45.0, 74.0, 25.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Yellow,
-                score,
-                explanation: format!(
-                    "Attitude drift (Pitch: {:.1}°, Roll: {:.1}°, Yaw: {:.1}°)",
-                    p, r, y
-                ),
-            }
-        } else {
-            let score = lerp(max_drift as f64, 5.0, 15.0, 100.0, 75.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Green,
-                score,
-                explanation: "ADCS control loop nominal".to_string(),
-            }
+    } else {
+        SubsystemHealth {
+            state: HealthState::Green,
+            score,
+            explanation: format!(
+                "Propulsion normal (Fuel: {:.1}%, Altitude: {:.1}km)",
+                fuel, alt
+            ),
         }
-    };
+    }
+}
 
-    // 6. Assess Payload Subsystem
-    let payload = {
-        let active = record.payload_active.unwrap_or(true);
-        let draw = record.payload_power_draw.unwrap_or(15.0);
-        let v = record.battery_voltage.unwrap_or(13.8);
+fn assess_adcs(record: &TelemetryRecord) -> SubsystemHealth {
+    let p = record.orientation_pitch.unwrap_or(0.0).abs();
+    let r = record.orientation_roll.unwrap_or(0.0).abs();
+    let y = record.orientation_yaw.unwrap_or(0.0).abs();
+    let max_drift = p.max(r).max(y);
 
-        if active && draw > 30.0 {
-            let score = lerp(draw, 30.0, 50.0, 24.0, 0.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Red,
-                score,
-                explanation: format!("Critical payload power draw: {:.1}W", draw),
-            }
-        } else if !active && v > 11.5 {
-            SubsystemHealth {
-                state: HealthState::Red,
-                score: 15,
-                explanation: "Payload is inactive despite healthy battery".to_string(),
-            }
-        } else if !active && v <= 11.5 {
-            let score = lerp(v, 10.0, 11.5, 25.0, 74.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Yellow,
-                score,
-                explanation: "Payload auto-shutdown to protect battery".to_string(),
-            }
-        } else if active && draw > 20.0 {
-            let score = lerp(draw, 20.0, 30.0, 74.0, 25.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Yellow,
-                score,
-                explanation: format!("Elevated payload power draw: {:.1}W", draw),
-            }
-        } else {
-            let score = lerp(draw, 18.0, 20.0, 100.0, 75.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Green,
-                score,
-                explanation: format!("Payload operating normally ({:.1}W)", draw),
-            }
+    if max_drift > 45.0 {
+        let score = lerp(max_drift as f64, 45.0, 90.0, 24.0, 0.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Red,
+            score,
+            explanation: format!(
+                "Critical attitude drift (Pitch: {:.1}°, Roll: {:.1}°, Yaw: {:.1}°)",
+                p, r, y
+            ),
         }
-    };
-
-    // 7. Assess Flight Computer Subsystem
-    let flight_computer = {
-        let cpu = record.cpu_usage.unwrap_or(25.0);
-        let mem = record.memory_usage.unwrap_or(45.0);
-        let max_load = cpu.max(mem);
-
-        if max_load > 95.0 {
-            let score = lerp(max_load as f64, 95.0, 100.0, 24.0, 0.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Red,
-                score,
-                explanation: format!(
-                    "Critical flight computer load (CPU: {:.1}%, Mem: {:.1}%)",
-                    cpu, mem
-                ),
-            }
-        } else if max_load > 80.0 {
-            let score = lerp(max_load as f64, 80.0, 95.0, 74.0, 25.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Yellow,
-                score,
-                explanation: format!(
-                    "High flight computer load (CPU: {:.1}%, Mem: {:.1}%)",
-                    cpu, mem
-                ),
-            }
-        } else {
-            let score = lerp(max_load as f64, 60.0, 80.0, 100.0, 75.0) as i32;
-            SubsystemHealth {
-                state: HealthState::Green,
-                score,
-                explanation: format!(
-                    "Flight computer operational (CPU: {:.1}%, Mem: {:.1}%)",
-                    cpu, mem
-                ),
-            }
+    } else if max_drift > 15.0 {
+        let score = lerp(max_drift as f64, 15.0, 45.0, 74.0, 25.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Yellow,
+            score,
+            explanation: format!(
+                "Attitude drift (Pitch: {:.1}°, Roll: {:.1}°, Yaw: {:.1}°)",
+                p, r, y
+            ),
         }
-    };
+    } else {
+        let score = lerp(max_drift as f64, 5.0, 15.0, 100.0, 75.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Green,
+            score,
+            explanation: "ADCS control loop nominal".to_string(),
+        }
+    }
+}
+
+fn assess_payload(record: &TelemetryRecord) -> SubsystemHealth {
+    let active = record.payload_active.unwrap_or(true);
+    let draw = record.payload_power_draw.unwrap_or(15.0);
+    let v = record.battery_voltage.unwrap_or(13.8);
+
+    if active && draw > 30.0 {
+        let score = lerp(draw, 30.0, 50.0, 24.0, 0.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Red,
+            score,
+            explanation: format!("Critical payload power draw: {:.1}W", draw),
+        }
+    } else if !active && v > 11.5 {
+        SubsystemHealth {
+            state: HealthState::Red,
+            score: 15,
+            explanation: "Payload is inactive despite healthy battery".to_string(),
+        }
+    } else if !active && v <= 11.5 {
+        let score = lerp(v, 10.0, 11.5, 25.0, 74.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Yellow,
+            score,
+            explanation: "Payload auto-shutdown to protect battery".to_string(),
+        }
+    } else if active && draw > 20.0 {
+        let score = lerp(draw, 20.0, 30.0, 74.0, 25.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Yellow,
+            score,
+            explanation: format!("Elevated payload power draw: {:.1}W", draw),
+        }
+    } else {
+        let score = lerp(draw, 18.0, 20.0, 100.0, 75.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Green,
+            score,
+            explanation: format!("Payload operating normally ({:.1}W)", draw),
+        }
+    }
+}
+
+fn assess_flight_computer(record: &TelemetryRecord) -> SubsystemHealth {
+    let cpu = record.cpu_usage.unwrap_or(25.0);
+    let mem = record.memory_usage.unwrap_or(45.0);
+    let max_load = cpu.max(mem);
+
+    if max_load > 95.0 {
+        let score = lerp(max_load as f64, 95.0, 100.0, 24.0, 0.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Red,
+            score,
+            explanation: format!(
+                "Critical flight computer load (CPU: {:.1}%, Mem: {:.1}%)",
+                cpu, mem
+            ),
+        }
+    } else if max_load > 80.0 {
+        let score = lerp(max_load as f64, 80.0, 95.0, 74.0, 25.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Yellow,
+            score,
+            explanation: format!(
+                "High flight computer load (CPU: {:.1}%, Mem: {:.1}%)",
+                cpu, mem
+            ),
+        }
+    } else {
+        let score = lerp(max_load as f64, 60.0, 80.0, 100.0, 75.0) as i32;
+        SubsystemHealth {
+            state: HealthState::Green,
+            score,
+            explanation: format!(
+                "Flight computer operational (CPU: {:.1}%, Mem: {:.1}%)",
+                cpu, mem
+            ),
+        }
+    }
+}
+
+pub fn assess_satellite_health(
+    record: &TelemetryRecord,
+    gs_states: &std::collections::HashMap<String, GroundStationState>,
+) -> SatelliteHealthAssessment {
+    let power = assess_power(record);
+    let thermal = assess_thermal(record);
+    let communications = assess_communications(record, gs_states);
+    let propulsion = assess_propulsion(record);
+    let adcs = assess_adcs(record);
+    let payload = assess_payload(record);
+    let flight_computer = assess_flight_computer(record);
 
     // Calculate overall satellite state (worst-case subsystem state)
     let overall_state = {
@@ -493,9 +490,9 @@ mod tests {
 
     fn mock_nominal_record() -> TelemetryRecord {
         TelemetryRecord {
-            satellite_id: "SAT-0001".to_string(),
-            subsystem_id: "unified".to_string(),
-            mission_id: "MISSION-ALPHA".to_string(),
+            satellite_id: orbitlogs_models::SatelliteId::new("SAT-0001"),
+            subsystem_id: orbitlogs_models::Subsystem::Unified,
+            mission_id: orbitlogs_models::MissionId::new("MISSION-ALPHA"),
             timestamp: Utc::now(),
             battery_voltage: Some(13.8),
             battery_current: Some(2.1),
@@ -589,11 +586,11 @@ mod tests {
             "GS-0001".to_string(),
             GroundStationState {
                 timestamp: Utc::now(),
-                station_id: "GS-0001".to_string(),
+                station_id: orbitlogs_models::StationId::new("GS-0001"),
                 station_name: "Svalbard".to_string(),
-                status: "OUTAGE".to_string(),
+                status: orbitlogs_models::StationStatus::Outage,
                 antenna_health: 12.5,
-                weather_state: "Clear".to_string(),
+                weather_state: orbitlogs_models::WeatherState::Clear,
                 congestion: 0.0,
                 latency: 2500.0,
                 bandwidth: 0.0,
@@ -623,11 +620,11 @@ mod tests {
             "GS-0001".to_string(),
             GroundStationState {
                 timestamp: Utc::now(),
-                station_id: "GS-0001".to_string(),
+                station_id: orbitlogs_models::StationId::new("GS-0001"),
                 station_name: "Svalbard".to_string(),
-                status: "ONLINE".to_string(),
+                status: orbitlogs_models::StationStatus::Online,
                 antenna_health: 100.0,
-                weather_state: "Clear".to_string(),
+                weather_state: orbitlogs_models::WeatherState::Clear,
                 congestion: 0.0,
                 latency: 42.0,
                 bandwidth: 1000.0,

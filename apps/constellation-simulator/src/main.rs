@@ -155,12 +155,12 @@ fn sim_tick_satellite(sat: &mut SatState) -> TelemetryRecord {
     let packet_loss = if signal < -95.0 { 15.0 } else { 0.1 };
 
     TelemetryRecord {
-        satellite_id: sat.id.clone(),
-        subsystem_id: "unified".to_string(),
+        satellite_id: orbitlogs_models::SatelliteId::new(sat.id.clone()),
+        subsystem_id: orbitlogs_models::Subsystem::Unified,
         mission_id: if sat.faulty {
-            "MISSION-CRITICAL".to_string()
+            orbitlogs_models::MissionId::new("MISSION-CRITICAL")
         } else {
-            "MISSION-CONSTELLATION".to_string()
+            orbitlogs_models::MissionId::new("MISSION-CONSTELLATION")
         },
         timestamp: chrono::Utc::now(),
         battery_voltage: Some(battery_v),
@@ -226,8 +226,8 @@ mod tests {
 
         let rec = sim_tick_satellite(&mut sat);
 
-        assert_eq!(rec.satellite_id, "SAT-0001");
-        assert_eq!(rec.mission_id, "MISSION-CONSTELLATION");
+        assert_eq!(rec.satellite_id.as_str(), "SAT-0001");
+        assert_eq!(rec.mission_id.as_str(), "MISSION-CONSTELLATION");
         assert!(rec.validate().is_ok());
         assert!(sat.altitude < 500.0); // Orbit decay
         assert!(sat.battery_capacity < 100.0); // Battery aging
@@ -247,8 +247,8 @@ mod tests {
 
         let rec = sim_tick_satellite(&mut sat);
 
-        assert_eq!(rec.satellite_id, "SAT-0123");
-        assert_eq!(rec.mission_id, "MISSION-CRITICAL");
+        assert_eq!(rec.satellite_id.as_str(), "SAT-0123");
+        assert_eq!(rec.mission_id.as_str(), "MISSION-CRITICAL");
         assert!(rec.temperature.unwrap() > 40.0); // Elevated temp for faulty sat
     }
 }

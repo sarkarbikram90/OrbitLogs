@@ -281,18 +281,18 @@ pub fn encode_record_to_frame(
     seq_count: u16,
 ) -> Result<Vec<u8>, PacketError> {
     // 1. Map satellite_id to SCID (e.g. "SAT-0001" -> 1)
-    let scid = scid_from_satellite_id(&record.satellite_id);
+    let scid = scid_from_satellite_id(record.satellite_id.as_str());
 
     // 2. Map subsystem to APID
-    let apid = match record.subsystem_id.to_lowercase().as_str() {
-        "power" => APID_POWER,
-        "thermal" => APID_THERMAL,
-        "communications" | "comms" => APID_COMMS,
-        "propulsion" => APID_PROPULSION,
-        "adcs" => APID_ADCS,
-        "payload" => APID_PAYLOAD,
-        "flight_computer" | "flightcomputer" | "flight computer" => APID_FLIGHT_COMPUTER,
-        _ => APID_UNIFIED,
+    let apid = match record.subsystem_id {
+        orbitlogs_models::Subsystem::Power => APID_POWER,
+        orbitlogs_models::Subsystem::Thermal => APID_THERMAL,
+        orbitlogs_models::Subsystem::Communications => APID_COMMS,
+        orbitlogs_models::Subsystem::Propulsion => APID_PROPULSION,
+        orbitlogs_models::Subsystem::Adcs => APID_ADCS,
+        orbitlogs_models::Subsystem::Payload => APID_PAYLOAD,
+        orbitlogs_models::Subsystem::FlightComputer => APID_FLIGHT_COMPUTER,
+        orbitlogs_models::Subsystem::Unified => APID_UNIFIED,
     };
 
     // 3. Serialize user data field based on APID
@@ -447,16 +447,16 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     let frame = TelemetryFrame::from_bytes(bytes)?;
     let packet = TelemetryPacket::from_bytes(&frame.data_field)?;
 
-    let satellite_id = satellite_id_from_scid(frame.spacecraft_id);
+    let satellite_id = orbitlogs_models::SatelliteId::new(satellite_id_from_scid(frame.spacecraft_id));
     let subsystem_id = match packet.apid {
-        APID_POWER => "power".to_string(),
-        APID_THERMAL => "thermal".to_string(),
-        APID_COMMS => "communications".to_string(),
-        APID_PROPULSION => "propulsion".to_string(),
-        APID_ADCS => "adcs".to_string(),
-        APID_PAYLOAD => "payload".to_string(),
-        APID_FLIGHT_COMPUTER => "flight_computer".to_string(),
-        _ => "unified".to_string(),
+        APID_POWER => orbitlogs_models::Subsystem::Power,
+        APID_THERMAL => orbitlogs_models::Subsystem::Thermal,
+        APID_COMMS => orbitlogs_models::Subsystem::Communications,
+        APID_PROPULSION => orbitlogs_models::Subsystem::Propulsion,
+        APID_ADCS => orbitlogs_models::Subsystem::Adcs,
+        APID_PAYLOAD => orbitlogs_models::Subsystem::Payload,
+        APID_FLIGHT_COMPUTER => orbitlogs_models::Subsystem::FlightComputer,
+        _ => orbitlogs_models::Subsystem::Unified,
     };
 
     // Recover timestamp
@@ -468,7 +468,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     let mut record = TelemetryRecord {
         satellite_id,
         subsystem_id,
-        mission_id: "unknown".to_string(),
+        mission_id: orbitlogs_models::MissionId::new("unknown"),
         timestamp: ts,
         battery_voltage: None,
         battery_current: None,
@@ -621,9 +621,9 @@ mod tests {
 
     fn mock_record() -> TelemetryRecord {
         TelemetryRecord {
-            satellite_id: "SAT-0005".to_string(),
-            subsystem_id: "power".to_string(),
-            mission_id: "MISSION-ALPHA".to_string(),
+            satellite_id: orbitlogs_models::SatelliteId::new("SAT-0005"),
+            subsystem_id: orbitlogs_models::Subsystem::Power,
+            mission_id: orbitlogs_models::MissionId::new("MISSION-ALPHA"),
             timestamp: Utc::now(),
             battery_voltage: Some(13.45),
             battery_current: Some(-2.15),
@@ -712,16 +712,25 @@ mod tests {
             payload_power_draw in proptest::option::of(0.0..100.0f64),
             payload_active in proptest::option::of(proptest::bool::ANY),
         ) {
-            let sat_id = format!("SAT-{:04}", scid);
-            let subsystems = ["power", "thermal", "communications", "propulsion", "adcs", "payload", "flight_computer", "unified"];
-            let subsystem_id = subsystems[subsystem_idx].to_string();
+            let sat_id = orbitlogs_models::SatelliteId::new(format!("SAT-{:04}", scid));
+            let subsystems = [
+                orbitlogs_models::Subsystem::Power,
+                orbitlogs_models::Subsystem::Thermal,
+                orbitlogs_models::Subsystem::Communications,
+                orbitlogs_models::Subsystem::Propulsion,
+                orbitlogs_models::Subsystem::Adcs,
+                orbitlogs_models::Subsystem::Payload,
+                orbitlogs_models::Subsystem::FlightComputer,
+                orbitlogs_models::Subsystem::Unified,
+            ];
+            let subsystem_id = subsystems[subsystem_idx];
 
             let ts = Utc.timestamp_opt(ts_coarse as i64, ts_fine).single().unwrap_or_else(Utc::now);
 
             let rec = TelemetryRecord {
                 satellite_id: sat_id,
                 subsystem_id,
-                mission_id: "unknown".to_string(),
+                mission_id: orbitlogs_models::MissionId::new("unknown"),
                 timestamp: ts,
                 battery_voltage,
                 battery_current,
@@ -751,39 +760,39 @@ mod tests {
             assert_eq!(decoded.timestamp.timestamp(), rec.timestamp.timestamp());
             assert_eq!(decoded.timestamp.timestamp_subsec_nanos(), rec.timestamp.timestamp_subsec_nanos());
 
-            match rec.subsystem_id.as_str() {
-                "power" => {
+            match rec.subsystem_id {
+                orbitlogs_models::Subsystem::Power => {
                     assert_eq!(decoded.battery_voltage.unwrap_or(0.0), rec.battery_voltage.unwrap_or(0.0));
                     assert_eq!(decoded.battery_current.unwrap_or(0.0), rec.battery_current.unwrap_or(0.0));
                     assert_eq!(decoded.solar_panel_output.unwrap_or(0.0), rec.solar_panel_output.unwrap_or(0.0));
                 }
-                "thermal" => {
+                orbitlogs_models::Subsystem::Thermal => {
                     assert_eq!(decoded.temperature.unwrap_or(0.0), rec.temperature.unwrap_or(0.0));
                 }
-                "communications" => {
+                orbitlogs_models::Subsystem::Communications => {
                     assert_eq!(decoded.communication_latency.unwrap_or(0.0), rec.communication_latency.unwrap_or(0.0));
                     assert_eq!(decoded.packet_loss.unwrap_or(0.0), rec.packet_loss.unwrap_or(0.0));
                     assert_eq!(decoded.signal_strength.unwrap_or(0.0), rec.signal_strength.unwrap_or(0.0));
                 }
-                "propulsion" => {
+                orbitlogs_models::Subsystem::Propulsion => {
                     assert_eq!(decoded.velocity.unwrap_or(0.0), rec.velocity.unwrap_or(0.0));
                     assert_eq!(decoded.altitude.unwrap_or(0.0), rec.altitude.unwrap_or(0.0));
                     assert_eq!(decoded.fuel_remaining.unwrap_or(0.0), rec.fuel_remaining.unwrap_or(0.0));
                 }
-                "adcs" => {
+                orbitlogs_models::Subsystem::Adcs => {
                     assert_eq!(decoded.orientation_pitch.unwrap_or(0.0), rec.orientation_pitch.unwrap_or(0.0));
                     assert_eq!(decoded.orientation_roll.unwrap_or(0.0), rec.orientation_roll.unwrap_or(0.0));
                     assert_eq!(decoded.orientation_yaw.unwrap_or(0.0), rec.orientation_yaw.unwrap_or(0.0));
                 }
-                "payload" => {
+                orbitlogs_models::Subsystem::Payload => {
                     assert_eq!(decoded.payload_power_draw.unwrap_or(0.0), rec.payload_power_draw.unwrap_or(0.0));
                     assert_eq!(decoded.payload_active.unwrap_or(false), rec.payload_active.unwrap_or(false));
                 }
-                "flight_computer" => {
+                orbitlogs_models::Subsystem::FlightComputer => {
                     assert_eq!(decoded.cpu_usage.unwrap_or(0.0), rec.cpu_usage.unwrap_or(0.0));
                     assert_eq!(decoded.memory_usage.unwrap_or(0.0), rec.memory_usage.unwrap_or(0.0));
                 }
-                "unified" => {
+                orbitlogs_models::Subsystem::Unified => {
                     assert_eq!(decoded.battery_voltage.unwrap_or(0.0), rec.battery_voltage.unwrap_or(0.0));
                     assert_eq!(decoded.battery_current.unwrap_or(0.0), rec.battery_current.unwrap_or(0.0));
                     assert_eq!(decoded.solar_panel_output.unwrap_or(0.0), rec.solar_panel_output.unwrap_or(0.0));

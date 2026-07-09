@@ -105,9 +105,9 @@ fn create_test_app() -> Router {
 #[test]
 fn test_e2e_telemetry_flow_validation() {
     let raw_payload = TelemetryRecord {
-        satellite_id: "SAT-TEST-99".to_string(),
-        subsystem_id: "unified".to_string(),
-        mission_id: "unknown".to_string(),
+        satellite_id: orbitlogs_models::SatelliteId::new("SAT-TEST-99"),
+        subsystem_id: orbitlogs_models::Subsystem::Unified,
+        mission_id: orbitlogs_models::MissionId::new("unknown"),
         timestamp: Utc::now(),
         battery_voltage: Some(14.2),
         battery_current: Some(1.2),
@@ -147,9 +147,9 @@ fn test_e2e_telemetry_flow_validation() {
 #[test]
 fn test_validation_multiple_errors_collected() {
     let rec = TelemetryRecord {
-        satellite_id: "".to_string(),
-        subsystem_id: "unified".to_string(),
-        mission_id: "unknown".to_string(),
+        satellite_id: orbitlogs_models::SatelliteId::new(""),
+        subsystem_id: orbitlogs_models::Subsystem::Unified,
+        mission_id: orbitlogs_models::MissionId::new("unknown"),
         timestamp: Utc::now(),
         battery_voltage: Some(-5.0),
         battery_current: Some(0.0),
@@ -372,9 +372,9 @@ async fn test_real_handler_binary_valid() {
     let app = create_test_app();
 
     let rec = TelemetryRecord {
-        satellite_id: "SAT-0001".to_string(),
-        subsystem_id: "power".to_string(),
-        mission_id: "unknown".to_string(),
+        satellite_id: orbitlogs_models::SatelliteId::new("SAT-0001"),
+        subsystem_id: orbitlogs_models::Subsystem::Power,
+        mission_id: orbitlogs_models::MissionId::new("unknown"),
         timestamp: Utc::now(),
         battery_voltage: Some(13.8),
         battery_current: Some(2.1),

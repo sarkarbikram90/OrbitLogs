@@ -1,7 +1,7 @@
 use crate::AppState;
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -60,16 +60,13 @@ pub fn check_role(
     state: &AppState,
     headers: &HeaderMap,
     required: Role,
-) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<String, crate::error::AppError> {
     let token = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
         .ok_or_else(|| {
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({ "error": "Missing Authorization Bearer token" })),
-            )
+            crate::error::AppError::Auth("Missing Authorization Bearer token".to_string())
         })?;
 
     let mut validation = jsonwebtoken::Validation::default();
@@ -81,27 +78,18 @@ pub fn check_role(
         &validation,
     )
     .map_err(|e| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({ "error": format!("Invalid token: {}", e) })),
-        )
+        crate::error::AppError::Auth(format!("Invalid token: {}", e))
     })?;
 
     let role = Role::from_str(&token_data.claims.role).ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Invalid role in token claims" })),
-        )
+        crate::error::AppError::Auth("Invalid role in token claims".to_string())
     })?;
 
     if role >= required {
         Ok(token_data.claims.role)
     } else {
-        Err((
-            StatusCode::FORBIDDEN,
-            Json(
-                serde_json::json!({ "error": format!("Insufficient permissions: required {:?}, got {:?}", required, role) }),
-            ),
+        Err(crate::error::AppError::Forbidden(
+            format!("Insufficient permissions: required {:?}, got {:?}", required, role),
         ))
     }
 }
@@ -111,7 +99,7 @@ pub async fn login_handler(
     connect_info: Option<axum::extract::ConnectInfo<SocketAddr>>,
     headers: HeaderMap,
     Json(req): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<LoginResponse>, crate::error::AppError> {
     let ip = headers
         .get("x-forwarded-for")
         .and_then(|h| h.to_str().ok())
@@ -143,26 +131,15 @@ pub async fn login_handler(
     };
 
     if limit_exceeded {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(
-                serde_json::json!({ "error": "Too many login attempts. Please try again later." }),
-            ),
-        ));
+        return Err(crate::error::AppError::TooManyRequests);
     }
 
     if !orbitlogs_models::auth::secure_compare(&req.api_key, &state.api_key) {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({ "error": "Invalid API key" })),
-        ));
+        return Err(crate::error::AppError::Auth("Invalid API key".to_string()));
     }
 
     let Some(role) = Role::from_str(&req.role) else {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Invalid role specified" })),
-        ));
+        return Err(crate::error::AppError::Validation("Invalid role specified".to_string()));
     };
 
     let exp = chrono::Utc::now()
@@ -182,10 +159,7 @@ pub async fn login_handler(
         &jsonwebtoken::EncodingKey::from_secret(state.jwt_secret.as_bytes()),
     )
     .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": format!("Token generation failed: {}", e) })),
-        )
+        crate::error::AppError::Internal(format!("Token generation failed: {}", e))
     })?;
 
     Ok(Json(LoginResponse { token }))
@@ -261,8 +235,8 @@ mod tests {
 
         let res = check_role(&state, &headers, Role::FlightDirector);
         assert!(res.is_err());
-        let (status, err) = res.unwrap_err();
-        assert_eq!(status, StatusCode::FORBIDDEN);
+        let err = res.unwrap_err();
+        assert!(matches!(err, crate::error::AppError::Forbidden(_)));
         assert!(err.to_string().contains("Insufficient permissions"));
     }
 
@@ -273,8 +247,8 @@ mod tests {
 
         let res = check_role(&state, &headers, Role::Operator);
         assert!(res.is_err());
-        let (status, _) = res.unwrap_err();
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let err = res.unwrap_err();
+        assert!(matches!(err, crate::error::AppError::Auth(_)));
     }
 
     #[tokio::test]
@@ -290,8 +264,8 @@ mod tests {
 
         let res = check_role(&state, &headers, Role::Operator);
         assert!(res.is_err());
-        let (status, _) = res.unwrap_err();
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let err = res.unwrap_err();
+        assert!(matches!(err, crate::error::AppError::Auth(_)));
     }
 
     #[tokio::test]
@@ -307,7 +281,7 @@ mod tests {
 
         let res = check_role(&state, &headers, Role::Operator);
         assert!(res.is_err());
-        let (status, _) = res.unwrap_err();
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let err = res.unwrap_err();
+        assert!(matches!(err, crate::error::AppError::Auth(_)));
     }
 }

@@ -330,12 +330,12 @@ async fn main() -> Result<(), anyhow::Error> {
                         let _enter = span.enter();
 
                         // 1. Record metrics
-                        let gauges = if let Some(g) = SATELLITE_GAUGES_CACHE.get(&rec.satellite_id) {
+                        let gauges = if let Some(g) = SATELLITE_GAUGES_CACHE.get(rec.satellite_id.as_str()) {
                             g.clone()
                         } else {
                             SATELLITE_GAUGES_CACHE
-                                .entry(rec.satellite_id.clone())
-                                .or_insert_with(|| Arc::new(SatelliteGauges::new(&rec.satellite_id)))
+                                .entry(rec.satellite_id.to_string())
+                                .or_insert_with(|| Arc::new(SatelliteGauges::new(rec.satellite_id.as_str())))
                                 .clone()
                         };
 
@@ -424,19 +424,19 @@ async fn main() -> Result<(), anyhow::Error> {
                         span.set_parent(parent_context.clone());
                         let _enter = span.enter();
 
-                        let gs_gauges = if let Some(g) = GS_GAUGES_CACHE.get(&gs.station_id) {
+                        let gs_gauges = if let Some(g) = GS_GAUGES_CACHE.get(gs.station_id.as_str()) {
                             g.clone()
                         } else {
                             GS_GAUGES_CACHE
-                                .entry(gs.station_id.clone())
-                                .or_insert_with(|| Arc::new(GroundStationGauges::new(&gs.station_id)))
+                                .entry(gs.station_id.to_string())
+                                .or_insert_with(|| Arc::new(GroundStationGauges::new(gs.station_id.as_str())))
                                 .clone()
                         };
 
                         gs_gauges.link_latency.set(gs.latency as f64);
                         gs_gauges.packet_loss.set(gs.congestion as f64);
 
-                        if gs.status == "CRITICAL" || gs.status == "WARNING" {
+                        if gs.status == orbitlogs_models::StationStatus::Outage || gs.status == orbitlogs_models::StationStatus::Degraded {
                             tracing::event!(
                                 tracing::Level::ERROR,
                                 event_type = "communication_events",

@@ -202,11 +202,11 @@ async fn main() -> Result<(), anyhow::Error> {
         // Define the 4 ground stations with base parameters
         let mut gs_svalbard = GroundStationHealth {
             timestamp: chrono::Utc::now(),
-            station_id: "GS-0001".to_string(),
+            station_id: orbitlogs_models::StationId::new("GS-0001"),
             station_name: "Svalbard Ground Station (Norway)".to_string(),
-            status: "ONLINE".to_string(),
+            status: orbitlogs_models::StationStatus::Online,
             antenna_health: 100.0,
-            weather_state: "Clear".to_string(),
+            weather_state: orbitlogs_models::WeatherState::Clear,
             congestion: 15.0,
             latency: 42.0,
             bandwidth: 1000.0,
@@ -219,11 +219,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
         let mut gs_troll = GroundStationHealth {
             timestamp: chrono::Utc::now(),
-            station_id: "GS-0002".to_string(),
+            station_id: orbitlogs_models::StationId::new("GS-0002"),
             station_name: "Troll Ground Station (Antarctica)".to_string(),
-            status: "ONLINE".to_string(),
+            status: orbitlogs_models::StationStatus::Online,
             antenna_health: 100.0,
-            weather_state: "Clear".to_string(),
+            weather_state: orbitlogs_models::WeatherState::Clear,
             congestion: 5.0,
             latency: 95.0,
             bandwidth: 500.0,
@@ -236,11 +236,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
         let mut gs_mcmurdo = GroundStationHealth {
             timestamp: chrono::Utc::now(),
-            station_id: "GS-0003".to_string(),
+            station_id: orbitlogs_models::StationId::new("GS-0003"),
             station_name: "McMurdo Ground Station (Antarctica)".to_string(),
-            status: "ONLINE".to_string(),
+            status: orbitlogs_models::StationStatus::Online,
             antenna_health: 98.0,
-            weather_state: "Clear".to_string(),
+            weather_state: orbitlogs_models::WeatherState::Clear,
             congestion: 8.0,
             latency: 110.0,
             bandwidth: 500.0,
@@ -253,11 +253,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
         let mut gs_kiruna = GroundStationHealth {
             timestamp: chrono::Utc::now(),
-            station_id: "GS-0004".to_string(),
+            station_id: orbitlogs_models::StationId::new("GS-0004"),
             station_name: "Kiruna Ground Station (Sweden)".to_string(),
-            status: "ONLINE".to_string(),
+            status: orbitlogs_models::StationStatus::Online,
             antenna_health: 100.0,
-            weather_state: "Clear".to_string(),
+            weather_state: orbitlogs_models::WeatherState::Clear,
             congestion: 20.0,
             latency: 35.0,
             bandwidth: 1000.0,
@@ -274,8 +274,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
         if (10..20).contains(&cycle) {
             // Scenario 1: Severe storm at Svalbard (GS-0001)
-            gs_svalbard.status = "DEGRADED".to_string();
-            gs_svalbard.weather_state = "SevereStorm".to_string();
+            gs_svalbard.status = orbitlogs_models::StationStatus::Degraded;
+            gs_svalbard.weather_state = orbitlogs_models::WeatherState::SevereStorm;
             gs_svalbard.latency = 280.0;
             gs_svalbard.bandwidth = 200.0;
             gs_svalbard.packet_loss = Some(15.5);
@@ -284,7 +284,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 "Severe storm in Svalbard sector causing major link attenuation.".to_string();
         } else if (20..30).contains(&cycle) {
             // Scenario 2: Reflector motor failure at Troll (GS-0002) - OUTAGE
-            gs_troll.status = "OUTAGE".to_string();
+            gs_troll.status = orbitlogs_models::StationStatus::Outage;
             gs_troll.antenna_health = 12.5;
             gs_troll.latency = 2500.0;
             gs_troll.bandwidth = 0.0;
@@ -295,7 +295,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     .to_string();
         } else if (30..40).contains(&cycle) {
             // Scenario 3: Network congestion at Kiruna (GS-0004)
-            gs_kiruna.status = "DEGRADED".to_string();
+            gs_kiruna.status = orbitlogs_models::StationStatus::Degraded;
             gs_kiruna.congestion = 95.5;
             gs_kiruna.latency = 185.0;
             gs_kiruna.bandwidth = 350.0;
@@ -304,8 +304,8 @@ async fn main() -> Result<(), anyhow::Error> {
             gs_kiruna.explanation = "Kiruna ground link network backhaul saturated by multiple concurrent LEO downlinks.".to_string();
         } else if (40..50).contains(&cycle) {
             // Scenario 4: Heavy snow at McMurdo (GS-0003)
-            gs_mcmurdo.status = "DEGRADED".to_string();
-            gs_mcmurdo.weather_state = "HeavySnow".to_string();
+            gs_mcmurdo.status = orbitlogs_models::StationStatus::Degraded;
+            gs_mcmurdo.weather_state = orbitlogs_models::WeatherState::HeavySnow;
             gs_mcmurdo.latency = 195.0;
             gs_mcmurdo.bandwidth = 150.0;
             gs_mcmurdo.packet_loss = Some(8.5);
@@ -313,7 +313,7 @@ async fn main() -> Result<(), anyhow::Error> {
             gs_mcmurdo.explanation = "Blizzard warning at McMurdo. Antenna heaters active but experiencing minor attenuation.".to_string();
         } else if (50..60).contains(&cycle) {
             // Scenario 5: Maintenance Window at McMurdo (GS-0003)
-            gs_mcmurdo.status = "MAINTENANCE".to_string();
+            gs_mcmurdo.status = orbitlogs_models::StationStatus::Maintenance;
             gs_mcmurdo.maintenance = Some(true);
             gs_mcmurdo.explanation =
                 "Scheduled antenna receiver array calibration window.".to_string();
@@ -332,12 +332,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // 2. Publish health payload to Kafka topic groundstation.health
             let payload = serde_json::to_string(&gs).unwrap();
-            let key = gs.station_id.clone();
+            let key = gs.station_id.as_str();
 
             let res = producer
                 .send(
                     FutureRecord::to(&cli.health_topic)
-                        .key(&key)
+                        .key(key)
                         .payload(&payload),
                     Duration::from_secs(5),
                 )
@@ -348,23 +348,23 @@ async fn main() -> Result<(), anyhow::Error> {
             }
 
             // 3. Update Prometheus metrics
-            let status_val = match gs.status.as_str() {
-                "ONLINE" => 1.0,
-                "DEGRADED" => 0.5,
-                "OUTAGE" => 0.0,
-                _ => 0.0,
+            let status_val = match gs.status {
+                orbitlogs_models::StationStatus::Online => 1.0,
+                orbitlogs_models::StationStatus::Degraded => 0.5,
+                orbitlogs_models::StationStatus::Outage => 0.0,
+                orbitlogs_models::StationStatus::Maintenance => 0.0,
             };
             GS_STATUS
-                .with_label_values(&[&gs.station_id])
+                .with_label_values(&[gs.station_id.as_str()])
                 .set(status_val);
             GS_ANTENNA_HEALTH
-                .with_label_values(&[&gs.station_id])
+                .with_label_values(&[gs.station_id.as_str()])
                 .set(gs.antenna_health as f64);
             GS_LATENCY
-                .with_label_values(&[&gs.station_id])
+                .with_label_values(&[gs.station_id.as_str()])
                 .set(gs.latency as f64);
             GS_BANDWIDTH
-                .with_label_values(&[&gs.station_id])
+                .with_label_values(&[gs.station_id.as_str()])
                 .set(gs.bandwidth as f64);
         }
 

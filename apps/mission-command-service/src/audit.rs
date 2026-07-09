@@ -1,6 +1,4 @@
 use crate::AppState;
-use axum::http::StatusCode;
-use axum::Json;
 use opentelemetry::trace::TraceContextExt;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
@@ -13,7 +11,7 @@ pub async fn log_audit(
     to: &str,
     by: &str,
     notes: &str,
-) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+) -> Result<(), crate::error::AppError> {
     let trace_id = Span::current()
         .context()
         .span()
@@ -32,11 +30,7 @@ pub async fn log_audit(
     .bind(trace_id)
     .bind(notes)
     .execute(&state.db_pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-        "error": e.to_string()
-        }))
-    ))?;
+    .await?;
 
     Ok(())
 }

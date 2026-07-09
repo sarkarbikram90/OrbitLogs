@@ -61,19 +61,9 @@ impl OrbitAdapters {
         tle_line2: &str,
         epoch_offset_sec: f64,
     ) -> (f64, f64, f64) {
-        // Basic Keplerian propagation derived from TLE line parses
-        // Extracts mean motion (revs per day) from line 2
-        let mean_motion = if tle_line2.len() >= 68 {
-            tle_line2[52..63].trim().parse::<f64>().unwrap_or(15.5)
-        } else {
-            15.5
-        };
-
-        let inclination = if tle_line2.len() >= 16 {
-            tle_line2[8..16].trim().parse::<f64>().unwrap_or(53.0)
-        } else {
-            53.0
-        };
+        let elements = orbitlogs_models::TleElements::parse(tle_line2);
+        let mean_motion = elements.mean_motion;
+        let inclination = elements.inclination;
 
         // Standard orbital period in seconds: 86400 / mean_motion
         let period = 86400.0 / mean_motion;

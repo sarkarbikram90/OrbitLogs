@@ -45,7 +45,7 @@ pub struct QueryParams {
 pub async fn list_commands(
     State(state): State<Arc<AppState>>,
     Query(params): Query<QueryParams>,
-) -> Result<Json<Vec<Command>>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Vec<Command>>, crate::error::AppError> {
     let limit = params.limit.unwrap_or(50).clamp(1, 1000);
     let offset = params.offset.unwrap_or(0).max(0);
 
@@ -60,12 +60,7 @@ pub async fn list_commands(
             .bind(offset)
     };
 
-    let rows = query_str.fetch_all(&state.db_pool).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": e.to_string() })),
-        )
-    })?;
+    let rows = query_str.fetch_all(&state.db_pool).await?;
 
     let commands = rows
         .into_iter()
@@ -91,7 +86,7 @@ pub async fn create_command(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<CreateCommandRequest>,
-) -> Result<(StatusCode, Json<Command>), (StatusCode, Json<serde_json::Value>)> {
+) -> Result<(StatusCode, Json<Command>), crate::error::AppError> {
     let user_name = check_role(&state, &headers, Role::Operator)?;
 
     let id = Uuid::new_v4();
@@ -109,13 +104,7 @@ pub async fn create_command(
     .bind(&req.parameters)
     .bind(&user_name)
     .execute(&state.db_pool)
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": e.to_string() })),
-        )
-    })?;
+    .await?;
 
     // Audit trail
     log_audit(
@@ -153,17 +142,17 @@ pub async fn approve_command(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
-) -> Result<Json<Command>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Command>, crate::error::AppError> {
     let approver = check_role(&state, &headers, Role::FlightDirector)?;
 
     // Fetch existing
     let mut cmd = fetch_command_by_id(&state, id).await?;
 
     if cmd.status != "CREATED" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Command must be in CREATED state to approve" })),
-        ));
+        return Err(crate::error::AppError::InvalidTransition {
+            from: cmd.status,
+            to: "APPROVED".to_string(),
+        });
     }
 
     let prev_status = cmd.status.clone();
@@ -174,13 +163,7 @@ pub async fn approve_command(
         .bind(&approver)
         .bind(id)
         .execute(&state.db_pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": e.to_string() })),
-            )
-        })?;
+        .await?;
 
     log_audit(
         &state,
@@ -203,16 +186,16 @@ pub async fn queue_command(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
-) -> Result<Json<Command>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Command>, crate::error::AppError> {
     let operator = check_role(&state, &headers, Role::Operator)?;
 
     let mut cmd = fetch_command_by_id(&state, id).await?;
 
     if cmd.status != "APPROVED" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Command must be APPROVED before queuing" })),
-        ));
+        return Err(crate::error::AppError::InvalidTransition {
+            from: cmd.status,
+            to: "QUEUED".to_string(),
+        });
     }
 
     let prev_status = cmd.status.clone();
@@ -223,13 +206,7 @@ pub async fn queue_command(
         .bind(cmd.scheduled_time)
         .bind(id)
         .execute(&state.db_pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": e.to_string() })),
-            )
-        })?;
+        .await?;
 
     log_audit(
         &state,
@@ -252,16 +229,16 @@ pub async fn execute_command(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
-) -> Result<Json<Command>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Command>, crate::error::AppError> {
     let operator = check_role(&state, &headers, Role::Operator)?;
 
     let mut cmd = fetch_command_by_id(&state, id).await?;
 
     if cmd.status != "QUEUED" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Command must be QUEUED to execute" })),
-        ));
+        return Err(crate::error::AppError::InvalidTransition {
+            from: cmd.status,
+            to: "TRANSMITTED".to_string(),
+        });
     }
 
     // Execute state flow simulation - transition to TRANSMITTED
@@ -273,13 +250,7 @@ pub async fn execute_command(
         .bind(cmd.executed_at)
         .bind(id)
         .execute(&state.db_pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": e.to_string() })),
-            )
-        })?;
+        .await?;
 
     log_audit(
         &state,
@@ -299,13 +270,12 @@ pub async fn execute_command(
 pub async fn fetch_command_by_id(
     state: &AppState,
     id: Uuid,
-) -> Result<Command, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Command, crate::error::AppError> {
     let row = sqlx::query("SELECT id, satellite_id, command_type, status, parameters, created_by, approved_by, scheduled_time, executed_at, created_at FROM commands WHERE id = $1")
         .bind(id)
         .fetch_optional(&state.db_pool)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?
-        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Command not found" }))))?;
+        .await?
+        .ok_or_else(|| crate::error::AppError::NotFound(id))?;
 
     Ok(Command {
         id: row.get("id"),

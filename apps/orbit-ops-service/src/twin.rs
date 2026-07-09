@@ -194,10 +194,10 @@ mod tests {
     fn default_telemetry_record(sat_id: &str) -> TelemetryRecord {
         TelemetryRecord {
             event_id: uuid::Uuid::new_v4(),
-            satellite_id: sat_id.to_string(),
-            mission_id: "test-mission".to_string(),
+            satellite_id: orbitlogs_models::SatelliteId::new(sat_id),
+            mission_id: orbitlogs_models::MissionId::new("test-mission"),
             timestamp: Utc::now(),
-            subsystem_id: "test-subsystem".to_string(),
+            subsystem_id: orbitlogs_models::Subsystem::Unified,
             battery_voltage: Some(13.8),
             battery_current: Some(1.5),
             solar_panel_output: Some(120.0),
@@ -248,7 +248,7 @@ mod tests {
         let rec = default_telemetry_record("SAT-001");
         let updated = manager.update_twin("SAT-001", rec.clone());
 
-        assert_eq!(updated.satellite_id, "SAT-001");
+        assert_eq!(updated.satellite_id.as_str(), "SAT-001");
         // Verify twin was cached
         let cached = manager.twins.get("SAT-001").unwrap();
         assert_eq!(cached.cpu_usage, rec.cpu_usage);

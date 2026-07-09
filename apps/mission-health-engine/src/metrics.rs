@@ -29,16 +29,7 @@ pub static SUBSYSTEM_HEALTH_SCORE: LazyLock<GaugeVec> = LazyLock::new(|| {
     )
     .expect("subsystem_health_score metric must be created")
 });
-pub static KAFKA_CONSUMER_LAG: LazyLock<GaugeVec> = LazyLock::new(|| {
-    GaugeVec::new(
-        Opts::new(
-            "kafka_consumer_lag",
-            "Lag of the Kafka consumer group (offsets behind high watermark)",
-        ),
-        &["topic", "partition"],
-    )
-    .expect("kafka_consumer_lag metric must be created")
-});
+pub use orbitlogs_models::kafka::KAFKA_CONSUMER_LAG;
 
 pub fn register_metrics() {
     REGISTRY

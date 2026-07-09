@@ -111,3 +111,41 @@ pub const TOPIC_GROUNDSTATION_HEALTH: &str = "groundstation.health";
 pub const TOPIC_CONJUNCTION_ALERTS: &str = "conjunction.alerts";
 pub const TOPIC_CONJUNCTION_MANEUVERS: &str = "conjunction.maneuvers";
 
+pub static KAFKA_CONSUMER_LAG: std::sync::LazyLock<prometheus::GaugeVec> = std::sync::LazyLock::new(|| {
+    prometheus::register_gauge_vec!(
+        "kafka_consumer_lag",
+        "Lag of the consumer group for a topic and partition",
+        &["topic", "partition"]
+    )
+    .unwrap()
+});
+
+pub struct MetricsContext;
+
+impl rdkafka::client::ClientContext for MetricsContext {
+    fn stats_raw(&self, statistics: &[u8]) {
+        if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
+            if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
+                for (topic_name, topic_val) in topics {
+                    if let Some(partitions) =
+                        topic_val.get("partitions").and_then(|p| p.as_object())
+                    {
+                        for (partition_id, partition_val) in partitions {
+                            if let Some(lag) =
+                                partition_val.get("consumer_lag").and_then(|l| l.as_i64())
+                            {
+                                KAFKA_CONSUMER_LAG
+                                    .with_label_values(&[topic_name, partition_id])
+                                    .set(lag as f64);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl rdkafka::consumer::ConsumerContext for MetricsContext {}
+
+

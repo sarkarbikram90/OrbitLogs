@@ -15,6 +15,7 @@ use tracing::info;
 pub mod audit;
 pub mod auth;
 pub mod commands;
+pub mod error;
 
 pub use auth::{Claims, Role};
 

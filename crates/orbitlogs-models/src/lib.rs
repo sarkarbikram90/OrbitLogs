@@ -2,33 +2,358 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-fn default_subsystem() -> String {
-    "unified".to_string()
+// =========================================================================
+// 1. Type-Safe Newtypes
+// =========================================================================
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct SatelliteId(pub String);
+
+impl SatelliteId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Derives the linked ground station ID deterministically from the satellite ID.
+    pub fn linked_ground_station(&self) -> StationId {
+        if let Some(num_str) = self.0.strip_prefix("SAT-") {
+            if let Ok(num) = num_str.parse::<usize>() {
+                let gs_num = ((num - 1) % 4) + 1;
+                return StationId(format!("GS-{:04}", gs_num));
+            }
+        }
+        StationId("GS-0001".to_string())
+    }
 }
 
-fn default_mission() -> String {
-    "unknown".to_string()
+impl std::ops::Deref for SatelliteId {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
-/// Canonical satellite telemetry record shared across all Orbitlogs services.
+impl std::fmt::Display for SatelliteId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
-/// This struct represents a single telemetry snapshot from a satellite subsystem, containing
-/// subsystem-specific electrical power, attitude, or operational parameters.
+impl From<String> for SatelliteId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
 
-/// # Validation
-/// The `validate()` method enforces physical bounds checking on all present fields to reject
-/// payloads that fall outside plausible satellite operational ranges.
+impl From<&str> for SatelliteId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl Default for SatelliteId {
+    fn default() -> Self {
+        Self(String::new())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct StationId(pub String);
+
+impl StationId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for StationId {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for StationId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<String> for StationId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for StationId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl Default for StationId {
+    fn default() -> Self {
+        Self(String::new())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct MissionId(pub String);
+
+impl MissionId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for MissionId {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for MissionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<String> for MissionId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for MissionId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl Default for MissionId {
+    fn default() -> Self {
+        Self("unknown".to_string())
+    }
+}
+
+// =========================================================================
+// 2. Domain Enums
+// =========================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Subsystem {
+    Power,
+    Thermal,
+    Communications,
+    Propulsion,
+    Adcs,
+    Payload,
+    FlightComputer,
+    Unified,
+}
+
+impl Default for Subsystem {
+    fn default() -> Self {
+        Subsystem::Unified
+    }
+}
+
+impl std::fmt::Display for Subsystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Subsystem::Power => "power",
+            Subsystem::Thermal => "thermal",
+            Subsystem::Communications => "communications",
+            Subsystem::Propulsion => "propulsion",
+            Subsystem::Adcs => "adcs",
+            Subsystem::Payload => "payload",
+            Subsystem::FlightComputer => "flight_computer",
+            Subsystem::Unified => "unified",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for Subsystem {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "power" => Ok(Subsystem::Power),
+            "thermal" => Ok(Subsystem::Thermal),
+            "communications" | "comms" => Ok(Subsystem::Communications),
+            "propulsion" => Ok(Subsystem::Propulsion),
+            "adcs" => Ok(Subsystem::Adcs),
+            "payload" => Ok(Subsystem::Payload),
+            "flight_computer" | "flightcomputer" | "flight computer" => Ok(Subsystem::FlightComputer),
+            "unified" => Ok(Subsystem::Unified),
+            _ => Err(format!("Unknown subsystem: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum StationStatus {
+    Online,
+    Degraded,
+    Outage,
+    Maintenance,
+}
+
+impl std::fmt::Display for StationStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            StationStatus::Online => "ONLINE",
+            StationStatus::Degraded => "DEGRADED",
+            StationStatus::Outage => "OUTAGE",
+            StationStatus::Maintenance => "MAINTENANCE",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for StationStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "ONLINE" => Ok(StationStatus::Online),
+            "DEGRADED" => Ok(StationStatus::Degraded),
+            "OUTAGE" => Ok(StationStatus::Outage),
+            "MAINTENANCE" => Ok(StationStatus::Maintenance),
+            _ => Err(format!("Unknown station status: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum WeatherState {
+    Clear,
+    SevereStorm,
+    HeavySnow,
+}
+
+impl std::fmt::Display for WeatherState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            WeatherState::Clear => "Clear",
+            WeatherState::SevereStorm => "SevereStorm",
+            WeatherState::HeavySnow => "HeavySnow",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for WeatherState {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Clear" => Ok(WeatherState::Clear),
+            "SevereStorm" => Ok(WeatherState::SevereStorm),
+            "HeavySnow" => Ok(WeatherState::HeavySnow),
+            _ => Err(format!("Unknown weather state: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CommandStatus {
+    Created,
+    Approved,
+    Queued,
+    Transmitted,
+    Executed,
+    Failed,
+}
+
+impl std::fmt::Display for CommandStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            CommandStatus::Created => "CREATED",
+            CommandStatus::Approved => "APPROVED",
+            CommandStatus::Queued => "QUEUED",
+            CommandStatus::Transmitted => "TRANSMITTED",
+            CommandStatus::Executed => "EXECUTED",
+            CommandStatus::Failed => "FAILED",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for CommandStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "CREATED" => Ok(CommandStatus::Created),
+            "APPROVED" => Ok(CommandStatus::Approved),
+            "QUEUED" => Ok(CommandStatus::Queued),
+            "TRANSMITTED" => Ok(CommandStatus::Transmitted),
+            "EXECUTED" => Ok(CommandStatus::Executed),
+            "FAILED" => Ok(CommandStatus::Failed),
+            _ => Err(format!("Unknown command status: {}", s)),
+        }
+    }
+}
+
+// Macro to implement sqlx Decode/Encode/Type for string-like enums
+macro_rules! impl_sqlx_string_enum {
+    ($t:ty) => {
+        impl<'r> ::sqlx::Decode<'r, ::sqlx::Postgres> for $t {
+            fn decode(value: ::sqlx::postgres::PgValueRef<'r>) -> Result<Self, ::sqlx::error::BoxDynError> {
+                let s = <String as ::sqlx::Decode<::sqlx::Postgres>>::decode(value)?;
+                s.parse::<Self>().map_err(|e| e.into())
+            }
+        }
+        impl<'q> ::sqlx::Encode<'q, ::sqlx::Postgres> for $t {
+            fn encode_by_ref(&self, buf: &mut ::sqlx::postgres::PgArgumentBuffer) -> ::sqlx::encode::IsNull {
+                let s = self.to_string();
+                <String as ::sqlx::Encode<::sqlx::Postgres>>::encode(s, buf)
+            }
+        }
+        impl ::sqlx::Type<::sqlx::Postgres> for $t {
+            fn type_info() -> ::sqlx::postgres::PgTypeInfo {
+                <String as ::sqlx::Type<::sqlx::Postgres>>::type_info()
+            }
+        }
+    };
+}
+
+impl_sqlx_string_enum!(Subsystem);
+impl_sqlx_string_enum!(StationStatus);
+impl_sqlx_string_enum!(WeatherState);
+impl_sqlx_string_enum!(CommandStatus);
+
+// =========================================================================
+// 3. Domain Model Structs
+// =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TelemetryRecord {
-    pub satellite_id: String,
+    pub satellite_id: SatelliteId,
 
-    #[serde(default = "default_subsystem")]
-    pub subsystem_id: String,
+    #[serde(default)]
+    pub subsystem_id: Subsystem,
 
-    #[serde(default = "default_mission")]
-    pub mission_id: String,
+    #[serde(default)]
+    pub mission_id: MissionId,
 
     pub timestamp: DateTime<Utc>,
 
@@ -90,10 +415,11 @@ impl TelemetryRecord {
     pub fn validate(&self) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
 
-        if self.satellite_id.trim().is_empty() {
+        if self.satellite_id.as_str().trim().is_empty() {
             errors.push("satellite_id cannot be empty".to_string());
         } else if !self
             .satellite_id
+            .as_str()
             .chars()
             .all(|c| c.is_alphanumeric() || c == '-')
         {
@@ -187,11 +513,11 @@ impl TelemetryRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroundStationHealth {
     pub timestamp: DateTime<Utc>,
-    pub station_id: String,
+    pub station_id: StationId,
     pub station_name: String,
-    pub status: String,
+    pub status: StationStatus,
     pub antenna_health: f32,
-    pub weather_state: String,
+    pub weather_state: WeatherState,
     pub congestion: f32,
     pub latency: f32,
     pub bandwidth: f32,
@@ -334,7 +660,7 @@ pub enum ConjunctionRiskTier {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConjunctionEvent {
     pub conjunction_id: Uuid,
-    pub primary_satellite_id: String,
+    pub primary_satellite_id: SatelliteId,
     pub secondary_object_id: String,
     pub secondary_object_type: SecondaryObjectType,
     pub tca: DateTime<Utc>,
@@ -361,7 +687,7 @@ pub struct MissionImpactSummary {
 pub struct AvoidanceManeuverRecommendation {
     pub recommendation_id: Uuid,
     pub conjunction_id: Uuid,
-    pub satellite_id: String,
+    pub satellite_id: SatelliteId,
     pub burn_execution_window_start: DateTime<Utc>,
     pub delta_v_vector: [f64; 3],
     pub post_burn_miss_distance_km: f64,
@@ -370,6 +696,65 @@ pub struct AvoidanceManeuverRecommendation {
     pub recommended_action: String,
     pub rationale: String,
     pub timestamp: DateTime<Utc>,
+}
+
+// =========================================================================
+// 4. Unified TLE Parsing
+// =========================================================================
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct TleElements {
+    pub inclination: f64,
+    pub raan: f64,
+    pub eccentricity: f64,
+    pub arg_of_perigee: f64,
+    pub mean_anomaly: f64,
+    pub mean_motion: f64,
+}
+
+impl TleElements {
+    pub fn parse(line2: &str) -> Self {
+        let inclination = if line2.len() >= 16 {
+            line2[8..16].trim().parse::<f64>().unwrap_or(53.0)
+        } else {
+            53.0
+        };
+        let raan = if line2.len() >= 25 {
+            line2[17..25].trim().parse::<f64>().unwrap_or(0.0)
+        } else {
+            0.0
+        };
+        let ecc = if line2.len() >= 33 {
+            let ecc_str = line2[26..33].trim();
+            format!("0.{}", ecc_str).parse::<f64>().unwrap_or(0.0001)
+        } else {
+            0.0001
+        };
+        let arg_of_perigee = if line2.len() >= 42 {
+            line2[34..42].trim().parse::<f64>().unwrap_or(0.0)
+        } else {
+            0.0
+        };
+        let mean_anomaly = if line2.len() >= 51 {
+            line2[43..51].trim().parse::<f64>().unwrap_or(0.0)
+        } else {
+            0.0
+        };
+        let mean_motion = if line2.len() >= 63 {
+            line2[52..63].trim().parse::<f64>().unwrap_or(15.0)
+        } else {
+            15.0
+        };
+
+        Self {
+            inclination,
+            raan,
+            eccentricity: ecc,
+            arg_of_perigee,
+            mean_anomaly,
+            mean_motion,
+        }
+    }
 }
 
 pub mod auth;
@@ -383,9 +768,9 @@ mod tests {
 
     fn mock_valid_record() -> TelemetryRecord {
         TelemetryRecord {
-            satellite_id: "SAT-0001".to_string(),
-            subsystem_id: "unified".to_string(),
-            mission_id: "unknown".to_string(),
+            satellite_id: SatelliteId::new("SAT-0001"),
+            subsystem_id: Subsystem::Unified,
+            mission_id: MissionId::new("unknown"),
             timestamp: Utc::now(),
             battery_voltage: Some(13.8),
             battery_current: Some(2.1),
@@ -417,10 +802,10 @@ mod tests {
     #[test]
     fn test_invalid_satellite_id() {
         let mut rec = mock_valid_record();
-        rec.satellite_id = "".to_string();
+        rec.satellite_id = SatelliteId::new("");
         assert!(rec.validate().is_err());
 
-        rec.satellite_id = "SAT#01".to_string();
+        rec.satellite_id = SatelliteId::new("SAT#01");
         assert!(rec.validate().is_err());
     }
 
@@ -497,8 +882,8 @@ mod tests {
         }"#;
 
         let deserialized: TelemetryRecord = serde_json::from_str(json_minimal).unwrap();
-        assert_eq!(deserialized.subsystem_id, "unified");
-        assert_eq!(deserialized.mission_id, "unknown");
+        assert_eq!(deserialized.subsystem_id, Subsystem::Unified);
+        assert_eq!(deserialized.mission_id, MissionId::new("unknown"));
         assert!(deserialized.battery_voltage.is_none());
     }
 

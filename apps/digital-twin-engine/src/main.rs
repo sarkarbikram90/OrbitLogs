@@ -351,7 +351,7 @@ async fn run_telemetry_consumer(
                         if let Some(Ok(payload)) = msg.payload_view::<str>() {
                             if let Ok(mut rec) = serde_json::from_str::<TelemetryRecord>(payload) {
                                 // Apply active simulated failures
-                                if let Some(failures) = state.simulated_failures.get(&rec.satellite_id) {
+                                if let Some(failures) = state.simulated_failures.get(rec.satellite_id.as_str()) {
                                     for sub in failures.value() {
                                         match sub.as_str() {
                                             "power" => {
@@ -377,7 +377,7 @@ async fn run_telemetry_consumer(
                                 }
 
                                 // Store twin state
-                                state.twins.insert(rec.satellite_id.clone(), rec);
+                                state.twins.insert(rec.satellite_id.to_string(), rec);
                             }
                         }
                         let _ = consumer.commit_message(&msg, CommitMode::Async);
@@ -685,9 +685,9 @@ mod tests {
 
     fn mock_nominal_telemetry() -> TelemetryRecord {
         TelemetryRecord {
-            satellite_id: "STARLINK-9999".to_string(),
-            subsystem_id: "AOCS".to_string(),
-            mission_id: "STARLINK-V2".to_string(),
+            satellite_id: orbitlogs_models::SatelliteId::new("STARLINK-9999"),
+            subsystem_id: orbitlogs_models::Subsystem::Adcs,
+            mission_id: orbitlogs_models::MissionId::new("STARLINK-V2"),
             timestamp: chrono::Utc::now(),
             battery_voltage: Some(13.8),
             battery_current: Some(1.2),

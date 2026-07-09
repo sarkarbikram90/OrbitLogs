@@ -550,7 +550,7 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
             });
             if let Ok(payload) = serde_json::to_string(&verify_payload) {
                 let record = FutureRecord::to("command.verification.events")
-                    .key(&rec.satellite_id)
+                    .key(rec.satellite_id.as_str())
                     .payload(&payload);
                 let _ = state
                     .kafka_producer
@@ -574,7 +574,7 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
             });
             if let Ok(payload) = serde_json::to_string(&timeline_payload) {
                 let record = FutureRecord::to(&state.timeline_topic)
-                    .key(&rec.satellite_id)
+                    .key(rec.satellite_id.as_str())
                     .payload(&payload);
                 let _ = state
                     .kafka_producer

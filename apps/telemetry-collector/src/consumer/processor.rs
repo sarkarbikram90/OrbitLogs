@@ -71,7 +71,7 @@ pub struct TelemetryConsumer {
     config: ConsumerConfig,
     db_pool: PgPool,
     kafka_producer: KafkaProducer,
-    cache: std::sync::Mutex<lru::LruCache<String, TelemetryRecord>>,
+    cache: std::sync::Mutex<lru::LruCache<orbitlogs_models::SatelliteId, TelemetryRecord>>,
     anomaly_cooldowns: DashMap<(String, String), Instant>,
 }
 
@@ -277,7 +277,7 @@ impl TelemetryConsumer {
                     // Create an empty/base template record
                     TelemetryRecord {
                         satellite_id: sat_id.clone(),
-                        subsystem_id: "unified".to_string(),
+                        subsystem_id: orbitlogs_models::Subsystem::Unified,
                         mission_id: incoming.mission_id.clone(),
                         timestamp: incoming.timestamp,
                         battery_voltage: Some(0.0),
@@ -304,7 +304,7 @@ impl TelemetryConsumer {
                     warn!("Failed to query DB for latest telemetry of {}: {}. Falling back to default template.", sat_id, e);
                     TelemetryRecord {
                         satellite_id: sat_id.clone(),
-                        subsystem_id: "unified".to_string(),
+                        subsystem_id: orbitlogs_models::Subsystem::Unified,
                         mission_id: incoming.mission_id.clone(),
                         timestamp: incoming.timestamp,
                         battery_voltage: Some(0.0),

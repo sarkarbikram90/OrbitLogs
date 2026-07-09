@@ -1,4 +1,4 @@
-#![allow(clippy::manual_clamp, clippy::bool_assert_comparison)]
+#[allow(clippy::manual_clamp, clippy::bool_assert_comparison)]
 
 use chrono::Utc;
 use rand::{Rng, SeedableRng};
@@ -15,7 +15,7 @@ pub use orbitlogs_models::TelemetryRecord;
 pub use orbitlogs_models::GroundStationHealth as GroundStationState;
 
 pub struct SatelliteSimulator {
-    pub id: String,
+    pub id: orbitlogs_models::SatelliteId,
     pub scenario: Scenario,
     pub ticks: u64,
 
@@ -31,11 +31,11 @@ pub struct SatelliteSimulator {
 }
 
 impl SatelliteSimulator {
-    pub fn new(id: String, scenario: Scenario, seed: Option<u64>) -> Self {
+    pub fn new(id: orbitlogs_models::SatelliteId, scenario: Scenario, seed: Option<u64>) -> Self {
         let base_seed = seed.unwrap_or_else(|| {
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
+                .expect("Time went backwards")
                 .as_nanos() as u64
         });
 
@@ -67,72 +67,52 @@ impl SatelliteSimulator {
     #[allow(dead_code)]
     pub fn next_record(&mut self) -> TelemetryRecord {
         // Legacy support wrapper: generates a unified record representing "all" subsystems
-        self.next_subsystem_record("all", "unknown", None)
+        self.next_subsystem_record(orbitlogs_models::Subsystem::Unified, orbitlogs_models::MissionId::new("unknown"), None)
     }
 
-    pub fn next_subsystem_record(
-        &mut self,
-        subsystem: &str,
-        mission_id: &str,
-        gs_state: Option<&GroundStationState>,
-    ) -> TelemetryRecord {
-        self.ticks += 1;
+    // Modular Subsystem Generators to avoid massive monolith function
 
-        // Base fluctuations
-        let orbital_phase = (self.ticks as f64 * 0.05).sin(); // Simulated day/night cycle
-        let volt_noise = self.rng.gen_range(-0.1..0.1);
-        let temp_noise = self.rng.gen_range(-0.5..0.5);
-        let alt_noise = self.rng.gen_range(-0.2..0.2);
-
-        // Core Subsystem State Logic
-
-        // 1. Power Subsystem Base Variables
+    fn update_power_and_thermal(&mut self, orbital_phase: f64, volt_noise: f64, temp_noise: f64) -> (f64, f64) {
         let mut solar_panel = if orbital_phase > 0.0 {
             120.0 * orbital_phase + self.rng.gen_range(-5.0..5.0)
         } else {
-            0.0 // In Shadow
+            0.0
         };
 
-        // Side effect: Solar Panel Degradation due to high temperature (>100°C)
         if self.temperature > 100.0 {
             solar_panel *= 0.5;
         }
 
         let mut bat_current = if solar_panel > 10.0 {
-            // Charging battery
             (solar_panel / 12.0) - 3.0 + self.rng.gen_range(-0.5..0.5)
         } else {
-            // Discharging battery (system load)
             -2.5 + self.rng.gen_range(-0.2..0.2)
         };
 
-        // 2. Thermal Subsystem Base updates
         match self.scenario {
             Scenario::Normal => {
                 self.temperature = 25.0 + 5.0 * orbital_phase + temp_noise;
                 self.battery_voltage = 13.6 + 0.6 * orbital_phase + volt_noise;
-                self.fuel_remaining -= 0.0001; // Normal micro-usage
+                self.fuel_remaining -= 0.0001;
 
                 if self.battery_voltage < 11.5 {
                     self.battery_voltage = 11.5;
                 }
             }
             Scenario::ThermalSpike => {
-                // Rapid continuous heat spike
                 self.temperature += 2.5 + self.rng.gen_range(0.0..1.5);
                 if self.temperature > 130.0 {
-                    self.temperature = 130.0 + temp_noise; // Max thermal threshold
+                    self.temperature = 130.0 + temp_noise;
                 }
                 self.battery_voltage = 13.0 + 0.4 * orbital_phase + volt_noise;
                 self.fuel_remaining -= 0.0001;
             }
             Scenario::BatteryDegradation => {
-                // Rapid loss of voltage and charging failure
                 self.battery_voltage -= 0.15 + self.rng.gen_range(0.0..0.05);
                 if self.battery_voltage < 8.0 {
                     self.battery_voltage = 8.0;
                 }
-                bat_current = -5.0 + self.rng.gen_range(-1.0..1.0); // Severe discharge
+                bat_current = -5.0 + self.rng.gen_range(-1.0..1.0);
                 solar_panel *= 0.5;
                 self.temperature = 25.0 + 3.0 * orbital_phase + temp_noise;
                 self.fuel_remaining -= 0.0001;
@@ -143,7 +123,6 @@ impl SatelliteSimulator {
                 self.fuel_remaining -= 0.0001;
             }
             Scenario::FuelLeakage => {
-                // Severe drop in fuel
                 self.fuel_remaining -= 1.2 + self.rng.gen_range(0.0..0.5);
                 if self.fuel_remaining < 0.0 {
                     self.fuel_remaining = 0.0;
@@ -153,32 +132,35 @@ impl SatelliteSimulator {
             }
         }
 
-        // 3. Propulsion Subsystem updates
-        // Side effect: Orbit decay if fuel is completely empty
+        (solar_panel, bat_current)
+    }
+
+    fn update_propulsion(&mut self, alt_noise: f64) {
         if self.fuel_remaining <= 0.0 {
             self.altitude -= 0.5 + self.rng.gen_range(0.0..0.1);
             if self.altitude < 100.0 {
-                self.altitude = 100.0; // Re-entry bound
+                self.altitude = 100.0;
             }
             self.velocity = 7.0 - (self.altitude - 100.0) * 0.005 + self.rng.gen_range(-0.01..0.01);
         } else {
             self.altitude += alt_noise;
             self.velocity = 7.67 - (self.altitude - 520.0) * 0.01 + self.rng.gen_range(-0.01..0.01);
         }
+    }
 
-        // 4. ADCS Subsystem (Pitch, Roll, Yaw) - degrees
+    fn update_adcs(&mut self) -> (f32, f32, f32) {
         let mut pitch = (self.ticks as f32 * 0.02).cos() * 5.0 + self.rng.gen_range(-0.5..0.5);
         let mut roll = (self.ticks as f32 * 0.03).sin() * 3.0 + self.rng.gen_range(-0.3..0.3);
         let mut yaw = (self.ticks as f32 * 0.01 + 1.2).sin() * 4.0 + self.rng.gen_range(-0.4..0.4);
 
-        if self.id == "SAT-0001" {
+        if self.id.as_str() == "SAT-0001" {
             let ts = chrono::Utc::now().timestamp() as f64;
             let phase = ts * 0.001;
             self.altitude = 421.5;
             self.velocity = 7.66;
             pitch = (phase.sin() * 51.64) as f32;
             roll = ((phase * 1.5).cos() * 180.0) as f32;
-        } else if self.id == "SAT-0002" {
+        } else if self.id.as_str() == "SAT-0002" {
             let tle_l1 = "1 25544U 98067A   26166.57790509  .00015525  00000-0  28286-3 0  9997";
             let tle_l2 = "2 25544  51.6416 195.1432 0005211  92.5188  64.2188 15.49896541571216";
             let (lat, lon, alt) = crate::adapters::OrbitAdapters::propagate_tle(
@@ -191,77 +173,64 @@ impl SatelliteSimulator {
             roll = lon as f32;
         }
 
-        // Side effect: Chaotic spinning from gas propulsion leakage
         if self.scenario == Scenario::FuelLeakage && self.fuel_remaining > 0.0 {
             pitch += self.rng.gen_range(-20.0..20.0);
             roll += self.rng.gen_range(-20.0..20.0);
             yaw += self.rng.gen_range(-20.0..20.0);
         }
 
-        // Side effect: ADCS drifting due to low battery voltage (<11.0V)
         if self.battery_voltage < 11.0 {
             pitch += self.rng.gen_range(-15.0..15.0);
             roll += self.rng.gen_range(-15.0..15.0);
             yaw += self.rng.gen_range(-15.0..15.0);
         }
 
-        // 5. Communications Subsystem
-        let mut latency = 45.0 + self.rng.gen_range(-5.0..5.0);
-        let mut loss = self.rng.gen_range(0.0..0.5);
-        let mut signal = -70.0 + self.rng.gen_range(-2.0..2.0);
+        (pitch, roll, yaw)
+    }
+
+    fn update_comms(&mut self, gs_state: Option<&GroundStationState>) -> (f32, f32, f32) {
+        let mut latency = 45.0f32 + self.rng.gen_range(-5.0f32..5.0f32);
+        let mut loss = self.rng.gen_range(0.0f32..0.5f32);
+        let mut signal = -70.0f32 + self.rng.gen_range(-2.0f32..2.0f32);
 
         if self.scenario == Scenario::CommunicationDegradation {
-            latency += (self.ticks as f32 * 50.0).min(3000.0);
-            loss = (0.5 + (self.ticks as f32 * 1.5)).min(100.0);
-            signal = (-70.0 - (self.ticks as f32 * 1.2)).max(-125.0);
+            latency += (self.ticks as f32 * 50.0f32).min(3000.0f32);
+            loss = (0.5f32 + (self.ticks as f32 * 1.5f32)).min(100.0f32);
+            signal = (-70.0f32 - (self.ticks as f32 * 1.2f32)).max(-125.0f32);
         }
 
-        // Side effect: Comms degraded due to extreme CPU usage (>85%) or extreme temperature (>90°C)
         let thermal_stress = self.temperature > 90.0;
         if thermal_stress || self.battery_voltage < 10.5 {
-            latency += 500.0;
-            loss += 10.0;
-            if loss > 100.0 {
-                loss = 100.0;
-            }
-            signal -= 15.0;
-            if signal < -130.0 {
-                signal = -130.0;
-            }
+            latency += 500.0f32;
+            loss += 10.0f32;
+            signal -= 15.0f32;
         }
 
-        // Ground station modulation
         if let Some(gs) = gs_state {
-            if gs.status == "OUTAGE" {
-                latency = 3000.0;
-                loss = 100.0;
-                signal = -125.0;
-            } else if gs.status == "DEGRADED" {
-                if gs.weather_state == "SevereStorm" || gs.weather_state == "HeavySnow" {
-                    loss += 15.0;
-                    signal -= 20.0;
-                    latency += 150.0;
+            if gs.status == orbitlogs_models::StationStatus::Outage {
+                latency = 3000.0f32;
+                loss = 100.0f32;
+                signal = -125.0f32;
+            } else if gs.status == orbitlogs_models::StationStatus::Degraded {
+                if gs.weather_state == orbitlogs_models::WeatherState::SevereStorm || gs.weather_state == orbitlogs_models::WeatherState::HeavySnow {
+                    loss += 15.0f32;
+                    signal -= 20.0f32;
+                    latency += 150.0f32;
                 } else {
-                    loss += 10.0;
-                    signal -= 10.0;
-                    latency += 100.0;
+                    loss += 10.0f32;
+                    signal -= 10.0f32;
+                    latency += 100.0f32;
                 }
             }
         }
 
-        // Ensure values are physically clamped/within bounds
-        if loss > 100.0 {
-            loss = 100.0;
-        }
-        if loss < 0.0 {
-            loss = 0.0;
-        }
-        if signal < -130.0 {
-            signal = -130.0;
-        }
+        loss = loss.clamp(0.0f32, 100.0f32);
+        signal = signal.max(-130.0f32);
 
-        // 6. Flight Computer Subsystem (Resource usage)
-        // Side effect: CPU throttling/high-load during ThermalSpike Scenario (temperature >80.0°C)
+        (latency, loss, signal)
+    }
+
+    fn update_flight_computer(&mut self, orbital_phase: f64) -> (f32, f32) {
         let is_throttled = self.temperature > 80.0;
         let cpu = if is_throttled {
             92.0f32 + self.rng.gen_range(-2.0f32..2.0f32)
@@ -279,8 +248,10 @@ impl SatelliteSimulator {
         }
         .clamp(1.0f32, 100.0f32);
 
-        // 7. Payload Subsystem
-        // Side effect: Payload shuts down automatically on critical battery (<11.5V)
+        (cpu, mem)
+    }
+
+    fn update_payload(&mut self) -> (bool, f64) {
         let payload_active = self.battery_voltage > 11.5;
         let payload_power_draw: f64 = if payload_active {
             15.0 + self.rng.gen_range(-1.0..1.0)
@@ -288,11 +259,35 @@ impl SatelliteSimulator {
             0.0
         };
 
+        (payload_active, payload_power_draw)
+    }
+
+    pub fn next_subsystem_record(
+        &mut self,
+        subsystem: orbitlogs_models::Subsystem,
+        mission_id: orbitlogs_models::MissionId,
+        gs_state: Option<&GroundStationState>,
+    ) -> TelemetryRecord {
+        self.ticks += 1;
+
+        let orbital_phase = (self.ticks as f64 * 0.05).sin();
+        let volt_noise = self.rng.gen_range(-0.1..0.1);
+        let temp_noise = self.rng.gen_range(-0.5..0.5);
+        let alt_noise = self.rng.gen_range(-0.2..0.2);
+
+        // Core updates
+        let (solar_panel, bat_current) = self.update_power_and_thermal(orbital_phase, volt_noise, temp_noise);
+        self.update_propulsion(alt_noise);
+        let (pitch, roll, yaw) = self.update_adcs();
+        let (latency, loss, signal) = self.update_comms(gs_state);
+        let (cpu, mem) = self.update_flight_computer(orbital_phase);
+        let (payload_active, payload_power_draw) = self.update_payload();
+
         // Construct Telemetry Record with fields matching the requested subsystem
         let mut record = TelemetryRecord {
             satellite_id: self.id.clone(),
-            subsystem_id: subsystem.to_string(),
-            mission_id: mission_id.to_string(),
+            subsystem_id: subsystem,
+            mission_id,
             timestamp: Utc::now(),
             battery_voltage: None,
             battery_current: None,
@@ -314,35 +309,35 @@ impl SatelliteSimulator {
             event_id: Uuid::new_v4(),
         };
 
-        match subsystem.to_lowercase().as_str() {
-            "power" => {
+        match subsystem {
+            orbitlogs_models::Subsystem::Power => {
                 record.battery_voltage = Some((self.battery_voltage * 100.0).round() / 100.0);
                 record.battery_current = Some((bat_current * 100.0).round() / 100.0);
                 record.solar_panel_output = Some((solar_panel * 100.0).round() / 100.0);
             }
-            "thermal" => {
+            orbitlogs_models::Subsystem::Thermal => {
                 record.temperature = Some((self.temperature * 100.0).round() / 100.0);
             }
-            "communications" => {
+            orbitlogs_models::Subsystem::Communications => {
                 record.communication_latency = Some((latency * 10.0).round() / 10.0);
                 record.packet_loss = Some((loss * 10.0).round() / 10.0);
                 record.signal_strength = Some((signal * 10.0).round() / 10.0);
             }
-            "propulsion" => {
+            orbitlogs_models::Subsystem::Propulsion => {
                 record.velocity = Some((self.velocity * 10000.0).round() / 10000.0);
                 record.altitude = Some((self.altitude * 100.0).round() / 100.0);
                 record.fuel_remaining = Some((self.fuel_remaining * 10.0).round() / 10.0);
             }
-            "adcs" => {
+            orbitlogs_models::Subsystem::Adcs => {
                 record.orientation_pitch = Some((pitch * 100.0).round() / 100.0);
                 record.orientation_roll = Some((roll * 100.0).round() / 100.0);
                 record.orientation_yaw = Some((yaw * 100.0).round() / 100.0);
             }
-            "flight_computer" | "flightcomputer" | "flight computer" => {
+            orbitlogs_models::Subsystem::FlightComputer => {
                 record.cpu_usage = Some((cpu * 10.0).round() / 10.0);
                 record.memory_usage = Some((mem * 10.0).round() / 10.0);
             }
-            "payload" => {
+            orbitlogs_models::Subsystem::Payload => {
                 record.payload_power_draw = Some((payload_power_draw * 100.0).round() / 100.0);
                 record.payload_active = Some(payload_active);
             }
@@ -378,16 +373,16 @@ mod tests {
 
     #[test]
     fn test_simulator_creation() {
-        let sim = SatelliteSimulator::new("SAT-9999".to_string(), Scenario::Normal, Some(12345));
-        assert_eq!(sim.id, "SAT-9999");
+        let sim = SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-9999"), Scenario::Normal, Some(12345));
+        assert_eq!(sim.id.as_str(), "SAT-9999");
         assert_eq!(sim.scenario, Scenario::Normal);
         assert_eq!(sim.ticks, 0);
     }
 
     #[test]
     fn test_deterministic_generation() {
-        let mut sim1 = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
-        let mut sim2 = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
+        let mut sim1 = SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-0001"), Scenario::Normal, Some(42));
+        let mut sim2 = SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-0001"), Scenario::Normal, Some(42));
 
         let rec1 = sim1.next_record();
         let rec2 = sim2.next_record();
@@ -400,12 +395,12 @@ mod tests {
     #[test]
     fn test_thermal_spike_scenario() {
         let mut sim =
-            SatelliteSimulator::new("SAT-0002".to_string(), Scenario::ThermalSpike, Some(101));
-        let base_rec = sim.next_subsystem_record("Thermal", "test-mission", None);
+            SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-0002"), Scenario::ThermalSpike, Some(101));
+        let base_rec = sim.next_subsystem_record(orbitlogs_models::Subsystem::Thermal, orbitlogs_models::MissionId::new("test-mission"), None);
 
         let mut prev_temp = base_rec.temperature.unwrap();
         for _ in 0..5 {
-            let rec = sim.next_subsystem_record("Thermal", "test-mission", None);
+            let rec = sim.next_subsystem_record(orbitlogs_models::Subsystem::Thermal, orbitlogs_models::MissionId::new("test-mission"), None);
             let temp = rec.temperature.unwrap();
             assert!(temp > prev_temp || temp >= 129.0);
             prev_temp = temp;
@@ -415,23 +410,23 @@ mod tests {
     #[test]
     fn test_fuel_leakage_scenario() {
         let mut sim =
-            SatelliteSimulator::new("SAT-0003".to_string(), Scenario::FuelLeakage, Some(202));
-        let rec = sim.next_subsystem_record("Propulsion", "test-mission", None);
+            SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-0003"), Scenario::FuelLeakage, Some(202));
+        let rec = sim.next_subsystem_record(orbitlogs_models::Subsystem::Propulsion, orbitlogs_models::MissionId::new("test-mission"), None);
         assert!(rec.fuel_remaining.unwrap() < 95.0);
     }
 
     #[test]
     fn test_thermal_side_effects() {
         let mut sim =
-            SatelliteSimulator::new("SAT-0004".to_string(), Scenario::ThermalSpike, Some(303));
+            SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-0004"), Scenario::ThermalSpike, Some(303));
 
         // Advance ticks to trigger high temperature
         for _ in 0..30 {
-            let _ = sim.next_subsystem_record("Thermal", "test-mission", None);
+            let _ = sim.next_subsystem_record(orbitlogs_models::Subsystem::Thermal, orbitlogs_models::MissionId::new("test-mission"), None);
         }
 
         // Verify side effect: CPU Throttling
-        let rec_cpu = sim.next_subsystem_record("Flight Computer", "test-mission", None);
+        let rec_cpu = sim.next_subsystem_record(orbitlogs_models::Subsystem::FlightComputer, orbitlogs_models::MissionId::new("test-mission"), None);
         assert!(
             rec_cpu.cpu_usage.unwrap() > 90.0,
             "CPU should be throttled (>90%) due to thermal spike"
@@ -441,18 +436,18 @@ mod tests {
     #[test]
     fn test_battery_depletion_side_effects() {
         let mut sim = SatelliteSimulator::new(
-            "SAT-0005".to_string(),
+            orbitlogs_models::SatelliteId::new("SAT-0005"),
             Scenario::BatteryDegradation,
             Some(404),
         );
 
         // Advance ticks to drain battery
         for _ in 0..20 {
-            let _ = sim.next_subsystem_record("Power", "test-mission", None);
+            let _ = sim.next_subsystem_record(orbitlogs_models::Subsystem::Power, orbitlogs_models::MissionId::new("test-mission"), None);
         }
 
         // Verify side effect: Payload shutdown
-        let rec_payload = sim.next_subsystem_record("Payload", "test-mission", None);
+        let rec_payload = sim.next_subsystem_record(orbitlogs_models::Subsystem::Payload, orbitlogs_models::MissionId::new("test-mission"), None);
         assert_eq!(
             rec_payload.payload_active.unwrap(),
             false,
@@ -467,14 +462,14 @@ mod tests {
 
     #[test]
     fn test_ground_station_outage_modulation() {
-        let mut sim = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
+        let mut sim = SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-0001"), Scenario::Normal, Some(42));
         let gs = GroundStationState {
             timestamp: Utc::now(),
-            station_id: "GS-0001".to_string(),
+            station_id: orbitlogs_models::StationId::new("GS-0001"),
             station_name: "Svalbard".to_string(),
-            status: "OUTAGE".to_string(),
+            status: orbitlogs_models::StationStatus::Outage,
             antenna_health: 100.0,
-            weather_state: "Clear".to_string(),
+            weather_state: orbitlogs_models::WeatherState::Clear,
             congestion: 0.0,
             latency: 42.0,
             bandwidth: 1000.0,
@@ -485,7 +480,7 @@ mod tests {
             maintenance: None,
         };
 
-        let rec = sim.next_subsystem_record("Communications", "test-mission", Some(&gs));
+        let rec = sim.next_subsystem_record(orbitlogs_models::Subsystem::Communications, orbitlogs_models::MissionId::new("test-mission"), Some(&gs));
         assert_eq!(rec.packet_loss.unwrap(), 100.0);
         assert_eq!(rec.communication_latency.unwrap(), 3000.0);
         assert_eq!(rec.signal_strength.unwrap(), -125.0);
@@ -493,9 +488,9 @@ mod tests {
 
     #[test]
     fn test_ground_station_degraded_weather_modulation() {
-        let mut sim = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
+        let mut sim = SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-0001"), Scenario::Normal, Some(42));
         // Get normal record first to establish baseline
-        let normal_rec = sim.next_subsystem_record("Communications", "test-mission", None);
+        let normal_rec = sim.next_subsystem_record(orbitlogs_models::Subsystem::Communications, orbitlogs_models::MissionId::new("test-mission"), None);
         let normal_loss = normal_rec.packet_loss.unwrap();
         let normal_signal = normal_rec.signal_strength.unwrap();
         let normal_latency = normal_rec.communication_latency.unwrap();
@@ -503,11 +498,11 @@ mod tests {
         // Now with Degraded Weather
         let gs = GroundStationState {
             timestamp: Utc::now(),
-            station_id: "GS-0001".to_string(),
+            station_id: orbitlogs_models::StationId::new("GS-0001"),
             station_name: "Svalbard".to_string(),
-            status: "DEGRADED".to_string(),
+            status: orbitlogs_models::StationStatus::Degraded,
             antenna_health: 100.0,
-            weather_state: "SevereStorm".to_string(),
+            weather_state: orbitlogs_models::WeatherState::SevereStorm,
             congestion: 0.0,
             latency: 42.0,
             bandwidth: 1000.0,
@@ -519,8 +514,8 @@ mod tests {
         };
 
         // Reset sim/ticks to keep random values aligned
-        let mut sim2 = SatelliteSimulator::new("SAT-0001".to_string(), Scenario::Normal, Some(42));
-        let rec = sim2.next_subsystem_record("Communications", "test-mission", Some(&gs));
+        let mut sim2 = SatelliteSimulator::new(orbitlogs_models::SatelliteId::new("SAT-0001"), Scenario::Normal, Some(42));
+        let rec = sim2.next_subsystem_record(orbitlogs_models::Subsystem::Communications, orbitlogs_models::MissionId::new("test-mission"), Some(&gs));
 
         assert_eq!(rec.packet_loss.unwrap(), (normal_loss + 15.0).min(100.0));
         assert_eq!(

@@ -5,8 +5,7 @@ use dashmap::DashMap;
 use orbitlogs_models::db::establish_db_connection;
 use orbitlogs_models::kafka::KafkaConfigBuilder;
 use prometheus::{Encoder, TextEncoder};
-use rdkafka::client::ClientContext;
-use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, StreamConsumer};
+use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use sqlx::PgPool;
@@ -23,33 +22,7 @@ mod metrics;
 use health::{assess_satellite_health, GroundStationState};
 use orbitlogs_models::TelemetryRecord;
 
-struct MetricsContext;
-
-impl ClientContext for MetricsContext {
-    fn stats_raw(&self, statistics: &[u8]) {
-        if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
-            if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
-                for (topic_name, topic_val) in topics {
-                    if let Some(partitions) =
-                        topic_val.get("partitions").and_then(|p| p.as_object())
-                    {
-                        for (partition_id, partition_val) in partitions {
-                            if let Some(lag) =
-                                partition_val.get("consumer_lag").and_then(|l| l.as_i64())
-                            {
-                                metrics::KAFKA_CONSUMER_LAG
-                                    .with_label_values(&[topic_name, partition_id])
-                                    .set(lag as f64);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl ConsumerContext for MetricsContext {}
+use orbitlogs_models::kafka::MetricsContext;
 
 #[derive(Parser, Debug, Clone)]
 #[command(name = "OrbitLogs - Mission Health Engine")]
@@ -265,7 +238,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                         "Engine received ground station update: {} -> {}",
                                         gs.station_id, gs.status
                                     );
-                                    gs_states_clone.gs_states.insert(gs.station_id.clone(), gs);
+                                    gs_states_clone.gs_states.insert(gs.station_id.to_string(), gs);
                                 }
                                 Err(e) => {
                                     error!(
@@ -405,36 +378,36 @@ async fn process_telemetry_health(
 
     // 4. Update Prometheus metrics
     metrics::SATELLITE_HEALTH_SCORE
-        .with_label_values(&[&assessment.satellite_id])
+        .with_label_values(&[assessment.satellite_id.as_str()])
         .set(assessment.overall_score as f64);
 
     metrics::SUBSYSTEM_HEALTH_SCORE
-        .with_label_values(&[&assessment.satellite_id, "power"])
+        .with_label_values(&[assessment.satellite_id.as_str(), "power"])
         .set(assessment.power.score as f64);
     metrics::SUBSYSTEM_HEALTH_SCORE
-        .with_label_values(&[&assessment.satellite_id, "thermal"])
+        .with_label_values(&[assessment.satellite_id.as_str(), "thermal"])
         .set(assessment.thermal.score as f64);
     metrics::SUBSYSTEM_HEALTH_SCORE
-        .with_label_values(&[&assessment.satellite_id, "communications"])
+        .with_label_values(&[assessment.satellite_id.as_str(), "communications"])
         .set(assessment.communications.score as f64);
     metrics::SUBSYSTEM_HEALTH_SCORE
-        .with_label_values(&[&assessment.satellite_id, "propulsion"])
+        .with_label_values(&[assessment.satellite_id.as_str(), "propulsion"])
         .set(assessment.propulsion.score as f64);
     metrics::SUBSYSTEM_HEALTH_SCORE
-        .with_label_values(&[&assessment.satellite_id, "adcs"])
+        .with_label_values(&[assessment.satellite_id.as_str(), "adcs"])
         .set(assessment.adcs.score as f64);
     metrics::SUBSYSTEM_HEALTH_SCORE
-        .with_label_values(&[&assessment.satellite_id, "payload"])
+        .with_label_values(&[assessment.satellite_id.as_str(), "payload"])
         .set(assessment.payload.score as f64);
     metrics::SUBSYSTEM_HEALTH_SCORE
-        .with_label_values(&[&assessment.satellite_id, "flight_computer"])
+        .with_label_values(&[assessment.satellite_id.as_str(), "flight_computer"])
         .set(assessment.flight_computer.score as f64);
 
     // Update fleet health average score
     let avg_fleet = {
         state
             .satellite_scores
-            .insert(assessment.satellite_id.clone(), assessment.overall_score);
+            .insert(assessment.satellite_id.to_string(), assessment.overall_score);
         let total: i32 = state
             .satellite_scores
             .iter()

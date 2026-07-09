@@ -17,49 +17,11 @@ mod scenario;
 
 use config::Config;
 use generator::{GroundStationState, SatelliteSimulator};
-use rdkafka::client::ClientContext;
-use rdkafka::consumer::ConsumerContext;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use std::sync::LazyLock;
-
-struct MetricsContext;
-
-impl ClientContext for MetricsContext {
-    fn stats_raw(&self, statistics: &[u8]) {
-        if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
-            if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
-                for (topic_name, topic_val) in topics {
-                    if let Some(partitions) =
-                        topic_val.get("partitions").and_then(|p| p.as_object())
-                    {
-                        for (partition_id, partition_val) in partitions {
-                            if let Some(lag) =
-                                partition_val.get("consumer_lag").and_then(|l| l.as_i64())
-                            {
-                                KAFKA_CONSUMER_LAG
-                                    .with_label_values(&[topic_name, partition_id])
-                                    .set(lag as f64);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl ConsumerContext for MetricsContext {}
-
-fn get_linked_ground_station(satellite_id: &str) -> String {
-    if let Some(num_str) = satellite_id.strip_prefix("SAT-") {
-        if let Ok(num) = num_str.parse::<usize>() {
-            let gs_num = ((num - 1) % 4) + 1;
-            return format!("GS-{:04}", gs_num);
-        }
-    }
-    "GS-0001".to_string()
-}
+use orbitlogs_models::kafka::{MetricsContext, KAFKA_CONSUMER_LAG};
+use orbitlogs_models::SatelliteId;
 
 pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
 pub static TELEMETRY_GENERATED_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
@@ -83,17 +45,6 @@ pub static TELEMETRY_POST_FAILURE_TOTAL: LazyLock<IntCounter> = LazyLock::new(||
     )
     .unwrap()
 });
-pub static KAFKA_CONSUMER_LAG: LazyLock<prometheus::GaugeVec> = LazyLock::new(|| {
-    prometheus::GaugeVec::new(
-        prometheus::Opts::new(
-            "kafka_consumer_lag",
-            "Lag of the Kafka consumer group (offsets behind high watermark)",
-        ),
-        &["topic", "partition"],
-    )
-    .unwrap()
-});
-
 fn register_metrics() {
     REGISTRY
         .register(Box::new(TELEMETRY_GENERATED_TOTAL.clone()))
@@ -261,7 +212,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                 "Received ground station health update: {} -> {}",
                                 gs.station_id, gs.status
                             );
-                            gs_states_clone.insert(gs.station_id.clone(), gs);
+                            gs_states_clone.insert(gs.station_id.to_string(), gs);
                         }
                         Err(e) => {
                             error!(
@@ -309,7 +260,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let config = Arc::clone(&config);
 
         let simulator = Arc::new(Mutex::new(SatelliteSimulator::new(
-            satellite_id.clone(),
+            SatelliteId::new(satellite_id.clone()),
             sat_scenario,
             seed,
         )));
@@ -322,13 +273,13 @@ async fn main() -> Result<(), anyhow::Error> {
         };
 
         let subsystems = vec![
-            "Power",
-            "Thermal",
-            "Communications",
-            "Propulsion",
-            "ADCS",
-            "Payload",
-            "Flight Computer",
+            orbitlogs_models::Subsystem::Power,
+            orbitlogs_models::Subsystem::Thermal,
+            orbitlogs_models::Subsystem::Communications,
+            orbitlogs_models::Subsystem::Propulsion,
+            orbitlogs_models::Subsystem::Adcs,
+            orbitlogs_models::Subsystem::Payload,
+            orbitlogs_models::Subsystem::FlightComputer,
         ];
 
         for subsystem in subsystems {
@@ -336,27 +287,26 @@ async fn main() -> Result<(), anyhow::Error> {
             let client = Arc::clone(&client);
             let config = Arc::clone(&config);
             let satellite_id = satellite_id.clone();
-            let mission_id = mission_id.to_string();
-            let subsystem_name = subsystem.to_string();
+            let mission_id = orbitlogs_models::MissionId::new(mission_id.to_string());
             let gs_states_sub = Arc::clone(&gs_states);
 
             let handle = tokio::spawn(async move {
                 info!(
-                    "Started simulation loop for satellite {} subsystem {}",
-                    satellite_id, subsystem_name
+                    "Started simulation loop for satellite {} subsystem {:?}",
+                    satellite_id, subsystem
                 );
 
                 loop {
                     let linked_gs = {
-                        let gs_id = get_linked_ground_station(&satellite_id);
-                        gs_states_sub.get(&gs_id).map(|r| r.clone())
+                        let gs_id = orbitlogs_models::SatelliteId::new(&satellite_id).linked_ground_station();
+                        gs_states_sub.get(gs_id.as_str()).map(|r| r.clone())
                     };
 
                     let (telemetry, tick) = {
                         let mut sim = simulator.lock().await;
                         let rec = sim.next_subsystem_record(
-                            &subsystem_name,
-                            &mission_id,
+                            subsystem,
+                            mission_id.clone(),
                             linked_gs.as_ref(),
                         );
                         (rec, sim.ticks)
@@ -378,7 +328,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     let url = config.collector_url.clone();
                     let client_ref = Arc::clone(&client);
                     let sat_id = telemetry.satellite_id.clone();
-                    let sub_name = subsystem_name.clone();
+                    let sub_name = subsystem;
                     let api_key = config.api_key.clone().unwrap_or_default();
 
                     tokio::spawn(async move {
