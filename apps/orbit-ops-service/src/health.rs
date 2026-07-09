@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompositeHealthScore {
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub timestamp: DateTime<Utc>,
     pub composite_score: i32, // 0 to 100
     pub subsystems: SubsystemScores,
@@ -140,7 +140,7 @@ impl HealthScoringManager {
         self.scores.insert(
             sat_id.to_string(),
             CompositeHealthScore {
-                satellite_id: sat_id.to_string(),
+                satellite_id: orbitlogs_models::SatelliteId::new(sat_id),
                 timestamp: Utc::now(),
                 composite_score: composite,
                 subsystems: SubsystemScores {
@@ -162,9 +162,9 @@ impl HealthScoringManager {
 
 pub async fn get_health_score(
     State(state): State<Arc<crate::ServiceState>>,
-    Path(satellite): Path<String>,
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
 ) -> Result<Json<CompositeHealthScore>, StatusCode> {
-    if let Some(h) = state.health.scores.get(&satellite) {
+    if let Some(h) = state.health.scores.get(satellite.as_str()) {
         Ok(Json(h.clone()))
     } else {
         Ok(Json(CompositeHealthScore {

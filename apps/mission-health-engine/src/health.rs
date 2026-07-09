@@ -387,17 +387,102 @@ fn assess_flight_computer(record: &TelemetryRecord) -> SubsystemHealth {
     }
 }
 
+pub trait SubsystemAssessor: Send + Sync {
+    fn assess(
+        &self,
+        record: &TelemetryRecord,
+        gs_states: &std::collections::HashMap<String, GroundStationState>,
+    ) -> SubsystemHealth;
+}
+
+pub struct PowerAssessor;
+impl SubsystemAssessor for PowerAssessor {
+    fn assess(
+        &self,
+        record: &TelemetryRecord,
+        _gs_states: &std::collections::HashMap<String, GroundStationState>,
+    ) -> SubsystemHealth {
+        assess_power(record)
+    }
+}
+
+pub struct ThermalAssessor;
+impl SubsystemAssessor for ThermalAssessor {
+    fn assess(
+        &self,
+        record: &TelemetryRecord,
+        _gs_states: &std::collections::HashMap<String, GroundStationState>,
+    ) -> SubsystemHealth {
+        assess_thermal(record)
+    }
+}
+
+pub struct CommunicationsAssessor;
+impl SubsystemAssessor for CommunicationsAssessor {
+    fn assess(
+        &self,
+        record: &TelemetryRecord,
+        gs_states: &std::collections::HashMap<String, GroundStationState>,
+    ) -> SubsystemHealth {
+        assess_communications(record, gs_states)
+    }
+}
+
+pub struct PropulsionAssessor;
+impl SubsystemAssessor for PropulsionAssessor {
+    fn assess(
+        &self,
+        record: &TelemetryRecord,
+        _gs_states: &std::collections::HashMap<String, GroundStationState>,
+    ) -> SubsystemHealth {
+        assess_propulsion(record)
+    }
+}
+
+pub struct AdcsAssessor;
+impl SubsystemAssessor for AdcsAssessor {
+    fn assess(
+        &self,
+        record: &TelemetryRecord,
+        _gs_states: &std::collections::HashMap<String, GroundStationState>,
+    ) -> SubsystemHealth {
+        assess_adcs(record)
+    }
+}
+
+pub struct PayloadAssessor;
+impl SubsystemAssessor for PayloadAssessor {
+    fn assess(
+        &self,
+        record: &TelemetryRecord,
+        _gs_states: &std::collections::HashMap<String, GroundStationState>,
+    ) -> SubsystemHealth {
+        assess_payload(record)
+    }
+}
+
+pub struct FlightComputerAssessor;
+impl SubsystemAssessor for FlightComputerAssessor {
+    fn assess(
+        &self,
+        record: &TelemetryRecord,
+        _gs_states: &std::collections::HashMap<String, GroundStationState>,
+    ) -> SubsystemHealth {
+        assess_flight_computer(record)
+    }
+}
+
 pub fn assess_satellite_health(
     record: &TelemetryRecord,
     gs_states: &std::collections::HashMap<String, GroundStationState>,
 ) -> SatelliteHealthAssessment {
-    let power = assess_power(record);
-    let thermal = assess_thermal(record);
-    let communications = assess_communications(record, gs_states);
-    let propulsion = assess_propulsion(record);
-    let adcs = assess_adcs(record);
-    let payload = assess_payload(record);
-    let flight_computer = assess_flight_computer(record);
+    let power = PowerAssessor.assess(record, gs_states);
+    let thermal = ThermalAssessor.assess(record, gs_states);
+    let communications = CommunicationsAssessor.assess(record, gs_states);
+    let propulsion = PropulsionAssessor.assess(record, gs_states);
+    let adcs = AdcsAssessor.assess(record, gs_states);
+    let payload = PayloadAssessor.assess(record, gs_states);
+    let flight_computer = FlightComputerAssessor.assess(record, gs_states);
 
     // Calculate overall satellite state (worst-case subsystem state)
     let overall_state = {

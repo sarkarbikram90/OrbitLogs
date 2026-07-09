@@ -31,3 +31,4 @@ subtle = { workspace = true }
 dashmap = { workspace = true }
 tokio-util = { workspace = true }
 rand = "0.8"
+thiserror = { workspace = true }

@@ -19,7 +19,7 @@ pub struct SubsystemTwin {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TwinState {
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub timestamp: DateTime<Utc>,
     pub subsystems: Vec<SubsystemTwin>,
     pub fuel_remaining_kg: f64,
@@ -111,12 +111,12 @@ impl TwinManager {
 
 pub async fn get_twin_model(
     State(state): State<Arc<crate::ServiceState>>,
-    Path(satellite): Path<String>,
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
 ) -> Result<Json<TwinState>, StatusCode> {
     let rec = state
         .twin
         .twins
-        .get(&satellite)
+        .get(satellite.as_str())
         .ok_or(StatusCode::NOT_FOUND)?
         .clone();
 

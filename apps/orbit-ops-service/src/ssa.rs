@@ -28,14 +28,14 @@ pub struct DebrisObject {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConjunctionEvent {
     pub id: Uuid,
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub object_id: String,
     pub object_name: String,
-    pub object_type: String, // 'DEBRIS', 'SATELLITE'
+    pub object_type: orbitlogs_models::SecondaryObjectType,
     pub probability: f64,    // 0.0 to 1.0
     pub distance_meters: f64,
     pub conjunction_time: DateTime<Utc>,
-    pub severity: String, // 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+    pub severity: orbitlogs_models::ConjunctionRiskTier,
     pub status: String,   // 'ACTIVE', 'RESOLVED'
 }
 
@@ -186,16 +186,16 @@ impl SsaManager {
                     if dist_meters < 5000.0 {
                         // Conjunction event identified
                         let severity = if dist_meters < 500.0 {
-                            "CRITICAL"
+                            orbitlogs_models::ConjunctionRiskTier::Critical
                         } else if dist_meters < 1500.0 {
-                            "HIGH"
+                            orbitlogs_models::ConjunctionRiskTier::High
                         } else if dist_meters < 3000.0 {
-                            "MEDIUM"
+                            orbitlogs_models::ConjunctionRiskTier::Medium
                         } else {
-                            "LOW"
+                            orbitlogs_models::ConjunctionRiskTier::Low
                         };
 
-                        let event_type = if severity == "CRITICAL" || severity == "HIGH" {
+                        let event_type = if severity == orbitlogs_models::ConjunctionRiskTier::Critical || severity == orbitlogs_models::ConjunctionRiskTier::High {
                             "HIGH_RISK_CONJUNCTION"
                         } else {
                             "CONJUNCTION_WARNING"
@@ -210,10 +210,10 @@ impl SsaManager {
                              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
                         )
                         .bind(id)
-                        .bind(sat_id)
+                        .bind(orbitlogs_models::SatelliteId::new(sat_id))
                         .bind(&deb.id)
                         .bind(&deb.name)
-                        .bind("DEBRIS")
+                        .bind(orbitlogs_models::SecondaryObjectType::Debris)
                         .bind(col_prob)
                         .bind(dist_meters)
                         .bind(conjunction_time)
@@ -236,7 +236,7 @@ impl SsaManager {
                             "source": "ALERT",
                             "satellite_id": sat_id,
                             "event_type": event_type,
-                            "severity": if severity == "CRITICAL" { "CRITICAL" } else if severity == "HIGH" { "WARNING" } else { "INFO" },
+                            "severity": if severity == orbitlogs_models::ConjunctionRiskTier::Critical { "CRITICAL" } else if severity == orbitlogs_models::ConjunctionRiskTier::High { "WARNING" } else { "INFO" },
                             "message": msg,
                             "details": {
                                 "conjunction_id": id,
@@ -271,7 +271,7 @@ impl SsaManager {
 
 pub async fn get_conjunctions(
     State(state): State<Arc<crate::ServiceState>>,
-    Path(satellite): Path<String>,
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
 ) -> Result<Json<Vec<ConjunctionEvent>>, (StatusCode, String)> {
     let rows = sqlx::query("SELECT id, satellite_id, object_id, object_name, object_type, probability, distance_meters, conjunction_time, severity, status FROM conjunction_events WHERE satellite_id = $1 ORDER BY conjunction_time DESC LIMIT 20")
         .bind(&satellite)
@@ -300,7 +300,7 @@ pub async fn get_conjunctions(
 
 #[derive(Serialize)]
 pub struct SsaStatus {
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub nearest_object_name: String,
     pub nearest_object_distance: f64,
     pub collision_probability: f64,
@@ -309,9 +309,9 @@ pub struct SsaStatus {
 
 pub async fn get_ssa_status(
     State(state): State<Arc<crate::ServiceState>>,
-    Path(satellite): Path<String>,
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
 ) -> Result<Json<SsaStatus>, StatusCode> {
-    if let Some(entry) = state.ssa.nearest_objects.get(&satellite) {
+    if let Some(entry) = state.ssa.nearest_objects.get(satellite.as_str()) {
         let (deb, dist, prob) = entry.value();
         let risk = if *dist < 500.0 {
             95.0

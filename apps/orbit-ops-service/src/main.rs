@@ -19,6 +19,7 @@ use tracing::{error, info, Level};
 use uuid::Uuid;
 
 mod director;
+mod error;
 mod flight_dynamics;
 mod graph;
 mod ground_ops;

@@ -18,7 +18,7 @@ pub struct DirectorRecommendation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectorStatus {
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub operational_status: String, // 'NOMINAL', 'DEGRADED', 'SAFE_MODE'
     pub recommendations: Vec<DirectorRecommendation>,
 }
@@ -101,12 +101,12 @@ impl DirectorManager {
 
 pub async fn get_director_status(
     State(state): State<Arc<crate::ServiceState>>,
-    Path(satellite): Path<String>,
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
 ) -> Result<Json<DirectorStatus>, StatusCode> {
     let recs = state
         .director
         .active_recommendations
-        .get(&satellite)
+        .get(satellite.as_str())
         .map(|entry| entry.value().clone())
         .unwrap_or_else(Vec::new);
 

@@ -23,7 +23,10 @@ pub enum AppError {
     NotFound(uuid::Uuid),
 
     #[error("Invalid state transition: {from} -> {to}")]
-    InvalidTransition { from: String, to: String },
+    InvalidTransition {
+        from: orbitlogs_models::CommandStatus,
+        to: orbitlogs_models::CommandStatus,
+    },
 
     #[error("Validation failed: {0}")]
     Validation(String),

@@ -14,15 +14,15 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MissionPlan {
     pub id: Uuid,
-    pub satellite_id: String,
-    pub plan_type: String, // 'Imaging', 'Communications', 'Calibration', 'Orbit Maneuver', 'Payload Test', 'Software Update'
+    pub satellite_id: orbitlogs_models::SatelliteId,
+    pub plan_type: orbitlogs_models::MissionPlanType,
     pub description: String,
     pub objectives: String,
     pub required_contacts: serde_json::Value,
     pub required_commands: serde_json::Value,
     pub required_payloads: serde_json::Value,
     pub scheduled_time: DateTime<Utc>,
-    pub status: String, // 'DRAFT', 'REVIEW', 'APPROVED', 'SCHEDULED', 'EXECUTING', 'COMPLETED', 'CANCELLED'
+    pub status: orbitlogs_models::MissionPlanStatus,
     pub created_by: String,
     pub approved_by: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -30,8 +30,8 @@ pub struct MissionPlan {
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePlanRequest {
-    pub satellite_id: String,
-    pub plan_type: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
+    pub plan_type: orbitlogs_models::MissionPlanType,
     pub description: String,
     pub objectives: String,
     pub required_contacts: Option<serde_json::Value>,
@@ -43,13 +43,13 @@ pub struct CreatePlanRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateStatusRequest {
-    pub status: String,
+    pub status: orbitlogs_models::MissionPlanStatus,
     pub operator: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct PlanQuery {
-    pub satellite_id: Option<String>,
+    pub satellite_id: Option<orbitlogs_models::SatelliteId>,
 }
 
 pub struct PlannerState {
@@ -100,7 +100,7 @@ pub async fn create_plan(
     Json(req): Json<CreatePlanRequest>,
 ) -> Result<(StatusCode, Json<MissionPlan>), (StatusCode, String)> {
     let id = Uuid::new_v4();
-    let status = "DRAFT".to_string();
+    let status = orbitlogs_models::MissionPlanStatus::Draft;
     let created_at = Utc::now();
 
     let contacts = req.required_contacts.unwrap_or(serde_json::json!([]));
@@ -120,7 +120,7 @@ pub async fn create_plan(
     .bind(&commands)
     .bind(&payloads)
     .bind(req.scheduled_time)
-    .bind(&status)
+    .bind(status)
     .bind(&req.created_by)
     .bind(created_at)
     .execute(&state.planner.db_pool)
@@ -159,21 +159,7 @@ pub async fn update_plan_status(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<MissionPlan>, (StatusCode, String)> {
-    if ![
-        "DRAFT",
-        "REVIEW",
-        "APPROVED",
-        "SCHEDULED",
-        "EXECUTING",
-        "COMPLETED",
-        "CANCELLED",
-    ]
-    .contains(&req.status.to_uppercase().as_str())
-    {
-        return Err((StatusCode::BAD_REQUEST, "Invalid plan status".to_string()));
-    }
-
-    let status = req.status.to_uppercase();
+    let status = req.status;
 
     let row = sqlx::query("SELECT * FROM mission_plans WHERE id = $1")
         .bind(id)
@@ -182,8 +168,8 @@ pub async fn update_plan_status(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Plan not found".to_string()))?;
 
-    let sat_id: String = row.get("satellite_id");
-    let plan_type: String = row.get("plan_type");
+    let sat_id: orbitlogs_models::SatelliteId = row.get("satellite_id");
+    let plan_type: orbitlogs_models::MissionPlanType = row.get("plan_type");
     let description: String = row.get("description");
     let objectives: String = row.get("objectives");
     let required_contacts: serde_json::Value = row.get("required_contacts");
@@ -193,14 +179,14 @@ pub async fn update_plan_status(
     let created_by: String = row.get("created_by");
     let created_at: DateTime<Utc> = row.get("created_at");
 
-    let approved_by = if status == "APPROVED" || status == "SCHEDULED" {
+    let approved_by = if status == orbitlogs_models::MissionPlanStatus::Approved || status == orbitlogs_models::MissionPlanStatus::Scheduled {
         Some(req.operator.clone())
     } else {
         row.get("approved_by")
     };
 
     sqlx::query("UPDATE mission_plans SET status = $1, approved_by = $2 WHERE id = $3")
-        .bind(&status)
+        .bind(status)
         .bind(&approved_by)
         .bind(id)
         .execute(&state.planner.db_pool)
@@ -217,7 +203,7 @@ pub async fn update_plan_status(
         required_commands,
         required_payloads,
         scheduled_time,
-        status: status.clone(),
+        status,
         created_by,
         approved_by,
         created_at,
@@ -257,7 +243,7 @@ async fn publish_planning_event(
 
     if let Ok(payload) = serde_json::to_string(&timeline_payload) {
         let record = FutureRecord::to(&state.timeline_topic)
-            .key(&plan.satellite_id)
+            .key(plan.satellite_id.as_str())
             .payload(&payload);
         let _ = state
             .kafka_producer

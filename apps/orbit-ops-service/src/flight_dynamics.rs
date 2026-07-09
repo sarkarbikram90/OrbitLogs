@@ -14,7 +14,7 @@ use tracing::error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlightDynamicsState {
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub altitude_decay_rate_m_day: f64,
     pub raan_drift_deg_day: f64,
     pub fuel_burn_rate_pct_day: f64,
@@ -90,7 +90,7 @@ impl FlightDynamicsManager {
         self.states.insert(
             sat_id.to_string(),
             FlightDynamicsState {
-                satellite_id: sat_id.to_string(),
+                satellite_id: orbitlogs_models::SatelliteId::new(sat_id),
                 altitude_decay_rate_m_day: decay,
                 raan_drift_deg_day: drift,
                 fuel_burn_rate_pct_day: fuel_burn,
@@ -157,9 +157,9 @@ impl FlightDynamicsManager {
 
 pub async fn get_flight_dynamics(
     State(state): State<Arc<crate::ServiceState>>,
-    Path(satellite): Path<String>,
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
 ) -> Result<Json<FlightDynamicsState>, StatusCode> {
-    if let Some(fd) = state.flight_dynamics.states.get(&satellite) {
+    if let Some(fd) = state.flight_dynamics.states.get(satellite.as_str()) {
         Ok(Json(fd.clone()))
     } else {
         Ok(Json(FlightDynamicsState {
@@ -176,7 +176,7 @@ pub async fn get_flight_dynamics(
 
 #[derive(Serialize)]
 pub struct TrendAnalysis {
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub decay_trend: String, // 'STABLE', 'ACCELERATING', 'RECOVERING'
     pub estimated_reentry_days: i32,
     pub total_maneuvers_executed: i64,
@@ -185,7 +185,7 @@ pub struct TrendAnalysis {
 
 pub async fn get_dynamics_trends(
     State(state): State<Arc<crate::ServiceState>>,
-    Path(satellite): Path<String>,
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
 ) -> Result<Json<TrendAnalysis>, (StatusCode, String)> {
     let count_row = sqlx::query("SELECT COUNT(*) as count, COALESCE(SUM(fuel_consumption_kg), 0.0) as fuel FROM orbit_maneuvers WHERE satellite_id = $1 AND status = 'COMPLETED'")
         .bind(&satellite)
@@ -196,7 +196,7 @@ pub async fn get_dynamics_trends(
     let count: i64 = count_row.get("count");
     let fuel: f64 = count_row.get("fuel");
 
-    let fd_state = state.flight_dynamics.states.get(&satellite);
+    let fd_state = state.flight_dynamics.states.get(satellite.as_str());
     let decay_rate = fd_state
         .as_ref()
         .map(|s| s.altitude_decay_rate_m_day)

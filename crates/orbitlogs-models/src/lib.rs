@@ -649,6 +649,31 @@ pub enum SecondaryObjectType {
     Unknown,
 }
 
+impl std::fmt::Display for SecondaryObjectType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            SecondaryObjectType::Debris => "DEBRIS",
+            SecondaryObjectType::ActiveSatellite => "SATELLITE",
+            SecondaryObjectType::RocketBody => "ROCKET_BODY",
+            SecondaryObjectType::Unknown => "UNKNOWN",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for SecondaryObjectType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "DEBRIS" | "DEB" => Ok(SecondaryObjectType::Debris),
+            "SATELLITE" | "ACTIVE_SATELLITE" | "ACTIVESATELLITE" => Ok(SecondaryObjectType::ActiveSatellite),
+            "ROCKET_BODY" | "ROCKETBODY" => Ok(SecondaryObjectType::RocketBody),
+            "UNKNOWN" => Ok(SecondaryObjectType::Unknown),
+            _ => Err(format!("Unknown secondary object type: {}", s)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ConjunctionRiskTier {
     Low,
@@ -656,6 +681,34 @@ pub enum ConjunctionRiskTier {
     High,
     Critical,
 }
+
+impl std::fmt::Display for ConjunctionRiskTier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            ConjunctionRiskTier::Low => "LOW",
+            ConjunctionRiskTier::Medium => "MEDIUM",
+            ConjunctionRiskTier::High => "HIGH",
+            ConjunctionRiskTier::Critical => "CRITICAL",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for ConjunctionRiskTier {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "LOW" => Ok(ConjunctionRiskTier::Low),
+            "MEDIUM" => Ok(ConjunctionRiskTier::Medium),
+            "HIGH" => Ok(ConjunctionRiskTier::High),
+            "CRITICAL" => Ok(ConjunctionRiskTier::Critical),
+            _ => Err(format!("Unknown conjunction risk tier: {}", s)),
+        }
+    }
+}
+
+impl_sqlx_string_enum!(SecondaryObjectType);
+impl_sqlx_string_enum!(ConjunctionRiskTier);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConjunctionEvent {
@@ -756,6 +809,97 @@ impl TleElements {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MissionPlanStatus {
+    Draft,
+    Review,
+    Approved,
+    Scheduled,
+    Executing,
+    Completed,
+    Cancelled,
+}
+
+impl std::fmt::Display for MissionPlanStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            MissionPlanStatus::Draft => "DRAFT",
+            MissionPlanStatus::Review => "REVIEW",
+            MissionPlanStatus::Approved => "APPROVED",
+            MissionPlanStatus::Scheduled => "SCHEDULED",
+            MissionPlanStatus::Executing => "EXECUTING",
+            MissionPlanStatus::Completed => "COMPLETED",
+            MissionPlanStatus::Cancelled => "CANCELLED",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for MissionPlanStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "DRAFT" => Ok(MissionPlanStatus::Draft),
+            "REVIEW" => Ok(MissionPlanStatus::Review),
+            "APPROVED" => Ok(MissionPlanStatus::Approved),
+            "SCHEDULED" => Ok(MissionPlanStatus::Scheduled),
+            "EXECUTING" => Ok(MissionPlanStatus::Executing),
+            "COMPLETED" => Ok(MissionPlanStatus::Completed),
+            "CANCELLED" => Ok(MissionPlanStatus::Cancelled),
+            _ => Err(format!("Unknown mission plan status: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum MissionPlanType {
+    #[serde(rename = "Imaging")]
+    Imaging,
+    #[serde(rename = "Communications")]
+    Communications,
+    #[serde(rename = "Calibration")]
+    Calibration,
+    #[serde(rename = "Orbit Maneuver")]
+    OrbitManeuver,
+    #[serde(rename = "Payload Test")]
+    PayloadTest,
+    #[serde(rename = "Software Update")]
+    SoftwareUpdate,
+}
+
+impl std::fmt::Display for MissionPlanType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            MissionPlanType::Imaging => "Imaging",
+            MissionPlanType::Communications => "Communications",
+            MissionPlanType::Calibration => "Calibration",
+            MissionPlanType::OrbitManeuver => "Orbit Maneuver",
+            MissionPlanType::PayloadTest => "Payload Test",
+            MissionPlanType::SoftwareUpdate => "Software Update",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for MissionPlanType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Imaging" => Ok(MissionPlanType::Imaging),
+            "Communications" => Ok(MissionPlanType::Communications),
+            "Calibration" => Ok(MissionPlanType::Calibration),
+            "Orbit Maneuver" => Ok(MissionPlanType::OrbitManeuver),
+            "Payload Test" => Ok(MissionPlanType::PayloadTest),
+            "Software Update" => Ok(MissionPlanType::SoftwareUpdate),
+            _ => Err(format!("Unknown mission plan type: {}", s)),
+        }
+    }
+}
+
+impl_sqlx_string_enum!(MissionPlanStatus);
+impl_sqlx_string_enum!(MissionPlanType);
 
 pub mod auth;
 pub mod db;

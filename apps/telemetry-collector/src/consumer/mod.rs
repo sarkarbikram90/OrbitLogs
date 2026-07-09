@@ -12,7 +12,8 @@ pub async fn start_consumer(
     kafka_producer: KafkaProducer,
 ) -> Result<(), anyhow::Error> {
     info!("Starting Telemetry Consumer...");
-    let consumer = TelemetryConsumer::new(config, db_pool, kafka_producer);
+    let store = std::sync::Arc::new(db::PostgresTelemetryStore::new(db_pool));
+    let consumer = TelemetryConsumer::new(config, store, kafka_producer);
     consumer.start().await?;
     Ok(())
 }

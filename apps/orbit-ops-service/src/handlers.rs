@@ -18,25 +18,25 @@ use crate::ServiceState;
 // REST Handlers for Orbit Propagation
 pub async fn get_satellite_orbit(
     State(state): State<Arc<ServiceState>>,
-    Path(satellite): Path<String>,
-) -> Result<Json<orbit::OrbitState>, StatusCode> {
-    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, &satellite).await;
-    let st = orbit::propagate_tle_sgp4(&satellite, &line1, &line2, Utc::now())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
+) -> Result<Json<orbit::OrbitState>, crate::error::AppError> {
+    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, satellite.as_str()).await;
+    let st = orbit::propagate_tle_sgp4(satellite.as_str(), &line1, &line2, Utc::now())
+        .map_err(|e| crate::error::AppError::Propagation(e))?;
     Ok(Json(st))
 }
 
 pub async fn get_satellite_future(
     State(state): State<Arc<ServiceState>>,
-    Path(satellite): Path<String>,
-) -> Result<Json<Vec<orbit::OrbitState>>, StatusCode> {
-    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, &satellite).await;
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
+) -> Result<Json<Vec<orbit::OrbitState>>, crate::error::AppError> {
+    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, satellite.as_str()).await;
     let now = Utc::now();
     let mut tracks = Vec::new();
 
     for step in 0..45 {
         let t = now + chrono::Duration::minutes(step * 2);
-        if let Ok(st) = orbit::propagate_tle_sgp4(&satellite, &line1, &line2, t) {
+        if let Ok(st) = orbit::propagate_tle_sgp4(satellite.as_str(), &line1, &line2, t) {
             tracks.push(st);
         }
     }
@@ -45,15 +45,15 @@ pub async fn get_satellite_future(
 
 pub async fn get_satellite_ground_track(
     State(state): State<Arc<ServiceState>>,
-    Path(satellite): Path<String>,
-) -> Result<Json<Vec<[f64; 2]>>, StatusCode> {
-    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, &satellite).await;
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
+) -> Result<Json<Vec<[f64; 2]>>, crate::error::AppError> {
+    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, satellite.as_str()).await;
     let now = Utc::now();
     let mut tracks = Vec::new();
 
     for step in 0..95 {
         let t = now + chrono::Duration::minutes(step);
-        if let Ok(st) = orbit::propagate_tle_sgp4(&satellite, &line1, &line2, t) {
+        if let Ok(st) = orbit::propagate_tle_sgp4(satellite.as_str(), &line1, &line2, t) {
             tracks.push([st.latitude, st.longitude]);
         }
     }
@@ -62,17 +62,17 @@ pub async fn get_satellite_ground_track(
 
 pub async fn get_satellite_passes(
     State(state): State<Arc<ServiceState>>,
-    Path(satellite): Path<String>,
-) -> Result<Json<Vec<orbit::PassPrediction>>, StatusCode> {
-    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, &satellite).await;
-    let predictions = orbit::predict_passes(&satellite, &line1, &line2, Utc::now(), 24);
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
+) -> Result<Json<Vec<orbit::PassPrediction>>, crate::error::AppError> {
+    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, satellite.as_str()).await;
+    let predictions = orbit::predict_passes(satellite.as_str(), &line1, &line2, Utc::now(), 24);
     Ok(Json(predictions))
 }
 
 // REST Handlers for Ground Ops Statuses
 pub async fn list_ground_ops(
     State(state): State<Arc<ServiceState>>,
-) -> Result<Json<Vec<ground_ops::GroundStationOps>>, StatusCode> {
+) -> Result<Json<Vec<ground_ops::GroundStationOps>>, crate::error::AppError> {
     let mut list = Vec::new();
     for entry in state.ground_ops.states.iter() {
         list.push(entry.value().clone());
@@ -88,29 +88,29 @@ pub struct TwinCommandRequest {
 
 pub async fn apply_twin_command(
     State(state): State<Arc<ServiceState>>,
-    Path(satellite): Path<String>,
+    Path(satellite): Path<orbitlogs_models::SatelliteId>,
     Json(req): Json<TwinCommandRequest>,
-) -> Result<StatusCode, StatusCode> {
-    state.twin.apply_command(&satellite, &req.cmd_type);
+) -> Result<StatusCode, crate::error::AppError> {
+    state.twin.apply_command(satellite.as_str(), &req.cmd_type);
 
     let edge = graph::GraphEdge {
         source_type: "COMMAND".to_string(),
-        source_id: format!("{}:{}", satellite, req.cmd_type),
+        source_id: format!("{}:{}", satellite.as_str(), req.cmd_type),
         target_type: "SATELLITE".to_string(),
-        target_id: satellite.clone(),
+        target_id: satellite.to_string(),
         relation: "AFFECTS".to_string(),
     };
     let _ = state.graph.add_edge_internal(&edge).await;
     state
         .training
-        .log_operator_command(&satellite, &req.cmd_type)
+        .log_operator_command(satellite.as_str(), &req.cmd_type)
         .await;
 
     let twin_clone = state.twin.clone();
     let sat_clone = satellite;
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_secs(15)).await;
-        twin_clone.clear_commands(&sat_clone);
+        twin_clone.clear_commands(sat_clone.as_str());
     });
 
     Ok(StatusCode::OK)

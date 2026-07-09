@@ -9,11 +9,10 @@ macro_rules! merge_opt_fields {
 }
 
 use dashmap::DashMap;
-use rdkafka::client::ClientContext;
-use rdkafka::consumer::{CommitMode, Consumer, ConsumerContext, StreamConsumer};
+use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::message::Message;
-use sqlx::PgPool;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
@@ -25,33 +24,7 @@ use crate::metrics::{
 use crate::models::TelemetryRecord;
 use crate::server::producer::KafkaProducer;
 
-struct MetricsContext;
-
-impl ClientContext for MetricsContext {
-    fn stats_raw(&self, statistics: &[u8]) {
-        if let Ok(v) = serde_json::from_slice::<serde_json::Value>(statistics) {
-            if let Some(topics) = v.get("topics").and_then(|t| t.as_object()) {
-                for (topic_name, topic_val) in topics {
-                    if let Some(partitions) =
-                        topic_val.get("partitions").and_then(|p| p.as_object())
-                    {
-                        for (partition_id, partition_val) in partitions {
-                            if let Some(lag) =
-                                partition_val.get("consumer_lag").and_then(|l| l.as_i64())
-                            {
-                                crate::metrics::KAFKA_CONSUMER_LAG
-                                    .with_label_values(&[topic_name, partition_id])
-                                    .set(lag as f64);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl ConsumerContext for MetricsContext {}
+use orbitlogs_models::kafka::MetricsContext;
 
 pub struct ConsumerConfig {
     pub brokers: String,
@@ -67,21 +40,21 @@ pub struct ConsumerConfig {
     pub cache_capacity: usize,
 }
 
-pub struct TelemetryConsumer {
+pub struct TelemetryConsumer<S: db::TelemetryStore> {
     config: ConsumerConfig,
-    db_pool: PgPool,
+    store: Arc<S>,
     kafka_producer: KafkaProducer,
     cache: std::sync::Mutex<lru::LruCache<orbitlogs_models::SatelliteId, TelemetryRecord>>,
     anomaly_cooldowns: DashMap<(String, String), Instant>,
 }
 
-impl TelemetryConsumer {
-    pub fn new(config: ConsumerConfig, db_pool: PgPool, kafka_producer: KafkaProducer) -> Self {
+impl<S: db::TelemetryStore> TelemetryConsumer<S> {
+    pub fn new(config: ConsumerConfig, store: Arc<S>, kafka_producer: KafkaProducer) -> Self {
         let capacity = NonZeroUsize::new(config.cache_capacity)
             .unwrap_or_else(|| NonZeroUsize::new(10000).unwrap());
         Self {
             config,
-            db_pool,
+            store,
             kafka_producer,
             cache: std::sync::Mutex::new(lru::LruCache::new(capacity)),
             anomaly_cooldowns: DashMap::new(),
@@ -271,7 +244,7 @@ impl TelemetryConsumer {
             cached
         } else {
             // 2. Fetch from DB if not in cache
-            match db::get_latest_telemetry(&self.db_pool, sat_id).await {
+            match self.store.get_latest_telemetry(sat_id).await {
                 Ok(Some(db_rec)) => db_rec,
                 Ok(None) => {
                     // Create an empty/base template record
@@ -385,7 +358,7 @@ impl TelemetryConsumer {
         let db_start = Instant::now();
 
         loop {
-            match db::insert_telemetry(&self.db_pool, merged).await {
+            match self.store.insert_telemetry(merged).await {
                 Ok(_) => {
                     DATABASE_INSERT_LATENCY.observe(db_start.elapsed().as_secs_f64());
                     break;
@@ -443,8 +416,7 @@ impl TelemetryConsumer {
                     "temperature": temperature,
                     "limit": 85.0
                 });
-                if let Err(e) = db::insert_event(
-                    &self.db_pool,
+                if let Err(e) = self.store.insert_event(
                     sat_id,
                     "ANOMALY_THERMAL_SPIKE",
                     "CRITICAL",
@@ -469,8 +441,7 @@ impl TelemetryConsumer {
                     "battery_voltage": battery_voltage,
                     "limit": 11.0
                 });
-                if let Err(e) = db::insert_event(
-                    &self.db_pool,
+                if let Err(e) = self.store.insert_event(
                     sat_id,
                     "ANOMALY_BATTERY_DEGRADATION",
                     "CRITICAL",
@@ -491,8 +462,7 @@ impl TelemetryConsumer {
                     "fuel_remaining": fuel_remaining,
                     "limit": 15.0
                 });
-                if let Err(e) = db::insert_event(
-                    &self.db_pool,
+                if let Err(e) = self.store.insert_event(
                     sat_id,
                     "ANOMALY_FUEL_LOW",
                     if fuel_remaining < 5.0 {
@@ -524,8 +494,7 @@ impl TelemetryConsumer {
                     "packet_loss": packet_loss,
                     "latency": comm_latency
                 });
-                if let Err(e) = db::insert_event(
-                    &self.db_pool,
+                if let Err(e) = self.store.insert_event(
                     sat_id,
                     "ANOMALY_COMMUNICATION_DEGRADED",
                     "WARNING",

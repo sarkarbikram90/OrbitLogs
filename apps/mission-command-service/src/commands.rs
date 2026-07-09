@@ -17,9 +17,9 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Command {
     pub id: Uuid,
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub command_type: String,
-    pub status: String,
+    pub status: orbitlogs_models::CommandStatus,
     pub parameters: serde_json::Value,
     pub created_by: String,
     pub approved_by: Option<String>,
@@ -30,14 +30,14 @@ pub struct Command {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCommandRequest {
-    pub satellite_id: String,
+    pub satellite_id: orbitlogs_models::SatelliteId,
     pub command_type: String,
     pub parameters: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct QueryParams {
-    pub satellite_id: Option<String>,
+    pub satellite_id: Option<orbitlogs_models::SatelliteId>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -90,7 +90,7 @@ pub async fn create_command(
     let user_name = check_role(&state, &headers, Role::Operator)?;
 
     let id = Uuid::new_v4();
-    let status = "CREATED";
+    let status = orbitlogs_models::CommandStatus::Created;
 
     // Write to DB
     sqlx::query(
@@ -111,7 +111,7 @@ pub async fn create_command(
         &state,
         id,
         None,
-        status,
+        &status.to_string(),
         &user_name,
         "Command registered in system",
     )
@@ -121,7 +121,7 @@ pub async fn create_command(
         id,
         satellite_id: req.satellite_id,
         command_type: req.command_type,
-        status: status.to_string(),
+        status,
         parameters: req.parameters,
         created_by: user_name,
         approved_by: None,
@@ -148,18 +148,19 @@ pub async fn approve_command(
     // Fetch existing
     let mut cmd = fetch_command_by_id(&state, id).await?;
 
-    if cmd.status != "CREATED" {
+    if cmd.status != orbitlogs_models::CommandStatus::Created {
         return Err(crate::error::AppError::InvalidTransition {
             from: cmd.status,
-            to: "APPROVED".to_string(),
+            to: orbitlogs_models::CommandStatus::Approved,
         });
     }
 
-    let prev_status = cmd.status.clone();
-    cmd.status = "APPROVED".to_string();
+    let prev_status = cmd.status;
+    cmd.status = orbitlogs_models::CommandStatus::Approved;
     cmd.approved_by = Some(approver.clone());
 
-    sqlx::query("UPDATE commands SET status = 'APPROVED', approved_by = $1 WHERE id = $2")
+    sqlx::query("UPDATE commands SET status = $1, approved_by = $2 WHERE id = $3")
+        .bind(cmd.status)
         .bind(&approver)
         .bind(id)
         .execute(&state.db_pool)
@@ -168,8 +169,8 @@ pub async fn approve_command(
     log_audit(
         &state,
         id,
-        Some(&prev_status),
-        "APPROVED",
+        Some(&prev_status.to_string()),
+        &cmd.status.to_string(),
         &approver,
         "Command approved by flight operations",
     )
@@ -191,18 +192,19 @@ pub async fn queue_command(
 
     let mut cmd = fetch_command_by_id(&state, id).await?;
 
-    if cmd.status != "APPROVED" {
+    if cmd.status != orbitlogs_models::CommandStatus::Approved {
         return Err(crate::error::AppError::InvalidTransition {
             from: cmd.status,
-            to: "QUEUED".to_string(),
+            to: orbitlogs_models::CommandStatus::Queued,
         });
     }
 
-    let prev_status = cmd.status.clone();
-    cmd.status = "QUEUED".to_string();
+    let prev_status = cmd.status;
+    cmd.status = orbitlogs_models::CommandStatus::Queued;
     cmd.scheduled_time = Some(chrono::Utc::now());
 
-    sqlx::query("UPDATE commands SET status = 'QUEUED', scheduled_time = $1 WHERE id = $2")
+    sqlx::query("UPDATE commands SET status = $1, scheduled_time = $2 WHERE id = $3")
+        .bind(cmd.status)
         .bind(cmd.scheduled_time)
         .bind(id)
         .execute(&state.db_pool)
@@ -211,8 +213,8 @@ pub async fn queue_command(
     log_audit(
         &state,
         id,
-        Some(&prev_status),
-        "QUEUED",
+        Some(&prev_status.to_string()),
+        &cmd.status.to_string(),
         &operator,
         "Command queued for transmission",
     )
@@ -234,19 +236,20 @@ pub async fn execute_command(
 
     let mut cmd = fetch_command_by_id(&state, id).await?;
 
-    if cmd.status != "QUEUED" {
+    if cmd.status != orbitlogs_models::CommandStatus::Queued {
         return Err(crate::error::AppError::InvalidTransition {
             from: cmd.status,
-            to: "TRANSMITTED".to_string(),
+            to: orbitlogs_models::CommandStatus::Transmitted,
         });
     }
 
     // Execute state flow simulation - transition to TRANSMITTED
-    let prev_status = cmd.status.clone();
-    cmd.status = "TRANSMITTED".to_string();
+    let prev_status = cmd.status;
+    cmd.status = orbitlogs_models::CommandStatus::Transmitted;
     cmd.executed_at = Some(chrono::Utc::now());
 
-    sqlx::query("UPDATE commands SET status = 'TRANSMITTED', executed_at = $1 WHERE id = $2")
+    sqlx::query("UPDATE commands SET status = $1, executed_at = $2 WHERE id = $3")
+        .bind(cmd.status)
         .bind(cmd.executed_at)
         .bind(id)
         .execute(&state.db_pool)
@@ -255,8 +258,8 @@ pub async fn execute_command(
     log_audit(
         &state,
         id,
-        Some(&prev_status),
-        "TRANSMITTED",
+        Some(&prev_status.to_string()),
+        &cmd.status.to_string(),
         &operator,
         "Uplink carrier lock confirmed, command transmitted",
     )
@@ -326,7 +329,7 @@ pub async fn publish_timeline_event(state: &AppState, cmd: &Command, severity: &
 
     if let Ok(payload) = serde_json::to_string(&timeline_payload) {
         let record = FutureRecord::to(&state.timeline_topic)
-            .key(&cmd.satellite_id)
+            .key(cmd.satellite_id.as_str())
             .payload(&payload);
         if let Err((e, _)) = state
             .kafka_producer
