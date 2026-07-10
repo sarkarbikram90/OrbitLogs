@@ -8,3 +8,13 @@ description = "Fleet-wide health calculations for satellite constellations"
 serde = { workspace = true }
 serde_json = { workspace = true }
 orbitlogs-models = { path = "../orbitlogs-models" }
+chrono = { workspace = true }
+
+
+[dev-dependencies]
+criterion = "0.5"
+tokio = { workspace = true }
+
+[[bench]]
+name = "health_bench"
+harness = false

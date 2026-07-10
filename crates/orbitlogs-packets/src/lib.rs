@@ -11,6 +11,7 @@ pub enum PacketError {
     UnknownApid(u16),
     SubsystemMismatch(String),
     ParserError(String),
+    Alignment(String),
 }
 
 impl std::fmt::Display for PacketError {
@@ -28,6 +29,7 @@ impl std::fmt::Display for PacketError {
             PacketError::UnknownApid(a) => write!(f, "Unknown APID: {}", a),
             PacketError::SubsystemMismatch(s) => write!(f, "Subsystem mismatch: {}", s),
             PacketError::ParserError(s) => write!(f, "Failed to parse field: {}", s),
+            PacketError::Alignment(s) => write!(f, "Alignment error: {}", s),
         }
     }
 }
@@ -47,20 +49,20 @@ pub const APID_FLIGHT_COMPUTER: u16 = 7;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TelemetryPacket {
     // Primary Header (6 bytes)
-    pub packet_version: u8,    // 3 bits
-    pub packet_type: u8,       // 1 bit
-    pub sec_header_flag: bool, // 1 bit
-    pub apid: u16,             // 11 bits
-    pub sequence_flags: u8,    // 2 bits
-    pub sequence_count: u16,   // 14 bits
-    pub packet_length: u16,    // 16 bits (Length of user data + sec header + CRC - 1)
+    pub(crate) packet_version: u8, // 3 bits — internal detail (P1 #20)
+    pub packet_type: u8,           // 1 bit
+    pub sec_header_flag: bool,     // 1 bit
+    pub apid: u16,                 // 11 bits — public API
+    pub sequence_flags: u8,        // 2 bits
+    pub sequence_count: u16,       // 14 bits
+    pub packet_length: u16,        // 16 bits (Length of user data + sec header + CRC - 1)
 
     // Secondary Header (8 bytes)
-    pub timestamp_coarse: u32, // 32 bits (Seconds since UNIX epoch)
-    pub timestamp_fine: u32,   // 32 bits (Nanoseconds)
+    pub(crate) timestamp_coarse: u32, // 32 bits — use timestamp() method instead
+    pub(crate) timestamp_fine: u32,   // 32 bits — use timestamp() method instead
 
     // User Data Field (variable length)
-    pub user_data: Vec<u8>,
+    pub user_data: Vec<u8>,        // Public API
 
     // Error Control (2 bytes)
     pub packet_error_control: u16, // CRC-16
@@ -816,3 +818,122 @@ mod tests {
         }
     }
 }
+
+// =========================================================================
+// Unsafe Zero-Copy Packet Header Parser (P1 #16)
+// =========================================================================
+//
+// Demonstrates controlled `unsafe` usage with a safe wrapper API.
+// The `PacketHeader` struct is `#[repr(C)]` for predictable memory layout.
+// The unsafe function reads directly from a byte buffer without copying.
+// The safe wrapper validates length and alignment before calling unsafe code.
+
+/// Fixed-size packet primary header for zero-copy access.
+///
+/// `#[repr(C)]` ensures the struct has a predictable, C-compatible memory layout
+/// so we can safely transmute aligned byte slices into this struct.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct PacketHeader {
+    pub word1: u16,          // Version(3) | Type(1) | SecHdrFlag(1) | APID(11)
+    pub word2: u16,          // SeqFlags(2) | SeqCount(14)
+    pub packet_length: u16,  // Data length - 1
+}
+
+impl PacketHeader {
+    /// Extract the APID from the header.
+    pub fn apid(&self) -> u16 {
+        u16::from_be(self.word1) & 0x07FF
+    }
+
+    /// Extract the packet version.
+    pub fn version(&self) -> u8 {
+        ((u16::from_be(self.word1) >> 13) & 0x07) as u8
+    }
+
+    /// Extract the sequence count.
+    pub fn sequence_count(&self) -> u16 {
+        u16::from_be(self.word2) & 0x3FFF
+    }
+
+    /// Extract the packet data length.
+    pub fn data_length(&self) -> u16 {
+        u16::from_be(self.packet_length)
+    }
+}
+
+/// Read a packet header from a byte buffer without copying.
+///
+/// # Safety
+/// - `bytes` must be at least `size_of::<PacketHeader>()` bytes long
+/// - `bytes` must be properly aligned for `PacketHeader` (2-byte aligned)
+/// - The caller guarantees these invariants via the safe wrapper.
+unsafe fn read_header_unchecked(bytes: &[u8]) -> &PacketHeader {
+    // SAFETY: Caller guarantees length and alignment.
+    &*(bytes.as_ptr() as *const PacketHeader)
+}
+
+/// Safely parse a packet header from a byte buffer without copying.
+///
+/// Validates length and alignment before performing the zero-copy read.
+/// Returns a reference into the original buffer — no allocation.
+///
+/// # Examples
+/// ```
+/// use orbitlogs_packets::parse_header;
+///
+/// let bytes = [0x08, 0x01, 0xC0, 0x05, 0x00, 0x0F];
+/// let header = parse_header(&bytes).unwrap();
+/// assert_eq!(header.apid(), 1);
+/// ```
+pub fn parse_header(bytes: &[u8]) -> Result<&PacketHeader, PacketError> {
+    let header_size = std::mem::size_of::<PacketHeader>();
+
+    if bytes.len() < header_size {
+        return Err(PacketError::InvalidLength(format!(
+            "Buffer too short for PacketHeader: need {} bytes, got {}",
+            header_size,
+            bytes.len()
+        )));
+    }
+
+    if bytes.as_ptr().align_offset(std::mem::align_of::<PacketHeader>()) != 0 {
+        return Err(PacketError::Alignment(
+            "Buffer is not properly aligned for PacketHeader (requires 2-byte alignment)".into(),
+        ));
+    }
+
+    // SAFETY: We verified length >= size_of::<PacketHeader>() and alignment above.
+    Ok(unsafe { read_header_unchecked(bytes) })
+}
+
+#[cfg(test)]
+mod header_tests {
+    use super::*;
+
+    #[test]
+    fn parse_header_valid() {
+        // Construct a 6-byte header: version=0, type=0, sec_hdr=1, apid=1
+        // word1 = 0x0801 (big-endian: sec_hdr=1, apid=1)
+        // word2 = 0xC005 (seq_flags=3, seq_count=5)
+        // packet_length = 0x000F (15)
+        let bytes: Vec<u8> = vec![0x08, 0x01, 0xC0, 0x05, 0x00, 0x0F];
+        // Vec is typically well-aligned
+        let header = parse_header(&bytes).unwrap();
+        assert_eq!(header.apid(), 1);
+        assert_eq!(header.sequence_count(), 5);
+        assert_eq!(header.data_length(), 15);
+    }
+
+    #[test]
+    fn parse_header_too_short() {
+        let bytes = [0x08, 0x01]; // Only 2 bytes, need 6
+        assert!(parse_header(&bytes).is_err());
+    }
+
+    #[test]
+    fn parse_header_empty() {
+        assert!(parse_header(&[]).is_err());
+    }
+}
+

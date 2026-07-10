@@ -188,11 +188,14 @@ pub async fn get_health_score(
 }
 
 impl crate::processor::TelemetryProcessor for HealthScoringManager {
+    type Error = std::convert::Infallible;
+    type Output = ();
+
     fn process<'a>(
         &'a self,
         sat_id: &'a str,
         record: &'a orbitlogs_models::TelemetryRecord,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Output, Self::Error>> + Send + 'a>> {
         let temp = record.temperature.unwrap_or(20.0);
         let batt = record.battery_voltage.unwrap_or(13.8);
         let pitch = record.orientation_pitch.unwrap_or(0.0) as f64;
@@ -201,7 +204,7 @@ impl crate::processor::TelemetryProcessor for HealthScoringManager {
 
         self.calculate_health(sat_id, temp, batt, pitch, loss, fuel);
 
-        Box::pin(async move {})
+        Box::pin(async move { Ok(()) })
     }
 }
 

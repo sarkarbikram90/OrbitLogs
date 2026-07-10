@@ -12,4 +12,10 @@ orbitlogs-models = { workspace = true }
 
 [dev-dependencies]
 proptest = "1.4.0"
+criterion = "0.5"
+tokio = { workspace = true }
+
+[[bench]]
+name = "packet_bench"
+harness = false
 

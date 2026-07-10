@@ -21,6 +21,9 @@ pub enum AppError {
 
     #[error("Bad request: {0}")]
     BadRequest(String),
+
+    #[error(transparent)]
+    Domain(#[from] orbitlogs_models::DomainError),
 }
 
 impl IntoResponse for AppError {
@@ -31,6 +34,13 @@ impl IntoResponse for AppError {
             AppError::Propagation(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::Domain(e) => match &e {
+                orbitlogs_models::DomainError::NotFound { .. } => (StatusCode::NOT_FOUND, e.to_string()),
+                orbitlogs_models::DomainError::Validation(_)
+                | orbitlogs_models::DomainError::InvalidSatelliteId(_)
+                | orbitlogs_models::DomainError::InvalidStationId(_)
+                | orbitlogs_models::DomainError::InvalidMissionId(_) => (StatusCode::BAD_REQUEST, e.to_string()),
+            },
         };
 
         let body = Json(serde_json::json!({
@@ -40,3 +50,4 @@ impl IntoResponse for AppError {
         (status, body).into_response()
     }
 }
+

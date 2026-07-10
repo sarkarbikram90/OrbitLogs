@@ -2,153 +2,121 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// =========================================================================
-// 1. Type-Safe Newtypes
-// =========================================================================
+pub mod bounded;
+pub mod command_state;
+pub mod constellation_iter;
+pub mod cow_log;
+pub mod domain_error;
+pub mod health_broadcast;
+pub mod telemetry_view;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct SatelliteId(pub String);
+pub use domain_error::{DomainError, MissionIdError, SatelliteIdError, StationIdError};
+
+// =========================================================================
+// 1. Type-Safe Newtypes — Generated via `define_newtype_id!` (P0 #1, P1 #8)
+// =========================================================================
+//
+// Each newtype:
+// - Has a validated `parse()` method returning `Result<Self, Error>` (Parse, Don't Validate)
+// - Keeps `new()` for backward compatibility (accepts any string)
+// - Has `from_trusted()` as `pub(crate)` for internal/serde construction
+// - Inner field is `pub(crate)` not `pub` (P1 #20)
+// - Generates Display, Deref, From, sqlx::Type impls
+
+/// Macro that generates validated newtype ID structs with full trait impls.
+///
+/// This replaces ~150 lines of repetitive code per newtype with a single
+/// invocation. Each generated type includes:
+/// - `parse()` → `Result<Self, Error>` with prefix validation
+/// - `new()` for backward compatibility
+/// - `from_trusted()` for `pub(crate)` internal use
+/// - `Display`, `Deref`, `From<String>`, `From<&str>`, `Default`, `sqlx::Type`
+macro_rules! define_newtype_id {
+    ($name:ident, $prefix:literal, $error_name:ident, $default_val:expr) => {
+        #[derive(
+            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, sqlx::Type,
+        )]
+        #[sqlx(transparent)]
+        pub struct $name(pub(crate) String);
+
+        impl $name {
+            /// Validated constructor: ensures the ID starts with the expected prefix.
+            ///
+            /// Use this for all user-supplied or untrusted input.
+            pub fn parse(raw: impl AsRef<str>) -> Result<Self, domain_error::$error_name> {
+                let s = raw.as_ref();
+                if !s.starts_with($prefix) {
+                    return Err(domain_error::$error_name::InvalidPrefix(s.to_string()));
+                }
+                Ok(Self(s.to_string()))
+            }
+
+            /// Unvalidated constructor for backward compatibility.
+            ///
+            /// Prefer `parse()` for new code. This accepts any string.
+            pub fn new(id: impl Into<String>) -> Self {
+                Self(id.into())
+            }
+
+            /// Internal constructor for trusted sources (serde, DB rows).
+            pub(crate) fn from_trusted(s: String) -> Self {
+                Self(s)
+            }
+
+            pub fn as_str(&self) -> &str {
+                &self.0
+            }
+        }
+
+        impl std::ops::Deref for $name {
+            type Target = str;
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
+
+        impl From<String> for $name {
+            fn from(s: String) -> Self {
+                Self(s)
+            }
+        }
+
+        impl From<&str> for $name {
+            fn from(s: &str) -> Self {
+                Self(s.to_string())
+            }
+        }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self($default_val.to_string())
+            }
+        }
+    };
+}
+
+define_newtype_id!(SatelliteId, "SAT-", SatelliteIdError, "");
+define_newtype_id!(StationId, "GS-", StationIdError, "");
+define_newtype_id!(MissionId, "MISSION-", MissionIdError, "unknown");
+
+// --- SatelliteId-specific methods (outside the macro) ---
 
 impl SatelliteId {
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
     /// Derives the linked ground station ID deterministically from the satellite ID.
     pub fn linked_ground_station(&self) -> StationId {
         if let Some(num_str) = self.0.strip_prefix("SAT-") {
             if let Ok(num) = num_str.parse::<usize>() {
                 let gs_num = ((num - 1) % 4) + 1;
-                return StationId(format!("GS-{:04}", gs_num));
+                return StationId::from_trusted(format!("GS-{:04}", gs_num));
             }
         }
-        StationId("GS-0001".to_string())
-    }
-}
-
-impl std::ops::Deref for SatelliteId {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::fmt::Display for SatelliteId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<String> for SatelliteId {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
-
-impl From<&str> for SatelliteId {
-    fn from(s: &str) -> Self {
-        Self(s.to_string())
-    }
-}
-
-impl Default for SatelliteId {
-    fn default() -> Self {
-        Self(String::new())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct StationId(pub String);
-
-impl StationId {
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl std::ops::Deref for StationId {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::fmt::Display for StationId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<String> for StationId {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
-
-impl From<&str> for StationId {
-    fn from(s: &str) -> Self {
-        Self(s.to_string())
-    }
-}
-
-impl Default for StationId {
-    fn default() -> Self {
-        Self(String::new())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct MissionId(pub String);
-
-impl MissionId {
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl std::ops::Deref for MissionId {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::fmt::Display for MissionId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<String> for MissionId {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
-
-impl From<&str> for MissionId {
-    fn from(s: &str) -> Self {
-        Self(s.to_string())
-    }
-}
-
-impl Default for MissionId {
-    fn default() -> Self {
-        Self("unknown".to_string())
+        StationId::from_trusted("GS-0001".to_string())
     }
 }
 
@@ -1059,4 +1027,148 @@ mod tests {
         rec.communication_latency = Some(1200.0);
         assert!(rec.validate().is_ok());
     }
+
+    // --- Newtype validation tests (P0 #1) ---
+
+    #[test]
+    fn satellite_id_parse_valid() {
+        let id = SatelliteId::parse("SAT-0001").unwrap();
+        assert_eq!(id.as_str(), "SAT-0001");
+    }
+
+    #[test]
+    fn satellite_id_parse_rejects_bad_prefix() {
+        assert!(SatelliteId::parse("").is_err());
+        assert!(SatelliteId::parse("SAT0001").is_err());
+        assert!(SatelliteId::parse("SATELLITE-0001").is_err());
+        assert!(SatelliteId::parse("DROP TABLE satellites").is_err());
+    }
+
+    #[test]
+    fn station_id_parse_valid() {
+        let id = StationId::parse("GS-0001").unwrap();
+        assert_eq!(id.as_str(), "GS-0001");
+    }
+
+    #[test]
+    fn station_id_parse_rejects_bad_prefix() {
+        assert!(StationId::parse("").is_err());
+        assert!(StationId::parse("GROUND-01").is_err());
+    }
+
+    #[test]
+    fn mission_id_parse_valid() {
+        let id = MissionId::parse("MISSION-ALPHA").unwrap();
+        assert_eq!(id.as_str(), "MISSION-ALPHA");
+    }
+
+    #[test]
+    fn mission_id_parse_rejects_bad_prefix() {
+        assert!(MissionId::parse("").is_err());
+        assert!(MissionId::parse("TASK-1").is_err());
+    }
+
+    #[test]
+    fn newtype_backward_compat_new() {
+        // SatelliteId::new() still works for backward compatibility
+        let id = SatelliteId::new("any-string");
+        assert_eq!(id.as_str(), "any-string");
+    }
+
+    #[test]
+    fn domain_error_conversion_chain() {
+        // Demonstrates: SatelliteIdError -> DomainError via #[from]
+        let result: Result<SatelliteId, DomainError> =
+            SatelliteId::parse("INVALID").map_err(|e| e.into());
+        assert!(result.is_err());
+    }
 }
+
+// =========================================================================
+// 10. Test Support — Mock Implementations (P1 #9)
+// =========================================================================
+
+#[cfg(test)]
+pub mod test_support {
+    use super::*;
+    use std::sync::Mutex;
+
+    /// A mock telemetry store that captures all inserted records for assertion.
+    ///
+    /// # Usage
+    /// ```ignore
+    /// let store = MockTelemetryStore::new();
+    /// // ... run your processor with &store ...
+    /// assert_eq!(store.inserted_count(), 5);
+    /// let records = store.drain();
+    /// assert_eq!(records[0].satellite_id.as_str(), "SAT-0001");
+    /// ```
+    pub struct MockTelemetryStore {
+        pub inserted: Mutex<Vec<TelemetryRecord>>,
+    }
+
+    impl MockTelemetryStore {
+        pub fn new() -> Self {
+            Self {
+                inserted: Mutex::new(Vec::new()),
+            }
+        }
+
+        /// Record a telemetry insert (simulates TelemetryStore::insert_telemetry).
+        pub fn record_insert(&self, record: &TelemetryRecord) {
+            self.inserted.lock().unwrap().push(record.clone());
+        }
+
+        /// Return the number of inserts captured.
+        pub fn inserted_count(&self) -> usize {
+            self.inserted.lock().unwrap().len()
+        }
+
+        /// Drain all captured records for assertion.
+        pub fn drain(&self) -> Vec<TelemetryRecord> {
+            std::mem::take(&mut *self.inserted.lock().unwrap())
+        }
+    }
+
+    /// Helper to create a valid TelemetryRecord for testing.
+    pub fn mock_telemetry_record(sat_id: &str) -> TelemetryRecord {
+        TelemetryRecord {
+            satellite_id: SatelliteId::new(sat_id),
+            subsystem_id: Subsystem::Unified,
+            mission_id: MissionId::new("unknown"),
+            timestamp: Utc::now(),
+            battery_voltage: Some(13.8),
+            battery_current: Some(2.1),
+            solar_panel_output: Some(110.0),
+            cpu_usage: Some(25.4),
+            memory_usage: Some(45.1),
+            temperature: Some(28.5),
+            orientation_pitch: Some(1.2),
+            orientation_roll: Some(-2.3),
+            orientation_yaw: Some(0.5),
+            velocity: Some(7.67),
+            altitude: Some(520.4),
+            fuel_remaining: Some(92.5),
+            communication_latency: Some(35.1),
+            packet_loss: Some(0.1),
+            signal_strength: Some(-68.0),
+            payload_power_draw: Some(15.0),
+            payload_active: Some(true),
+            event_id: Uuid::new_v4(),
+        }
+    }
+
+    #[test]
+    fn mock_store_captures_inserts() {
+        let store = MockTelemetryStore::new();
+        let record = mock_telemetry_record("SAT-0001");
+        store.record_insert(&record);
+        store.record_insert(&record);
+        assert_eq!(store.inserted_count(), 2);
+
+        let drained = store.drain();
+        assert_eq!(drained.len(), 2);
+        assert_eq!(store.inserted_count(), 0);
+    }
+}
+

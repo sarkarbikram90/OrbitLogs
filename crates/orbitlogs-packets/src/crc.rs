@@ -1,3 +1,12 @@
+// =========================================================================
+// CRC-16 CCITT — const fn implementation (P1 #6)
+// =========================================================================
+//
+// The lookup table is already a const array. Now the computation function
+// itself is `const fn`, enabling compile-time CRC calculation for known payloads.
+//
+// Key change: for loop → while loop (for loops are not yet supported in const fn).
+
 const CRC16_TABLE: [u16; 256] = [
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7, 0x8108, 0x9129, 0xa14a, 0xb16b,
     0xc18c, 0xd1ad, 0xe1ce, 0xf1ef, 0x1231, 0x0210, 0x3273, 0x2252, 0x52b5, 0x4294, 0x72f7, 0x62d6,
@@ -23,14 +32,36 @@ const CRC16_TABLE: [u16; 256] = [
     0x2e93, 0x3eb2, 0x0ed1, 0x1ef0,
 ];
 
-pub fn calculate_crc16(data: &[u8]) -> u16 {
+/// Compute CRC-16 CCITT checksum.
+///
+/// This is a `const fn` — it can be evaluated at compile time for known payloads.
+/// Uses `while` loop instead of `for` loop because `for` is not yet stable in `const fn`.
+///
+/// # Compile-time example
+/// ```
+/// use orbitlogs_packets::crc::calculate_crc16;
+/// const KNOWN_CRC: u16 = calculate_crc16(b"123456789");
+/// assert_eq!(KNOWN_CRC, 0x29B1);
+/// ```
+pub const fn calculate_crc16(data: &[u8]) -> u16 {
     let mut crc: u16 = 0xFFFF;
-    for &byte in data {
-        let idx = (((crc >> 8) as u8) ^ byte) as usize;
+    let mut i = 0;
+    while i < data.len() {
+        let idx = (((crc >> 8) as u8) ^ data[i]) as usize;
         crc = (crc << 8) ^ CRC16_TABLE[idx];
+        i += 1;
     }
     crc
 }
+
+// Compile-time verification: the standard CRC-16 CCITT test vector.
+// If this value is wrong, the build fails.
+const _ASSERT_CRC16: () = {
+    let crc = calculate_crc16(b"123456789");
+    if crc != 0x29B1 {
+        panic!("CRC-16 CCITT test vector failed: expected 0x29B1");
+    }
+};
 
 #[cfg(test)]
 mod tests {
@@ -40,5 +71,24 @@ mod tests {
     fn test_crc16_standard_vectors() {
         // Standard ASCII "123456789" vector should yield 0x29B1
         assert_eq!(calculate_crc16(b"123456789"), 0x29B1);
+    }
+
+    #[test]
+    fn test_crc16_empty() {
+        assert_eq!(calculate_crc16(b""), 0xFFFF);
+    }
+
+    #[test]
+    fn test_crc16_single_byte() {
+        // Ensure single-byte input works
+        let crc = calculate_crc16(b"A");
+        assert_ne!(crc, 0xFFFF); // Should differ from empty
+    }
+
+    #[test]
+    fn test_const_evaluation() {
+        // Verify the const assertion compiles and is correct
+        const CRC: u16 = calculate_crc16(b"123456789");
+        assert_eq!(CRC, 0x29B1);
     }
 }
