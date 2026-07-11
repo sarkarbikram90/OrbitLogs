@@ -105,7 +105,8 @@ struct SubsystemState {
 
 #[derive(Debug, Deserialize)]
 struct SimulateFailureRequest {
-    subsystem: String, // e.g. "thermal", "power", "adcs", "communications", "propulsion"
+    subsystem: String, 
+    // e.g. "thermal", "power", "adcs", "communications", "propulsion"
 }
 
 async fn auth_middleware(
