@@ -18,7 +18,8 @@ pub fn extract_satellite_id(query: &str, provided: Option<&str>) -> String {
 pub fn sanitize_chat_input(query: &str) -> Result<(), String> {
     let lower = query.to_lowercase();
 
-    // 1. Detect Prompt Injection / System prompt extraction attempts
+    // 1. Detect Prompt Injection 
+    // System prompt extraction attempts
     let injection_patterns = [
         "ignore previous",
         "system prompt",
