@@ -40,7 +40,8 @@ pub fn sanitize_chat_input(query: &str) -> Result<(), String> {
         }
     }
 
-    // 2. Detect SQL Injection attempts using regex to prevent false positives on '--' in satellite names or hyphenated words
+    // 2. Detect SQL Injection attempts using regex to prevent false positives on '--' 
+    // in satellite names or hyphenated words
     static SQL_RE: OnceLock<Regex> = OnceLock::new();
     let re = SQL_RE.get_or_init(|| {
         Regex::new(r"(?i)(union\s+select|drop\s+table|delete\s+from|insert\s+into|select\s+\*|or\s+1\s*=\s*1|or\s+'1'\s*=\s*'1'|--\s)").unwrap()
