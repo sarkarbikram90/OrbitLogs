@@ -254,7 +254,8 @@ mod tests {
     #[tokio::test]
     async fn test_check_role_expired_token() {
         let state = mock_state("secret123");
-        let token = create_token("secret123", "Administrator", -1); // expired 1h ago
+        let token = create_token("secret123", "Administrator", -1); 
+        // expired 1h ago
 
         let mut headers = HeaderMap::new();
         headers.insert(
