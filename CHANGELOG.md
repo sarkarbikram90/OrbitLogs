@@ -29,6 +29,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **orbit-ops-service Core Logic Unit Tests**: Implemented comprehensive unit test suites for `DirectorManager` (`director.rs`), `HealthScoringManager` (`health.rs`), and `TwinManager` (`twin.rs`) in `orbit-ops-service` to cover telemetry evaluation rules, composite health scoring algorithms, command application, and telemetry failure cascades.
 
 ### Changed
+- **Folder De-duplication**: Consolidated database migration files into the root `migrations/` directory and deleted the duplicate migrations directory under `deployments/postgres/migrations/`. Pointed TimescaleDB docker-compose mounts and CI script workflows to the single unified root directory.
+- **Service Relocation**: Moved the standalone OpenTelemetry metrics collector service (`space-otel-collector`) from `crates/space-otel-collector` (which is reserved for shared libraries) to `apps/space-otel-collector` (where standalone binary services reside) to adhere to standard monorepo packaging conventions.
+- **Workspace Dependency Management**: Centralized third-party dependency version definitions (e.g. `axum`, `proptest`, `criterion`, `tower`, `tower-http`, `lru`) in the root `Cargo.toml` workspace block, enabling sub-crates to inherit versions via `{ workspace = true }`.
+- **Warning & Dead Code Elimination**: Resolved all compiler warnings across the codebase, including macro-generated unused functions in `orbitlogs-models`, unused imports in `orbit-ops-service`, and unused enum variants.
+- **Workspace Root Declutter**: Cleaned up the repository root by archiving and moving outdated assessment, evaluation, and review markdown files into `docs/reviews/` and `docs/archive/`.
 - **evaluate_telemetry Signature Formatting**: Formatted the `evaluate_telemetry` function signature in `orbit-ops-service` (`director.rs`) across multiple lines to improve code readability.
 - **Capitalize Error Messages**: Capitalized the panic and error messages in the shutdown handlers within `mission-command-service` (`main.rs`).
 - **Ground Station Metric Descriptions**: Clarified Prometheus metric descriptions for antenna health and latency in `ground-station-simulator` (`main.rs`).
@@ -38,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Audit Logging Code Style**: Formatted the trace ID extraction logic and database error mapping in `mission-command-service` (`audit.rs`).
 
 ### Fixed
+- **CORS Preflight Header typo in Timeline Service**: Fixed a bug in `apps/mission-timeline/src/main.rs` where the incorrect CORS header key `"access-control-origin"` was used in the preflight OPTIONS handler instead of `"access-control-allow-origin"`.
 - **Input Guardrail Error Case Casing**: Fixed error message casing to be lowercase in the database injection detection checks in `ai-incident-commander` (`main.rs`).
 
 ---
