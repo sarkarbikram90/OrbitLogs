@@ -10,7 +10,7 @@ services:
     - 5432:5432
     volumes:
     - timescaledb_data:/var/lib/postgresql/data
-    - ../postgres/migrations:/docker-entrypoint-initdb.d
+    - ../../migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test:
       - CMD-SHELL
@@ -372,7 +372,7 @@ services:
   space-otel-collector:
     build:
       context: ../../
-      dockerfile: crates/space-otel-collector/Dockerfile
+      dockerfile: apps/space-otel-collector/Dockerfile
     container_name: orbitlogs-otel-metrics-collector
     ports:
     - 8091:8091

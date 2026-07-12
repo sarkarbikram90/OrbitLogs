@@ -145,7 +145,7 @@ async fn cors_middleware(
     if method == axum::http::Method::OPTIONS {
         return axum::response::Response::builder()
             .status(StatusCode::NO_CONTENT)
-            .header("access-control-origin", &allowed_origin)
+            .header("access-control-allow-origin", &allowed_origin)
             .header("access-control-allow-methods", "GET, POST, OPTIONS")
             .header(
                 "access-control-allow-headers",

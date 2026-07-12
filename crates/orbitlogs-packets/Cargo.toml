@@ -11,8 +11,8 @@ uuid = { workspace = true }
 orbitlogs-models = { workspace = true }
 
 [dev-dependencies]
-proptest = "1.4.0"
-criterion = "0.5"
+proptest = { workspace = true }
+criterion = { workspace = true }
 tokio = { workspace = true }
 
 [[bench]]

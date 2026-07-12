@@ -16,7 +16,7 @@ members = [
     "crates/orbitlogs-packets",
     "crates/space-schema-registry",
     "crates/fleet-health",
-    "crates/space-otel-collector",
+    "apps/space-otel-collector",
 ]
 
 [workspace.dependencies]
@@ -51,6 +51,11 @@ axum = { version = "0.7.9" }
 jsonwebtoken = "9.3"
 tokio-util = "0.7"
 regex = "1.10"
+tower = { version = "0.5", features = ["limit", "util", "buffer", "load-shed"] }
+tower-http = { version = "0.5", features = ["cors", "timeout"] }
+proptest = "1.4.0"
+criterion = "0.5"
+lru = "0.12"
 
 # Optimize profiles for production build speed vs runtime execution speed
 [profile.release]

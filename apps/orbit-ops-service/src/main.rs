@@ -6,7 +6,7 @@ use chrono::Utc;
 use clap::Parser;
 use orbitlogs_models::kafka::KafkaConfigBuilder;
 use orbitlogs_models::TelemetryRecord;
-use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
+use rdkafka::consumer::{CommitMode, Consumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use sqlx::{PgPool, Row};

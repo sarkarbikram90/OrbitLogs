@@ -65,7 +65,7 @@ jobs:
             echo "Waiting for database (attempt $i)..."
             sleep 1
           done
-          for f in deployments/postgres/migrations/*.sql; do
+          for f in migrations/*.sql; do
             echo "Applying migration: $f"
             PGPASSWORD=postgrespassword psql -h localhost -U postgres -d orbitlogs -f "$f"
           done

@@ -16,6 +16,7 @@ Recommended Actions:
 3. Switch primary communications to low-power beacon beaconing every 60s instead of continuous.
 }";
 
+#[allow(dead_code)]
 pub const CONJUNCTION_RUNBOOK: &str = "{
 --- CONJUNCTION ASSESSMENT & COLLISION AVOIDANCE RUNBOOK (DOC-SSA-201) ---
 Symptoms: Probability of Collision (Pc) > 1e-4 or Miss Distance < 1.5 km.

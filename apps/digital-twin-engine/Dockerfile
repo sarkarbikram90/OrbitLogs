@@ -22,7 +22,7 @@ COPY crates/orbitlogs-models/Cargo.toml crates/orbitlogs-models/Cargo.toml
 COPY crates/orbitlogs-packets/Cargo.toml crates/orbitlogs-packets/Cargo.toml
 COPY crates/space-schema-registry/Cargo.toml crates/space-schema-registry/Cargo.toml
 COPY crates/fleet-health/Cargo.toml crates/fleet-health/Cargo.toml
-COPY crates/space-otel-collector/Cargo.toml crates/space-otel-collector/Cargo.toml
+COPY apps/space-otel-collector/Cargo.toml apps/space-otel-collector/Cargo.toml
 
 # Pre-compile fake sources to cache cargo dependencies
 RUN mkdir -p apps/telemetry-simulator/src && echo "fn main() {}" > apps/telemetry-simulator/src/main.rs
@@ -39,7 +39,7 @@ RUN mkdir -p crates/orbitlogs-models/src && touch crates/orbitlogs-models/src/li
 RUN mkdir -p crates/orbitlogs-packets/src && touch crates/orbitlogs-packets/src/lib.rs
 RUN mkdir -p crates/space-schema-registry/src && touch crates/space-schema-registry/src/lib.rs
 RUN mkdir -p crates/fleet-health/src && touch crates/fleet-health/src/lib.rs
-RUN mkdir -p crates/space-otel-collector/src && touch crates/space-otel-collector/src/lib.rs
+RUN mkdir -p apps/space-otel-collector/src && touch apps/space-otel-collector/src/lib.rs
 
 # Build dependencies only
 RUN cargo build --release -p digital-twin-engine
@@ -49,7 +49,7 @@ COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
 COPY crates/orbitlogs-packets/src crates/orbitlogs-packets/src
 COPY crates/space-schema-registry/src crates/space-schema-registry/src
 COPY crates/fleet-health/src crates/fleet-health/src
-COPY crates/space-otel-collector/src crates/space-otel-collector/src
+COPY apps/space-otel-collector/src apps/space-otel-collector/src
 COPY apps/digital-twin-engine/src apps/digital-twin-engine/src
 
 # Rebuild actual application
@@ -57,7 +57,7 @@ RUN touch crates/orbitlogs-models/src/lib.rs
 RUN touch crates/orbitlogs-packets/src/lib.rs
 RUN touch crates/space-schema-registry/src/lib.rs
 RUN touch crates/fleet-health/src/lib.rs
-RUN touch crates/space-otel-collector/src/lib.rs
+RUN touch apps/space-otel-collector/src/lib.rs
 RUN touch apps/digital-twin-engine/src/main.rs
 RUN cargo build --release -p digital-twin-engine
 

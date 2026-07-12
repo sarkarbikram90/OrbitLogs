@@ -7,12 +7,12 @@ description = "Fleet-wide health calculations for satellite constellations"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-orbitlogs-models = { path = "../orbitlogs-models" }
+orbitlogs-models = { workspace = true }
 chrono = { workspace = true }
 
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = { workspace = true }
 tokio = { workspace = true }
 
 [[bench]]

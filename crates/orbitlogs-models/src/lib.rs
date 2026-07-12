@@ -59,6 +59,7 @@ macro_rules! define_newtype_id {
             }
 
             /// Internal constructor for trusted sources (serde, DB rows).
+            #[allow(dead_code)]
             pub(crate) fn from_trusted(s: String) -> Self {
                 Self(s)
             }

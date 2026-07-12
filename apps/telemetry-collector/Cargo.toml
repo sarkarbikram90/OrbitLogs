@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 tokio = { workspace = true }
-axum = { version = "0.7", features = ["macros", "ws"] }
+axum = { workspace = true, features = ["macros", "ws"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
 rdkafka = { workspace = true }
 prometheus = { workspace = true }
-lru = "0.12"
+lru = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 opentelemetry = { workspace = true }
@@ -25,7 +25,7 @@ chrono = { workspace = true }
 clap = { workspace = true }
 orbitlogs-models = { workspace = true }
 orbitlogs-packets = { workspace = true }
-tower = { version = "0.5", features = ["limit", "util", "buffer", "load-shed"] }
+tower = { workspace = true }
 subtle = { workspace = true }
 dashmap = { workspace = true }
 
