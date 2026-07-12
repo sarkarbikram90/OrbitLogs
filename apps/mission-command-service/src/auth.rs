@@ -15,7 +15,7 @@ pub struct Claims {
     pub exp: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct LoginRequest {
     pub api_key: String,
     pub role: String,
@@ -284,5 +284,39 @@ mod tests {
         assert!(res.is_err());
         let err = res.unwrap_err();
         assert!(matches!(err, crate::error::AppError::Auth(_)));
+    }
+
+    #[tokio::test]
+    async fn test_login_rate_limiting() {
+        let state = Arc::new(mock_state("secret123"));
+        let headers = HeaderMap::new();
+        let req = LoginRequest {
+            api_key: "test_api_key".to_string(),
+            role: "Operator".to_string(),
+        };
+
+        // We have a bucket capacity of 5.0 tokens. Make 5 successful calls.
+        for _ in 0..5 {
+            let res = login_handler(
+                State(state.clone()),
+                None,
+                headers.clone(),
+                Json(req.clone()),
+            )
+            .await;
+            assert!(res.is_ok());
+        }
+
+        // The 6th call should immediately exhaust the bucket and fail with TooManyRequests.
+        let res = login_handler(
+            State(state.clone()),
+            None,
+            headers.clone(),
+            Json(req.clone()),
+        )
+        .await;
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(matches!(err, crate::error::AppError::TooManyRequests));
     }
 }

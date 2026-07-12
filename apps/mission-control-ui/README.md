@@ -1,73 +1,34 @@
-# React + TypeScript + Vite
+# Mission Control UI 🛰️ RAG Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The **Mission Control UI** is a React, TypeScript, and Vite-based real-time dashboard operations panel for monitoring, troubleshooting, and analyzing the OrbitLogs satellite constellation.
 
-Currently, two official plugins are available:
+## Core Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **3D Earth Globe Visualizer**: Custom WebGL Three.js projection mapping satellite orbits and a 250-particle space debris cloud in real-time.
+- **AI incident Commander Chat**: Chat panel leveraging LLM RAG to search manuals, retrieve telemetry details, and auto-diagnose issues.
+- **Space Traffic Management Panel**: Risk Scorecard, conjunction events log, and 1-click **Authorize Collision Avoidance Burn** burn commands.
+- **Real-Time WebSockets**: Live telemetry streaming directly from `telemetry-collector`.
+- **Historical Timeline scrubbing**: SSE playback controls (seeks, play, pause, up to 100x playback speed).
 
-## React Compiler
+## Configuration
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The frontend references the following backend environment endpoints during build-time (in `.env` or defined environment):
 
-## Expanding the ESLint configuration
+- `VITE_API_URL`: Base HTTP address of backend microservices.
+- `VITE_WS_URL`: WebSocket endpoint for telemetry ingestion.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Build and Run
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+To start the UI locally:
+```bash
+# Install dependencies
+npm install
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Start local dev server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+To build for production distribution (uses Vite code splitting to segment node modules):
+```bash
+npm run build
 ```
