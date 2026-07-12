@@ -62,7 +62,7 @@ pub struct TelemetryPacket {
     pub(crate) timestamp_fine: u32,   // 32 bits — use timestamp() method instead
 
     // User Data Field (variable length)
-    pub user_data: Vec<u8>,        // Public API
+    pub user_data: Vec<u8>, // Public API
 
     // Error Control (2 bytes)
     pub packet_error_control: u16, // CRC-16
@@ -449,7 +449,8 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     let frame = TelemetryFrame::from_bytes(bytes)?;
     let packet = TelemetryPacket::from_bytes(&frame.data_field)?;
 
-    let satellite_id = orbitlogs_models::SatelliteId::new(satellite_id_from_scid(frame.spacecraft_id));
+    let satellite_id =
+        orbitlogs_models::SatelliteId::new(satellite_id_from_scid(frame.spacecraft_id));
     let subsystem_id = match packet.apid {
         APID_POWER => orbitlogs_models::Subsystem::Power,
         APID_THERMAL => orbitlogs_models::Subsystem::Thermal,
@@ -813,7 +814,6 @@ mod tests {
                     assert_eq!(decoded.cpu_usage.unwrap_or(0.0), rec.cpu_usage.unwrap_or(0.0));
                     assert_eq!(decoded.memory_usage.unwrap_or(0.0), rec.memory_usage.unwrap_or(0.0));
                 }
-                _ => {}
             }
         }
     }
@@ -835,9 +835,9 @@ mod tests {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct PacketHeader {
-    pub word1: u16,          // Version(3) | Type(1) | SecHdrFlag(1) | APID(11)
-    pub word2: u16,          // SeqFlags(2) | SeqCount(14)
-    pub packet_length: u16,  // Data length - 1
+    pub word1: u16,         // Version(3) | Type(1) | SecHdrFlag(1) | APID(11)
+    pub word2: u16,         // SeqFlags(2) | SeqCount(14)
+    pub packet_length: u16, // Data length - 1
 }
 
 impl PacketHeader {
@@ -897,7 +897,11 @@ pub fn parse_header(bytes: &[u8]) -> Result<&PacketHeader, PacketError> {
         )));
     }
 
-    if bytes.as_ptr().align_offset(std::mem::align_of::<PacketHeader>()) != 0 {
+    if bytes
+        .as_ptr()
+        .align_offset(std::mem::align_of::<PacketHeader>())
+        != 0
+    {
         return Err(PacketError::Alignment(
             "Buffer is not properly aligned for PacketHeader (requires 2-byte alignment)".into(),
         ));
@@ -936,4 +940,3 @@ mod header_tests {
         assert!(parse_header(&[]).is_err());
     }
 }
-

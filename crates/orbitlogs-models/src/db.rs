@@ -50,7 +50,9 @@ pub async fn establish_db_connection(
 
                     info!("Database migrations completed successfully.");
                 } else {
-                    info!("Skipping database migrations because RUN_MIGRATIONS is not set to true.");
+                    info!(
+                        "Skipping database migrations because RUN_MIGRATIONS is not set to true."
+                    );
                 }
 
                 return Ok(pool);

@@ -125,7 +125,7 @@ impl SatelliteId {
 // 2. Domain Enums
 // =========================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Subsystem {
     Power,
@@ -135,13 +135,8 @@ pub enum Subsystem {
     Adcs,
     Payload,
     FlightComputer,
+    #[default]
     Unified,
-}
-
-impl Default for Subsystem {
-    fn default() -> Self {
-        Subsystem::Unified
-    }
 }
 
 impl std::fmt::Display for Subsystem {
@@ -170,7 +165,9 @@ impl std::str::FromStr for Subsystem {
             "propulsion" => Ok(Subsystem::Propulsion),
             "adcs" => Ok(Subsystem::Adcs),
             "payload" => Ok(Subsystem::Payload),
-            "flight_computer" | "flightcomputer" | "flight computer" => Ok(Subsystem::FlightComputer),
+            "flight_computer" | "flightcomputer" | "flight computer" => {
+                Ok(Subsystem::FlightComputer)
+            }
             "unified" => Ok(Subsystem::Unified),
             _ => Err(format!("Unknown subsystem: {}", s)),
         }
@@ -285,13 +282,18 @@ impl std::str::FromStr for CommandStatus {
 macro_rules! impl_sqlx_string_enum {
     ($t:ty) => {
         impl<'r> ::sqlx::Decode<'r, ::sqlx::Postgres> for $t {
-            fn decode(value: ::sqlx::postgres::PgValueRef<'r>) -> Result<Self, ::sqlx::error::BoxDynError> {
+            fn decode(
+                value: ::sqlx::postgres::PgValueRef<'r>,
+            ) -> Result<Self, ::sqlx::error::BoxDynError> {
                 let s = <String as ::sqlx::Decode<::sqlx::Postgres>>::decode(value)?;
                 s.parse::<Self>().map_err(|e| e.into())
             }
         }
         impl<'q> ::sqlx::Encode<'q, ::sqlx::Postgres> for $t {
-            fn encode_by_ref(&self, buf: &mut ::sqlx::postgres::PgArgumentBuffer) -> ::sqlx::encode::IsNull {
+            fn encode_by_ref(
+                &self,
+                buf: &mut ::sqlx::postgres::PgArgumentBuffer,
+            ) -> ::sqlx::encode::IsNull {
                 let s = self.to_string();
                 <String as ::sqlx::Encode<::sqlx::Postgres>>::encode(s, buf)
             }
@@ -635,7 +637,9 @@ impl std::str::FromStr for SecondaryObjectType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
             "DEBRIS" | "DEB" => Ok(SecondaryObjectType::Debris),
-            "SATELLITE" | "ACTIVE_SATELLITE" | "ACTIVESATELLITE" => Ok(SecondaryObjectType::ActiveSatellite),
+            "SATELLITE" | "ACTIVE_SATELLITE" | "ACTIVESATELLITE" => {
+                Ok(SecondaryObjectType::ActiveSatellite)
+            }
             "ROCKET_BODY" | "ROCKETBODY" => Ok(SecondaryObjectType::RocketBody),
             "UNKNOWN" => Ok(SecondaryObjectType::Unknown),
             _ => Err(format!("Unknown secondary object type: {}", s)),
@@ -1104,6 +1108,7 @@ pub mod test_support {
     /// let records = store.drain();
     /// assert_eq!(records[0].satellite_id.as_str(), "SAT-0001");
     /// ```
+    #[derive(Default)]
     pub struct MockTelemetryStore {
         pub inserted: Mutex<Vec<TelemetryRecord>>,
     }
@@ -1172,4 +1177,3 @@ pub mod test_support {
         assert_eq!(store.inserted_count(), 0);
     }
 }
-

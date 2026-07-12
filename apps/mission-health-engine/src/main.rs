@@ -405,9 +405,10 @@ async fn process_telemetry_health(
 
     // Update fleet health average score
     let avg_fleet = {
-        state
-            .satellite_scores
-            .insert(assessment.satellite_id.to_string(), assessment.overall_score);
+        state.satellite_scores.insert(
+            assessment.satellite_id.to_string(),
+            assessment.overall_score,
+        );
         let total: i32 = state
             .satellite_scores
             .iter()

@@ -1,7 +1,4 @@
-use axum::{
-    routing::get,
-    Router,
-};
+use axum::{routing::get, Router};
 use clap::Parser;
 use orbitlogs_models::kafka::KafkaConfigBuilder;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
@@ -152,9 +149,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let app = Router::new()
         .route(
             "/api/timeline",
-            get(handlers::get_timeline).post(handlers::create_timeline_event).layer(
-                axum::middleware::from_fn_with_state(state.clone(), handlers::auth_middleware),
-            ),
+            get(handlers::get_timeline)
+                .post(handlers::create_timeline_event)
+                .layer(axum::middleware::from_fn_with_state(
+                    state.clone(),
+                    handlers::auth_middleware,
+                )),
         )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

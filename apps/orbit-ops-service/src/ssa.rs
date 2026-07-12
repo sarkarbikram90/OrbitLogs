@@ -32,11 +32,11 @@ pub struct ConjunctionEvent {
     pub object_id: String,
     pub object_name: String,
     pub object_type: orbitlogs_models::SecondaryObjectType,
-    pub probability: f64,    // 0.0 to 1.0
+    pub probability: f64, // 0.0 to 1.0
     pub distance_meters: f64,
     pub conjunction_time: DateTime<Utc>,
     pub severity: orbitlogs_models::ConjunctionRiskTier,
-    pub status: String,   // 'ACTIVE', 'RESOLVED'
+    pub status: String, // 'ACTIVE', 'RESOLVED'
 }
 
 pub struct SsaManager {
@@ -195,7 +195,10 @@ impl SsaManager {
                             orbitlogs_models::ConjunctionRiskTier::Low
                         };
 
-                        let event_type = if severity == orbitlogs_models::ConjunctionRiskTier::Critical || severity == orbitlogs_models::ConjunctionRiskTier::High {
+                        let event_type = if severity
+                            == orbitlogs_models::ConjunctionRiskTier::Critical
+                            || severity == orbitlogs_models::ConjunctionRiskTier::High
+                        {
                             "HIGH_RISK_CONJUNCTION"
                         } else {
                             "CONJUNCTION_WARNING"
@@ -374,4 +377,3 @@ pub async fn get_debris_catalog(
 ) -> Result<Json<Vec<DebrisObject>>, StatusCode> {
     Ok(Json(state.ssa.debris.clone()))
 }
-

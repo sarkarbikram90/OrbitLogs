@@ -22,7 +22,7 @@ pub async fn get_satellite_orbit(
 ) -> Result<Json<orbit::OrbitState>, crate::error::AppError> {
     let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, satellite.as_str()).await;
     let st = orbit::propagate_tle_sgp4(satellite.as_str(), &line1, &line2, Utc::now())
-        .map_err(|e| crate::error::AppError::Propagation(e))?;
+        .map_err(crate::error::AppError::Propagation)?;
     Ok(Json(st))
 }
 

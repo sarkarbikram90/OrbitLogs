@@ -2,9 +2,13 @@ use crate::models::TelemetryRecord;
 use sqlx::{Error, PgPool, Row};
 use tracing::{debug, info};
 
+#[allow(async_fn_in_trait)]
 pub trait TelemetryStore: Send + Sync {
     async fn ensure_satellite_exists(&self, satellite_id: &str) -> Result<(), Error>;
-    async fn get_latest_telemetry(&self, satellite_id: &str) -> Result<Option<TelemetryRecord>, Error>;
+    async fn get_latest_telemetry(
+        &self,
+        satellite_id: &str,
+    ) -> Result<Option<TelemetryRecord>, Error>;
     async fn insert_telemetry(&self, record: &TelemetryRecord) -> Result<(), Error>;
     async fn insert_event(
         &self,
@@ -33,7 +37,7 @@ impl TelemetryStore for PostgresTelemetryStore {
             INSERT INTO satellites (id, name, model, launch_date, status)
             VALUES ($1, $2, $3, NOW(), 'ACTIVE')
             ON CONFLICT (id) DO NOTHING
-            "#
+            "#,
         )
         .bind(satellite_id)
         .bind(format!("Satellite {}", satellite_id))
@@ -112,7 +116,7 @@ impl TelemetryStore for PostgresTelemetryStore {
         )
         .bind(record.timestamp)
         .bind(&record.satellite_id)
-        .bind(&record.subsystem_id)
+        .bind(record.subsystem_id)
         .bind(&record.mission_id)
         .bind(record.battery_voltage)
         .bind(record.battery_current)

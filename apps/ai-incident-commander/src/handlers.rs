@@ -138,7 +138,7 @@ pub async fn chat(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ChatRequest>,
 ) -> Result<Json<ChatResponse>, (StatusCode, Json<serde_json::Value>)> {
-    // Run LLM input guardrail checks to sanitize 
+    // Run LLM input guardrail checks to sanitize
     // prompt contexts and restrict DB/injection vectors
     if let Err(err_msg) = guardrails::sanitize_chat_input(&req.query) {
         tracing::warn!(

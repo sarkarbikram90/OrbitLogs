@@ -1,6 +1,6 @@
 use crate::HealthState;
-use tokio::sync::{mpsc, watch, Semaphore};
 use std::sync::Arc;
+use tokio::sync::{mpsc, watch, Semaphore};
 
 // =========================================================================
 // Tokio Sync Primitives (P1 #18)
@@ -112,12 +112,16 @@ impl ConcurrencyLimiter {
     }
 
     /// Acquire a permit. Blocks if all permits are taken.
-    pub async fn acquire(&self) -> Result<tokio::sync::SemaphorePermit<'_>, tokio::sync::AcquireError> {
+    pub async fn acquire(
+        &self,
+    ) -> Result<tokio::sync::SemaphorePermit<'_>, tokio::sync::AcquireError> {
         self.semaphore.acquire().await
     }
 
     /// Try to acquire a permit without blocking.
-    pub fn try_acquire(&self) -> Result<tokio::sync::SemaphorePermit<'_>, tokio::sync::TryAcquireError> {
+    pub fn try_acquire(
+        &self,
+    ) -> Result<tokio::sync::SemaphorePermit<'_>, tokio::sync::TryAcquireError> {
         self.semaphore.try_acquire()
     }
 

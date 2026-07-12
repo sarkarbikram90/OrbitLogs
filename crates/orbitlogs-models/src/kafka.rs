@@ -111,14 +111,15 @@ pub const TOPIC_GROUNDSTATION_HEALTH: &str = "groundstation.health";
 pub const TOPIC_CONJUNCTION_ALERTS: &str = "conjunction.alerts";
 pub const TOPIC_CONJUNCTION_MANEUVERS: &str = "conjunction.maneuvers";
 
-pub static KAFKA_CONSUMER_LAG: std::sync::LazyLock<prometheus::GaugeVec> = std::sync::LazyLock::new(|| {
-    prometheus::register_gauge_vec!(
-        "kafka_consumer_lag",
-        "Lag of the consumer group for a topic and partition",
-        &["topic", "partition"]
-    )
-    .unwrap()
-});
+pub static KAFKA_CONSUMER_LAG: std::sync::LazyLock<prometheus::GaugeVec> =
+    std::sync::LazyLock::new(|| {
+        prometheus::register_gauge_vec!(
+            "kafka_consumer_lag",
+            "Lag of the consumer group for a topic and partition",
+            &["topic", "partition"]
+        )
+        .unwrap()
+    });
 
 pub struct MetricsContext;
 
@@ -147,5 +148,3 @@ impl rdkafka::client::ClientContext for MetricsContext {
 }
 
 impl rdkafka::consumer::ConsumerContext for MetricsContext {}
-
-

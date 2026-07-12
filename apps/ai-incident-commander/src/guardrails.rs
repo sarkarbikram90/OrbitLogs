@@ -18,7 +18,7 @@ pub fn extract_satellite_id(query: &str, provided: Option<&str>) -> String {
 pub fn sanitize_chat_input(query: &str) -> Result<(), String> {
     let lower = query.to_lowercase();
 
-    // 1. Detect Prompt Injection 
+    // 1. Detect Prompt Injection
     // System prompt extraction attempts
     let injection_patterns = [
         "ignore previous",
@@ -40,7 +40,7 @@ pub fn sanitize_chat_input(query: &str) -> Result<(), String> {
         }
     }
 
-    // 2. Detect SQL Injection attempts using regex to prevent false positives on '--' 
+    // 2. Detect SQL Injection attempts using regex to prevent false positives on '--'
     // in satellite names or hyphenated words
     static SQL_RE: OnceLock<Regex> = OnceLock::new();
     let re = SQL_RE.get_or_init(|| {

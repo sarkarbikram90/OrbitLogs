@@ -113,7 +113,7 @@ pub async fn create_plan(
     )
     .bind(id)
     .bind(&req.satellite_id)
-    .bind(&req.plan_type)
+    .bind(req.plan_type)
     .bind(&req.description)
     .bind(&req.objectives)
     .bind(&contacts)
@@ -179,7 +179,9 @@ pub async fn update_plan_status(
     let created_by: String = row.get("created_by");
     let created_at: DateTime<Utc> = row.get("created_at");
 
-    let approved_by = if status == orbitlogs_models::MissionPlanStatus::Approved || status == orbitlogs_models::MissionPlanStatus::Scheduled {
+    let approved_by = if status == orbitlogs_models::MissionPlanStatus::Approved
+        || status == orbitlogs_models::MissionPlanStatus::Scheduled
+    {
         Some(req.operator.clone())
     } else {
         row.get("approved_by")

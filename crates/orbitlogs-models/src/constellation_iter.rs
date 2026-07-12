@@ -48,7 +48,10 @@ impl Iterator for ConstellationIter {
         self.current += 1;
         // Use from_trusted since we control the format — these IDs are
         // guaranteed to match the SAT-NNNN pattern.
-        Some(SatelliteId::from_trusted(format!("SAT-{:04}", self.current)))
+        Some(SatelliteId::from_trusted(format!(
+            "SAT-{:04}",
+            self.current
+        )))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

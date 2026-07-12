@@ -23,7 +23,10 @@ pub async fn get_latest_telemetry(
     .fetch_optional(pool)
     .await
     .map_err(|e| {
-        error!("Failed to fetch latest satellite telemetry {}: {}", sat_id, e);
+        error!(
+            "Failed to fetch latest satellite telemetry {}: {}",
+            sat_id, e
+        );
         e
     })?;
 

@@ -305,7 +305,7 @@ impl<S: db::TelemetryStore> TelemetryConsumer<S> {
 
         // 3. Update core fields
         merged.timestamp = incoming.timestamp;
-        merged.subsystem_id = incoming.subsystem_id.clone();
+        merged.subsystem_id = incoming.subsystem_id;
         merged.mission_id = incoming.mission_id.clone();
         merged.event_id = incoming.event_id;
 
@@ -416,14 +416,16 @@ impl<S: db::TelemetryStore> TelemetryConsumer<S> {
                     "temperature": temperature,
                     "limit": 85.0
                 });
-                if let Err(e) = self.store.insert_event(
-                    sat_id,
-                    "ANOMALY_THERMAL_SPIKE",
-                    "CRITICAL",
-                    &format!("Satellite temperature has spiked to {}°C", temperature),
-                    details,
-                )
-                .await
+                if let Err(e) = self
+                    .store
+                    .insert_event(
+                        sat_id,
+                        "ANOMALY_THERMAL_SPIKE",
+                        "CRITICAL",
+                        &format!("Satellite temperature has spiked to {}°C", temperature),
+                        details,
+                    )
+                    .await
                 {
                     error!("Failed to log thermal spike anomaly for {}: {}", sat_id, e);
                 }
@@ -441,14 +443,16 @@ impl<S: db::TelemetryStore> TelemetryConsumer<S> {
                     "battery_voltage": battery_voltage,
                     "limit": 11.0
                 });
-                if let Err(e) = self.store.insert_event(
-                    sat_id,
-                    "ANOMALY_BATTERY_DEGRADATION",
-                    "CRITICAL",
-                    &format!("Battery voltage is critical: {}V", battery_voltage),
-                    details,
-                )
-                .await
+                if let Err(e) = self
+                    .store
+                    .insert_event(
+                        sat_id,
+                        "ANOMALY_BATTERY_DEGRADATION",
+                        "CRITICAL",
+                        &format!("Battery voltage is critical: {}V", battery_voltage),
+                        details,
+                    )
+                    .await
                 {
                     error!("Failed to log battery anomaly for {}: {}", sat_id, e);
                 }
@@ -462,18 +466,20 @@ impl<S: db::TelemetryStore> TelemetryConsumer<S> {
                     "fuel_remaining": fuel_remaining,
                     "limit": 15.0
                 });
-                if let Err(e) = self.store.insert_event(
-                    sat_id,
-                    "ANOMALY_FUEL_LOW",
-                    if fuel_remaining < 5.0 {
-                        "CRITICAL"
-                    } else {
-                        "WARNING"
-                    },
-                    &format!("Satellite fuel level has dropped to {}%", fuel_remaining),
-                    details,
-                )
-                .await
+                if let Err(e) = self
+                    .store
+                    .insert_event(
+                        sat_id,
+                        "ANOMALY_FUEL_LOW",
+                        if fuel_remaining < 5.0 {
+                            "CRITICAL"
+                        } else {
+                            "WARNING"
+                        },
+                        &format!("Satellite fuel level has dropped to {}%", fuel_remaining),
+                        details,
+                    )
+                    .await
                 {
                     error!("Failed to log fuel anomaly for {}: {}", sat_id, e);
                 }
@@ -494,17 +500,19 @@ impl<S: db::TelemetryStore> TelemetryConsumer<S> {
                     "packet_loss": packet_loss,
                     "latency": comm_latency
                 });
-                if let Err(e) = self.store.insert_event(
-                    sat_id,
-                    "ANOMALY_COMMUNICATION_DEGRADED",
-                    "WARNING",
-                    &format!(
-                        "Communications degraded. Latency: {}ms, Packet Loss: {}%",
-                        comm_latency, packet_loss
-                    ),
-                    details,
-                )
-                .await
+                if let Err(e) = self
+                    .store
+                    .insert_event(
+                        sat_id,
+                        "ANOMALY_COMMUNICATION_DEGRADED",
+                        "WARNING",
+                        &format!(
+                            "Communications degraded. Latency: {}ms, Packet Loss: {}%",
+                            comm_latency, packet_loss
+                        ),
+                        details,
+                    )
+                    .await
                 {
                     error!("Failed to log communication anomaly for {}: {}", sat_id, e);
                 }

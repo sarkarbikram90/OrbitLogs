@@ -131,7 +131,9 @@ impl crate::processor::TelemetryProcessor for DirectorManager {
         &'a self,
         sat_id: &'a str,
         record: &'a orbitlogs_models::TelemetryRecord,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Output, Self::Error>> + Send + 'a>> {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Output, Self::Error>> + Send + 'a>,
+    > {
         let temp = record.temperature.unwrap_or(20.0);
         let batt = record.battery_voltage.unwrap_or(13.8);
         let loss = record.packet_loss.unwrap_or(0.0) as f64;

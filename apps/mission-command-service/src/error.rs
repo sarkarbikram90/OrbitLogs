@@ -59,16 +59,8 @@ impl IntoResponse for AppError {
                 ErrorCode::Unauthorized,
                 msg.clone(),
             ),
-            AppError::Forbidden(msg) => (
-                StatusCode::FORBIDDEN,
-                ErrorCode::Forbidden,
-                msg.clone(),
-            ),
-            AppError::NotFound(_) => (
-                StatusCode::NOT_FOUND,
-                ErrorCode::NotFound,
-                self.to_string(),
-            ),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, ErrorCode::Forbidden, msg.clone()),
+            AppError::NotFound(_) => (StatusCode::NOT_FOUND, ErrorCode::NotFound, self.to_string()),
             AppError::InvalidTransition { .. } => (
                 StatusCode::BAD_REQUEST,
                 ErrorCode::CommandInvalidState,
@@ -90,11 +82,9 @@ impl IntoResponse for AppError {
                 msg.clone(),
             ),
             AppError::Domain(e) => match e {
-                orbitlogs_models::DomainError::NotFound { .. } => (
-                    StatusCode::NOT_FOUND,
-                    ErrorCode::NotFound,
-                    e.to_string(),
-                ),
+                orbitlogs_models::DomainError::NotFound { .. } => {
+                    (StatusCode::NOT_FOUND, ErrorCode::NotFound, e.to_string())
+                }
                 orbitlogs_models::DomainError::Validation(_)
                 | orbitlogs_models::DomainError::InvalidSatelliteId(_)
                 | orbitlogs_models::DomainError::InvalidStationId(_)
@@ -114,4 +104,3 @@ impl IntoResponse for AppError {
         (status, body).into_response()
     }
 }
-

@@ -197,12 +197,9 @@ fn compute_health_score<T: TelemetrySource>(source: &T) -> i32 {
 pub fn active_satellites(
     satellites: &[SatelliteHealthSummary],
 ) -> impl Iterator<Item = &SatelliteHealthSummary> + '_ {
-    satellites.iter().filter(|s| {
-        matches!(
-            s.overall_state,
-            HealthState::Green | HealthState::Yellow
-        )
-    })
+    satellites
+        .iter()
+        .filter(|s| matches!(s.overall_state, HealthState::Green | HealthState::Yellow))
 }
 
 /// Evaluate telemetry with a user-supplied anomaly detector (P1 #10 — Fn bounds).
@@ -228,10 +225,7 @@ where
 /// Process a batch of health summaries with complex generic bounds (P1 #11 — where clauses).
 ///
 /// Demonstrates `IntoIterator`, associated type bounds, and `?Sized`.
-pub fn process_batch<I, F>(
-    records: I,
-    processor: &F,
-) -> Vec<HealthState>
+pub fn process_batch<I, F>(records: I, processor: &F) -> Vec<HealthState>
 where
     I: IntoIterator<Item = SatelliteHealthSummary>,
     I::IntoIter: ExactSizeIterator,
@@ -429,15 +423,27 @@ mod tests {
     }
 
     impl TelemetrySource for MockTelemetry {
-        fn battery_voltage(&self) -> Option<f64> { self.battery_voltage }
-        fn temperature(&self) -> Option<f64> { self.temperature }
-        fn fuel_remaining(&self) -> Option<f32> { self.fuel_remaining }
-        fn cpu_usage(&self) -> Option<f32> { self.cpu_usage }
-        fn packet_loss(&self) -> Option<f32> { self.packet_loss }
+        fn battery_voltage(&self) -> Option<f64> {
+            self.battery_voltage
+        }
+        fn temperature(&self) -> Option<f64> {
+            self.temperature
+        }
+        fn fuel_remaining(&self) -> Option<f32> {
+            self.fuel_remaining
+        }
+        fn cpu_usage(&self) -> Option<f32> {
+            self.cpu_usage
+        }
+        fn packet_loss(&self) -> Option<f32> {
+            self.packet_loss
+        }
     }
 
     impl HasTimestamp for MockTelemetry {
-        fn timestamp(&self) -> chrono::DateTime<chrono::Utc> { self.timestamp }
+        fn timestamp(&self) -> chrono::DateTime<chrono::Utc> {
+            self.timestamp
+        }
     }
 
     #[test]
@@ -483,17 +489,15 @@ mod tests {
 
     #[test]
     fn test_evaluate_with_detector_fn_bounds() {
-        let fleet = vec![
-            SatelliteHealthSummary {
-                id: "SAT-0001".to_string(),
-                overall_state: HealthState::Green,
-                overall_score: 90,
-                fuel_remaining: 80.0,
-                cpu_usage: 20.0,
-                memory_usage: 30.0,
-                payload_active: true,
-            },
-        ];
+        let fleet = vec![SatelliteHealthSummary {
+            id: "SAT-0001".to_string(),
+            overall_state: HealthState::Green,
+            overall_score: 90,
+            fuel_remaining: 80.0,
+            cpu_usage: 20.0,
+            memory_usage: 30.0,
+            payload_active: true,
+        }];
         let anomalies = evaluate_with_detector(&fleet, |s| {
             if s.fuel_remaining > 50.0 {
                 None

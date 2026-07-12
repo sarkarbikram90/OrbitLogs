@@ -17,11 +17,11 @@ mod scenario;
 
 use config::Config;
 use generator::{GroundStationState, SatelliteSimulator};
+use orbitlogs_models::kafka::{MetricsContext, KAFKA_CONSUMER_LAG};
+use orbitlogs_models::SatelliteId;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use std::sync::LazyLock;
-use orbitlogs_models::kafka::{MetricsContext, KAFKA_CONSUMER_LAG};
-use orbitlogs_models::SatelliteId;
 
 pub static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
 pub static TELEMETRY_GENERATED_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
@@ -298,7 +298,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 loop {
                     let linked_gs = {
-                        let gs_id = orbitlogs_models::SatelliteId::new(&satellite_id).linked_ground_station();
+                        let gs_id = orbitlogs_models::SatelliteId::new(&satellite_id)
+                            .linked_ground_station();
                         gs_states_sub.get(gs_id.as_str()).map(|r| r.clone())
                     };
 

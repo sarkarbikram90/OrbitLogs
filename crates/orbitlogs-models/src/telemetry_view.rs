@@ -75,11 +75,11 @@ impl<'buf> TelemetryView<'buf> {
 
     /// Quick health check: returns true if any field is in a critical range.
     pub fn is_critical(&self) -> bool {
-        self.battery_voltage.map_or(false, |v| v < 11.0)
-            || self.temperature.map_or(false, |t| t > 75.0)
-            || self.fuel_remaining.map_or(false, |f| f < 10.0)
-            || self.cpu_usage.map_or(false, |c| c > 95.0)
-            || self.packet_loss.map_or(false, |p| p > 20.0)
+        self.battery_voltage.is_some_and(|v| v < 11.0)
+            || self.temperature.is_some_and(|t| t > 75.0)
+            || self.fuel_remaining.is_some_and(|f| f < 10.0)
+            || self.cpu_usage.is_some_and(|c| c > 95.0)
+            || self.packet_loss.is_some_and(|p| p > 20.0)
     }
 
     /// Compute a simple health score (0-100) from the borrowed view.

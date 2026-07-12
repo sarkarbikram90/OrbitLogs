@@ -162,8 +162,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let app = Router::new()
         .route("/api/twin/:satellite", get(handlers::get_twin))
-        .route("/api/twin/:satellite/health", get(handlers::get_twin_health))
-        .route("/api/twin/:satellite/timeline", get(handlers::get_twin_timeline))
+        .route(
+            "/api/twin/:satellite/health",
+            get(handlers::get_twin_health),
+        )
+        .route(
+            "/api/twin/:satellite/timeline",
+            get(handlers::get_twin_timeline),
+        )
         .nest("/api/twin", state_routes)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

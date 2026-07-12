@@ -44,7 +44,10 @@ impl From<DbTelemetry> for orbitlogs_models::TelemetryRecord {
     fn from(t: DbTelemetry) -> Self {
         orbitlogs_models::TelemetryRecord {
             satellite_id: orbitlogs_models::SatelliteId::new(t.satellite_id),
-            subsystem_id: t.subsystem_id.parse::<orbitlogs_models::Subsystem>().unwrap_or(orbitlogs_models::Subsystem::Unified),
+            subsystem_id: t
+                .subsystem_id
+                .parse::<orbitlogs_models::Subsystem>()
+                .unwrap_or(orbitlogs_models::Subsystem::Unified),
             mission_id: orbitlogs_models::MissionId::new(t.mission_id),
             timestamp: t.timestamp,
             battery_voltage: t.battery_voltage,

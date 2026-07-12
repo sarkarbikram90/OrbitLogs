@@ -61,8 +61,5 @@ pub enum DomainError {
     Validation(Vec<String>),
 
     #[error("Not found: {entity} with id {id}")]
-    NotFound {
-        entity: &'static str,
-        id: String,
-    },
+    NotFound { entity: &'static str, id: String },
 }

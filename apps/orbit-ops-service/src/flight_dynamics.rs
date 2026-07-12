@@ -230,7 +230,9 @@ impl crate::processor::TelemetryProcessor for FlightDynamicsManager {
         &'a self,
         sat_id: &'a str,
         record: &'a orbitlogs_models::TelemetryRecord,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Output, Self::Error>> + Send + 'a>> {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Output, Self::Error>> + Send + 'a>,
+    > {
         let alt = record.altitude.unwrap_or(500.0);
         let fuel = record.fuel_remaining.unwrap_or(100.0);
         Box::pin(async move {

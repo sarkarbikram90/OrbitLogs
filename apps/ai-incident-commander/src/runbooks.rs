@@ -74,7 +74,6 @@ pub fn generate_rule_response(
         );
     }
 
-
     if query.contains("unhealthy") || query.contains("why") || query.contains("status") {
         let mut reasons = Vec::new();
         if temp > 80.0 {

@@ -1,6 +1,6 @@
+use crate::SatelliteId;
 use std::marker::PhantomData;
 use uuid::Uuid;
-use crate::SatelliteId;
 
 // =========================================================================
 // Typestate Command State Machine (P1 #3)
@@ -87,11 +87,7 @@ pub struct TypedCommand<S: CommandState> {
 
 impl TypedCommand<Created> {
     /// Create a new command in the `Created` state.
-    pub fn new(
-        satellite_id: SatelliteId,
-        command_type: String,
-        created_by: String,
-    ) -> Self {
+    pub fn new(satellite_id: SatelliteId, command_type: String, created_by: String) -> Self {
         Self {
             id: Uuid::new_v4(),
             satellite_id,

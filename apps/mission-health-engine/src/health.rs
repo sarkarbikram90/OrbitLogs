@@ -1,9 +1,8 @@
-#[allow(
+#![allow(
     clippy::upper_case_acronyms,
     clippy::wrong_self_convention,
     clippy::inherent_to_string
 )]
-
 use chrono::{DateTime, Utc};
 use orbitlogs_models::TelemetryRecord;
 use serde::{Deserialize, Serialize};
@@ -168,7 +167,9 @@ fn assess_communications(
     };
 
     let explanation = if let Some(gs) = gs_state {
-        if gs.status == orbitlogs_models::StationStatus::Outage || gs.status == orbitlogs_models::StationStatus::Degraded {
+        if gs.status == orbitlogs_models::StationStatus::Outage
+            || gs.status == orbitlogs_models::StationStatus::Degraded
+        {
             if gs.status == orbitlogs_models::StationStatus::Outage {
                 state = HealthState::Red;
                 score = score.min(10);

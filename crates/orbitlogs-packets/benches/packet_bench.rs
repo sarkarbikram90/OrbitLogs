@@ -22,7 +22,7 @@ fn bench_packet_parse(c: &mut Criterion) {
     raw_packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // ts fine
     raw_packet.push(1); // APID_POWER
     raw_packet.extend_from_slice(&[0u8; 24]); // battery_voltage etc
-    
+
     // Add CRC-16
     let crc = calculate_crc16(&raw_packet);
     raw_packet.extend_from_slice(&crc.to_be_bytes());

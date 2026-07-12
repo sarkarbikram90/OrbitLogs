@@ -36,11 +36,15 @@ impl IntoResponse for AppError {
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Domain(e) => match &e {
-                orbitlogs_models::DomainError::NotFound { .. } => (StatusCode::NOT_FOUND, e.to_string()),
+                orbitlogs_models::DomainError::NotFound { .. } => {
+                    (StatusCode::NOT_FOUND, e.to_string())
+                }
                 orbitlogs_models::DomainError::Validation(_)
                 | orbitlogs_models::DomainError::InvalidSatelliteId(_)
                 | orbitlogs_models::DomainError::InvalidStationId(_)
-                | orbitlogs_models::DomainError::InvalidMissionId(_) => (StatusCode::BAD_REQUEST, e.to_string()),
+                | orbitlogs_models::DomainError::InvalidMissionId(_) => {
+                    (StatusCode::BAD_REQUEST, e.to_string())
+                }
             },
         };
 
@@ -51,4 +55,3 @@ impl IntoResponse for AppError {
         (status, body).into_response()
     }
 }
-

@@ -1,9 +1,5 @@
 use crate::AppState;
-use axum::{
-    extract::State,
-    http::HeaderMap,
-    Json,
-};
+use axum::{extract::State, http::HeaderMap, Json};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -77,20 +73,18 @@ pub fn check_role(
         &jsonwebtoken::DecodingKey::from_secret(state.jwt_secret.as_bytes()),
         &validation,
     )
-    .map_err(|e| {
-        crate::error::AppError::Auth(format!("Invalid token: {}", e))
-    })?;
+    .map_err(|e| crate::error::AppError::Auth(format!("Invalid token: {}", e)))?;
 
-    let role = Role::from_str(&token_data.claims.role).ok_or_else(|| {
-        crate::error::AppError::Auth("Invalid role in token claims".to_string())
-    })?;
+    let role = Role::from_str(&token_data.claims.role)
+        .ok_or_else(|| crate::error::AppError::Auth("Invalid role in token claims".to_string()))?;
 
     if role >= required {
         Ok(token_data.claims.role)
     } else {
-        Err(crate::error::AppError::Forbidden(
-            format!("Insufficient permissions: required {:?}, got {:?}", required, role),
-        ))
+        Err(crate::error::AppError::Forbidden(format!(
+            "Insufficient permissions: required {:?}, got {:?}",
+            required, role
+        )))
     }
 }
 
@@ -139,7 +133,9 @@ pub async fn login_handler(
     }
 
     let Some(role) = Role::from_str(&req.role) else {
-        return Err(crate::error::AppError::Validation("Invalid role specified".to_string()));
+        return Err(crate::error::AppError::Validation(
+            "Invalid role specified".to_string(),
+        ));
     };
 
     let exp = chrono::Utc::now()
@@ -158,9 +154,7 @@ pub async fn login_handler(
         &claims,
         &jsonwebtoken::EncodingKey::from_secret(state.jwt_secret.as_bytes()),
     )
-    .map_err(|e| {
-        crate::error::AppError::Internal(format!("Token generation failed: {}", e))
-    })?;
+    .map_err(|e| crate::error::AppError::Internal(format!("Token generation failed: {}", e)))?;
 
     Ok(Json(LoginResponse { token }))
 }
@@ -254,7 +248,7 @@ mod tests {
     #[tokio::test]
     async fn test_check_role_expired_token() {
         let state = mock_state("secret123");
-        let token = create_token("secret123", "Administrator", -1); 
+        let token = create_token("secret123", "Administrator", -1);
         // expired 1h ago
 
         let mut headers = HeaderMap::new();

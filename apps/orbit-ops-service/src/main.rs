@@ -25,6 +25,7 @@ mod graph;
 mod ground_ops;
 mod handlers;
 mod health;
+mod kafka_guard;
 mod orbit;
 mod planner;
 mod postmortem;
@@ -32,8 +33,6 @@ mod processor;
 mod ssa;
 mod training;
 mod twin;
-mod kafka_guard;
-
 
 #[derive(Parser, Debug)]
 #[command(name = "Orbit Operations Service V4")]
@@ -82,7 +81,8 @@ pub struct ServiceState {
     pub health: Arc<health::HealthScoringManager>,
     pub postmortem: Arc<postmortem::PostmortemManager>,
     pub graph: Arc<graph::GraphManager>,
-    pub processors: Vec<Arc<dyn processor::TelemetryProcessor<Error = std::convert::Infallible, Output = ()>>>,
+    pub processors:
+        Vec<Arc<dyn processor::TelemetryProcessor<Error = std::convert::Infallible, Output = ()>>>,
 }
 
 #[tokio::main]
@@ -149,8 +149,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let postmortem = Arc::new(postmortem::PostmortemManager::new(db_pool.clone()));
     let graph = Arc::new(graph::GraphManager::new(db_pool.clone()));
 
-    let processors: Vec<Arc<dyn processor::TelemetryProcessor<Error = std::convert::Infallible, Output = ()>>> =
-        vec![flight_dynamics.clone(), health.clone(), director.clone()];
+    let processors: Vec<
+        Arc<dyn processor::TelemetryProcessor<Error = std::convert::Infallible, Output = ()>>,
+    > = vec![flight_dynamics.clone(), health.clone(), director.clone()];
 
     let shared_state = Arc::new(ServiceState {
         db_pool,
@@ -243,9 +244,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let state_g = Arc::clone(&shared_state);
     let token_g = cancel_token.clone();
     tokio::spawn(async move {
-        let active_sats: Vec<String> = orbitlogs_models::constellation_iter::ConstellationIter::new(10)
-            .map(|id| id.as_str().to_string())
-            .collect();
+        let active_sats: Vec<String> =
+            orbitlogs_models::constellation_iter::ConstellationIter::new(10)
+                .map(|id| id.as_str().to_string())
+                .collect();
         loop {
             tokio::select! {
                 _ = token_g.cancelled() => break,
@@ -260,9 +262,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let state_s = Arc::clone(&shared_state);
     let token_s = cancel_token.clone();
     tokio::spawn(async move {
-        let active_sats: Vec<String> = orbitlogs_models::constellation_iter::ConstellationIter::new(10)
-            .map(|id| id.as_str().to_string())
-            .collect();
+        let active_sats: Vec<String> =
+            orbitlogs_models::constellation_iter::ConstellationIter::new(10)
+                .map(|id| id.as_str().to_string())
+                .collect();
         loop {
             tokio::select! {
                 _ = token_s.cancelled() => break,
@@ -273,14 +276,14 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     });
 
-
     // 5. Spawning TLE Expiration checks loop (every 60 seconds)
     let state_t = Arc::clone(&shared_state);
     let token_t = cancel_token.clone();
     tokio::spawn(async move {
-        let active_sats: Vec<String> = orbitlogs_models::constellation_iter::ConstellationIter::new(10)
-            .map(|id| id.as_str().to_string())
-            .collect();
+        let active_sats: Vec<String> =
+            orbitlogs_models::constellation_iter::ConstellationIter::new(10)
+                .map(|id| id.as_str().to_string())
+                .collect();
         loop {
             tokio::select! {
                 _ = token_t.cancelled() => break,
@@ -290,7 +293,6 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         }
     });
-
 
     // 6. Spawning automated TLE scraping daemon (every 12 hours)
     let state_scrape = Arc::clone(&shared_state);
@@ -432,7 +434,6 @@ async fn run_telemetry_loop(
         topic: topic.clone(),
     };
     consumer.subscribe(&[&topic])?;
-
 
     info!(
         "Operations background listener subscribed to topic {}",
