@@ -40,7 +40,7 @@ impl DirectorManager {
         temp: f64,
         battery_v: f64,
         packet_loss: f64,
-        fuel: f32,
+        fuel: f64,
     ) {
         let mut recs = Vec::new();
 
@@ -137,7 +137,7 @@ impl crate::processor::TelemetryProcessor for DirectorManager {
         let temp = record.temperature.unwrap_or(20.0);
         let batt = record.battery_voltage.unwrap_or(13.8);
         let loss = record.packet_loss.unwrap_or(0.0) as f64;
-        let fuel = record.fuel_remaining.unwrap_or(100.0);
+        let fuel = record.fuel_remaining.unwrap_or(100.0) as f64;
 
         self.evaluate_telemetry(sat_id, temp, batt, loss, fuel);
 
