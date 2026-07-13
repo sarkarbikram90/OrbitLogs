@@ -198,6 +198,16 @@ OrbitLogs 2.0 introduces a decentralized suite of async Rust microservices and p
 *   Renders an interactive **250-particle orbital debris cloud** on the 3D Three.js Earth globe visualizer.
 *   Integrates with `ai-incident-commander` to generate autonomous Collision Avoidance Maneuvers (CAM), calculating optimal Delta-v ($\Delta v$) burn vectors, propellant mass cost, payload standby windows, and post-burn safety margins.
 
+### 13. Astrodynamics & Coordinate Transformations (`crates/orbitlogs-astrodynamics`)
+*   High-fidelity SGP4 orbital propagation wrapper utilizing standard Two-Line Element (TLE) variables.
+*   Greenwich Mean Sidereal Time (GMST) calculations to rotate coordinates from Earth-Centered Inertial (ECI / TEME) to Earth-Centered, Earth-Fixed (ECEF) frames, incorporating Earth rotation rate Coriolis effects.
+*   Closed-form conversions between WGS84 geodetic coordinates (latitude, longitude, altitude) and Cartesian ECEF.
+*   Local East-North-Up (ENU) coordinate rotations and look angles (Azimuth, Elevation, Range) computation for tracking antenna targeting.
+
+### 14. Real TLE Ingestion API (`apps/telemetry-collector`)
+*   Secure HTTP endpoint `/telemetry/tles/ingest` accepting batches of standard TLE sets.
+*   Validates TLE integrity at the edge via SGP4 propagation sanity checks before archiving to the TimescaleDB back-end.
+
 
 ---
 
@@ -326,4 +336,5 @@ OrbitLogs has been engineered to comply with enterprise-grade reliability and se
 - [x] **Phase 17**: Ground Station Simulator weather/backhaul network attenuation.
 - [x] **Phase 18**: Advanced sidebar navigation layout & integrated sub-dashboards.
 - [x] **Phase 19**: Space Traffic Management (STM), Conjunction Alerts, Debris Risk Scoring & 3D Debris Visualizer.
+- [x] **Phase 20**: SGP4 Astrodynamics Library, coordinate frames rotation (ECI/ECEF/ENU) & real-time TLE Ingestion API.
 
