@@ -17,6 +17,7 @@ members = [
     "crates/space-schema-registry",
     "crates/fleet-health",
     "apps/space-otel-collector",
+    "crates/orbitlogs-astrodynamics",
 ]
 
 [workspace.dependencies]
@@ -56,6 +57,9 @@ tower-http = { version = "0.5", features = ["cors", "timeout"] }
 proptest = "1.4.0"
 criterion = "0.5"
 lru = "0.12"
+sgp4 = "0.2"
+nalgebra = { version = "0.32", features = ["serde-serialize"] }
+orbitlogs-astrodynamics = { path = "crates/orbitlogs-astrodynamics" }
 
 # Optimize profiles for production build speed vs runtime execution speed
 [profile.release]

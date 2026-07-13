@@ -29,6 +29,10 @@ pub async fn start_server(port: u16, state: AppState) -> Result<(), anyhow::Erro
                         rate_limit_middleware,
                     )),
                 )
+                .route(
+                    "/tles/ingest",
+                    post(handlers::ingest_tles),
+                )
                 .layer(axum::middleware::from_fn_with_state(
                     state_arc.clone(),
                     auth_middleware,

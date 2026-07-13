@@ -24,6 +24,7 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 orbitlogs-models = { workspace = true }
+orbitlogs-astrodynamics = { workspace = true }
 orbitlogs-packets = { workspace = true }
 tower = { workspace = true }
 subtle = { workspace = true }

@@ -1,6 +1,7 @@
 use axum::http::HeaderMap;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use chrono::{DateTime, Utc};
+use orbitlogs_astrodynamics::TleRecord;
 use prometheus::{Encoder, TextEncoder};
 use serde::Serialize;
 use std::sync::Arc;
@@ -406,4 +407,75 @@ async fn handle_socket(mut socket: axum::extract::ws::WebSocket, state: Arc<AppS
             }
         }
     }
+}
+
+#[derive(Serialize)]
+pub struct TleIngestionResponse {
+    pub message: String,
+    pub count: usize,
+}
+
+#[instrument(skip(state, records))]
+pub async fn ingest_tles(
+    State(state): State<Arc<AppState>>,
+    Json(records): Json<Vec<TleRecord>>,
+) -> impl IntoResponse {
+    if state.db_pool.is_none() {
+        let err_resp = ErrorResponse {
+            error: "Database unavailable".to_string(),
+            details: vec!["No active TimescaleDB connection pool".to_string()],
+            request_id: Uuid::new_v4().to_string(),
+        };
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(err_resp)).into_response();
+    }
+    
+    let db = state.db_pool.as_ref().unwrap();
+    let mut success_count = 0;
+    
+    for record in &records {
+        if let Err(e) = record.to_elements() {
+            let err_resp = ErrorResponse {
+                error: format!("Invalid TLE lines for satellite {}", record.satellite_id),
+                details: vec![e.to_string()],
+                request_id: Uuid::new_v4().to_string(),
+            };
+            return (StatusCode::BAD_REQUEST, Json(err_resp)).into_response();
+        }
+        
+        let query = sqlx::query(
+            r#"
+            INSERT INTO satellite_tles (satellite_id, epoch, line1, line2)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (satellite_id, epoch) DO UPDATE
+            SET line1 = EXCLUDED.line1, line2 = EXCLUDED.line2
+            "#,
+        )
+        .bind(&record.satellite_id)
+        .bind(record.epoch)
+        .bind(&record.line1)
+        .bind(&record.line2)
+        .execute(db)
+        .await;
+        
+        match query {
+            Ok(_) => {
+                success_count += 1;
+            }
+            Err(e) => {
+                error!("Database error during TLE insertion: {}", e);
+                let err_resp = ErrorResponse {
+                    error: "Database error".to_string(),
+                    details: vec![e.to_string()],
+                    request_id: Uuid::new_v4().to_string(),
+                };
+                return (StatusCode::INTERNAL_SERVER_ERROR, Json(err_resp)).into_response();
+            }
+        }
+    }
+    
+    let resp = TleIngestionResponse {
+        message: "TLE data ingested successfully".to_string(),
+        count: success_count,
+    };
+    (StatusCode::OK, Json(resp)).into_response()
 }
