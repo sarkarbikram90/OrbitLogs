@@ -52,14 +52,15 @@ An audit of all key files in the repository yields the following inventory class
 | `deny.toml` | **KEEP** | Critical for cargo-deny license and vulnerability checking in CI/CD. |
 | `.gitignore` | **KEEP** | Standard git exclusion rules. |
 | `CHANGELOG.md` | **KEEP** | Essential for public release notes. |
-| `Agent.md` | **ARCHIVE** | Workspace prompt note. Move to `docs/archive/Agent-Prompt.md`. |
-| `Project-review.md` | **ARCHIVE** | Duplicate early audit. Move to `docs/reviews/Project-Review-v4.0.0.md`. |
-| `OrbitLogs-Project-Review-Report.md` | **ARCHIVE** | Early systems audit. Move to `docs/reviews/SpaceX-Audit-v4.3.0.md`. |
-| `Project-Rust-Code-Audit-Review.md` | **ARCHIVE** | Early Rust audit. Move to `docs/reviews/Rust-Audit-v4.0.0.md`. |
-| `Rust-Code-Level.md` | **ARCHIVE** | Rust assessment. Move to `docs/reviews/Rust-Code-Assessment-v4.4.0.md`. |
-| `Starlink-Rust-Evaluation-Report.md` | **ARCHIVE** | Post-refactor audit. Move to `docs/reviews/Starlink-Rating-v4.4.0.md`. |
-| `Rust-Learning-Report.md` | **ARCHIVE** | Pedagogical review. Move to `docs/reviews/Rust-Learning-Report.md`. |
+| `Agent.md` | **ARCHIVE** | Workspace prompt note. Move to `docs/archive/agent_prompt.md`. |
+| `Project-review.md` | **ARCHIVE** | Duplicate early audit. Move to `docs/reviews/project_review_v4.0.0.md`. |
+| `OrbitLogs-Project-Review-Report.md` | **ARCHIVE** | Early systems audit. Move to `docs/reviews/spacex_audit_v4.3.0.md`. |
+| `Project-Rust-Code-Audit-Review.md` | **ARCHIVE** | Early Rust audit. Move to `docs/reviews/rust_audit_v4.0.0.md`. |
+| `Rust-Code-Level.md` | **ARCHIVE** | Rust assessment. Move to `docs/reviews/rust_code_assessment_v4.4.0.md`. |
+| `Starlink-Rust-Evaluation-Report.md` | **ARCHIVE** | Post-refactor audit. Move to `docs/reviews/starlink_rating_v4.4.0.md`. |
+| `Rust-Learning-Report.md` | **ARCHIVE** | Pedagogical review. Move to `docs/reviews/rust_learning_report.md`. |
 | `Space-Traffic-Management-Walkthrough.md` | **MOVE** | Feature guide. Move to `docs/architecture/space_traffic_management.md`. |
+
 
 ### Subdirectories & Component Files
 
