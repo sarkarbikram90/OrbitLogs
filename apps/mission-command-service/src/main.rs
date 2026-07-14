@@ -50,6 +50,9 @@ struct Cli {
     #[arg(long, env = "JWT_SECRET")]
     jwt_secret: Option<String>,
 
+    #[arg(long, env = "JWT_EXPIRATION_HOURS", default_value = "24")]
+    pub jwt_expiration_hours: i64,
+
     #[arg(
         long,
         env = "CORS_ALLOWED_ORIGIN",
@@ -69,6 +72,7 @@ pub struct AppState {
     pub timeline_topic: String,
     pub api_key: String,
     pub jwt_secret: String,
+    pub jwt_expiration_hours: i64,
     pub login_rate_limiter: LoginRateLimiter,
 }
 
@@ -119,6 +123,7 @@ async fn main() -> Result<(), anyhow::Error> {
         timeline_topic: cli.timeline_events_topic,
         api_key,
         jwt_secret,
+        jwt_expiration_hours: cli.jwt_expiration_hours,
         login_rate_limiter: LoginRateLimiter {
             buckets: dashmap::DashMap::new(),
         },

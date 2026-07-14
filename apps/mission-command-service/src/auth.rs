@@ -65,7 +65,7 @@ pub fn check_role(
             crate::error::AppError::Auth("Missing Authorization Bearer token".to_string())
         })?;
 
-    let mut validation = jsonwebtoken::Validation::default();
+    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
     validation.validate_exp = true;
 
     let token_data = jsonwebtoken::decode::<Claims>(
@@ -139,7 +139,7 @@ pub async fn login_handler(
     };
 
     let exp = chrono::Utc::now()
-        .checked_add_signed(chrono::Duration::hours(24))
+        .checked_add_signed(chrono::Duration::hours(state.jwt_expiration_hours))
         .expect("valid timestamp")
         .timestamp() as usize;
 
