@@ -1,0 +1,10 @@
+[package]
+name = "orbitlogs-test-utils"
+version = "1.0.0"
+edition = "2021"
+description = "Shared test utility helpers for OrbitLogs workspace"
+
+[dependencies]
+orbitlogs-models = { path = "../orbitlogs-models" }
+chrono = { workspace = true }
+uuid = { workspace = true }

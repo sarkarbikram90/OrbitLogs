@@ -198,30 +198,25 @@ mod tests {
 
     // A helper function to create a default TelemetryRecord
     fn default_telemetry_record(sat_id: &str) -> TelemetryRecord {
-        TelemetryRecord {
-            event_id: uuid::Uuid::new_v4(),
-            satellite_id: orbitlogs_models::SatelliteId::new(sat_id),
-            mission_id: orbitlogs_models::MissionId::new("test-mission"),
-            timestamp: Utc::now(),
-            subsystem_id: orbitlogs_models::Subsystem::Unified,
-            battery_voltage: Some(13.8),
-            battery_current: Some(1.5),
-            solar_panel_output: Some(120.0),
-            cpu_usage: Some(25.0),
-            memory_usage: Some(30.0),
-            temperature: Some(22.0),
-            orientation_pitch: Some(0.0),
-            orientation_roll: Some(0.0),
-            orientation_yaw: Some(0.0),
-            velocity: Some(7.6),
-            altitude: Some(500.0),
-            fuel_remaining: Some(85.0),
-            communication_latency: Some(2.5),
-            packet_loss: Some(0.5),
-            signal_strength: Some(-75.0),
-            payload_power_draw: Some(15.0),
-            payload_active: Some(true),
-        }
+        let mut rec = orbitlogs_test_utils::mock_telemetry_record(sat_id);
+        rec.battery_voltage = Some(13.8);
+        rec.battery_current = Some(1.5);
+        rec.solar_panel_output = Some(120.0);
+        rec.cpu_usage = Some(25.0);
+        rec.memory_usage = Some(30.0);
+        rec.temperature = Some(22.0);
+        rec.orientation_pitch = Some(0.0);
+        rec.orientation_roll = Some(0.0);
+        rec.orientation_yaw = Some(0.0);
+        rec.velocity = Some(7.6);
+        rec.altitude = Some(500.0);
+        rec.fuel_remaining = Some(85.0);
+        rec.communication_latency = Some(2.5);
+        rec.packet_loss = Some(0.5);
+        rec.signal_strength = Some(-75.0);
+        rec.payload_power_draw = Some(15.0);
+        rec.payload_active = Some(true);
+        rec
     }
 
     #[test]

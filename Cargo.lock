@@ -2267,6 +2267,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "orbitlogs-models",
+ "orbitlogs-test-utils",
  "rand 0.8.6",
  "rdkafka",
  "reqwest",
@@ -2340,6 +2341,15 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "serde",
+]
+
+[[package]]
+name = "orbitlogs-test-utils"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "orbitlogs-models",
+ "uuid",
 ]
 
 [[package]]

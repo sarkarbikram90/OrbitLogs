@@ -3,7 +3,7 @@ use clap::Parser;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
 use tracing::{info, error, Level};
-use nalgebra::{DMatrix, DVector};
+use nalgebra::{Matrix3, Matrix3x6, Matrix6, Vector3, Vector6};
 
 #[derive(Parser, Debug)]
 #[command(name = "Orbit Determination Service")]
@@ -16,13 +16,13 @@ struct Cli {
 }
 
 pub struct ExtendedKalmanFilter {
-    pub state: DVector<f64>, // [x, y, z, vx, vy, vz]
-    pub covariance: DMatrix<f64>,
+    pub state: Vector6<f64>, // [x, y, z, vx, vy, vz]
+    pub covariance: Matrix6<f64>,
 }
 
 impl ExtendedKalmanFilter {
-    pub fn new(initial_state: DVector<f64>) -> Self {
-        let mut cov = DMatrix::<f64>::identity(6, 6);
+    pub fn new(initial_state: Vector6<f64>) -> Self {
+        let mut cov = Matrix6::<f64>::identity();
         cov *= 100.0; // High initial uncertainty
         Self {
             state: initial_state,
@@ -36,28 +36,28 @@ impl ExtendedKalmanFilter {
         let jacobian = calculate_transition_matrix(&self.state, dt);
 
         self.state = f;
-        let q = DMatrix::<f64>::identity(6, 6) * 0.01; // Process Noise Q
+        let q = Matrix6::<f64>::identity() * 0.01; // Process Noise Q
         self.covariance = &jacobian * &self.covariance * jacobian.transpose() + q;
     }
 
-    pub fn update(&mut self, z: &DVector<f64>, r: &DMatrix<f64>) {
+    pub fn update(&mut self, z: &Vector3<f64>, r: &Matrix3<f64>) {
         // Measurement Update: Update state vector based on observations
         let h = observation_model(&self.state);
         let h_jacobian = calculate_observation_jacobian(&self.state);
 
         let y = z - &h; // Measurement residual
         let s = &h_jacobian * &self.covariance * h_jacobian.transpose() + r;
-        if let Some(s_inv) = s.clone().try_inverse() {
+        if let Some(s_inv) = s.try_inverse() {
             let k = &self.covariance * h_jacobian.transpose() * s_inv; // Kalman Gain
             self.state = &self.state + &k * y;
-            let identity = DMatrix::<f64>::identity(6, 6);
+            let identity = Matrix6::<f64>::identity();
             self.covariance = (identity - &k * h_jacobian) * &self.covariance;
         }
     }
 }
 
-fn numerical_orbital_dynamics(state: &DVector<f64>, dt: f64) -> DVector<f64> {
-    let mut next_state = state.clone();
+fn numerical_orbital_dynamics(state: &Vector6<f64>, dt: f64) -> Vector6<f64> {
+    let mut next_state = *state;
     // Simple Euler integration for demonstration:
     // x = x + vx * dt
     // v = v + a * dt
@@ -77,17 +77,17 @@ fn numerical_orbital_dynamics(state: &DVector<f64>, dt: f64) -> DVector<f64> {
     next_state
 }
 
-fn calculate_transition_matrix(_state: &DVector<f64>, _dt: f64) -> DMatrix<f64> {
-    DMatrix::<f64>::identity(6, 6)
+fn calculate_transition_matrix(_state: &Vector6<f64>, _dt: f64) -> Matrix6<f64> {
+    Matrix6::<f64>::identity()
 }
 
-fn observation_model(state: &DVector<f64>) -> DVector<f64> {
+fn observation_model(state: &Vector6<f64>) -> Vector3<f64> {
     // We observe position x, y, z directly from GPS
-    DVector::from_vec(vec![state[0], state[1], state[2]])
+    Vector3::new(state[0], state[1], state[2])
 }
 
-fn calculate_observation_jacobian(_state: &DVector<f64>) -> DMatrix<f64> {
-    let mut h_jac = DMatrix::<f64>::zeros(3, 6);
+fn calculate_observation_jacobian(_state: &Vector6<f64>) -> Matrix3x6<f64> {
+    let mut h_jac = Matrix3x6::<f64>::zeros();
     h_jac[(0, 0)] = 1.0;
     h_jac[(1, 1)] = 1.0;
     h_jac[(2, 2)] = 1.0;
@@ -136,17 +136,17 @@ async fn main() -> Result<(), anyhow::Error> {
                     let vel: f64 = r.get("velocity");
 
                     // Initial state estimation
-                    let initial_state = DVector::from_vec(vec![
-                        (6378.1 + alt), 0.0, 0.0, // x, y, z
-                        0.0, vel, 0.0,            // vx, vy, vz
-                    ]);
+                    let initial_state = Vector6::new(
+                        6378.1 + alt, 0.0, 0.0, // x, y, z
+                        0.0, vel, 0.0,          // vx, vy, vz
+                    );
 
                     let mut ekf = ExtendedKalmanFilter::new(initial_state);
                     ekf.predict(10.0); // 10 second propagation step
 
                     // simulated GPS measurement
-                    let measurement = DVector::from_vec(vec![6378.1 + alt + 0.1, 0.05, -0.05]);
-                    let r_noise = DMatrix::<f64>::identity(3, 3) * 0.1;
+                    let measurement = Vector3::new(6378.1 + alt + 0.1, 0.05, -0.05);
+                    let r_noise = Matrix3::<f64>::identity() * 0.1;
 
                     ekf.update(&measurement, &r_noise);
 

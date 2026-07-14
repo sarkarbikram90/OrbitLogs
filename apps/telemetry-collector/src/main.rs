@@ -173,6 +173,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let (broadcast_tx, _) = tokio::sync::broadcast::channel::<String>(1000);
     let rate_limiter = std::sync::Arc::new(dashmap::DashMap::new());
+    let dedup_cache = std::sync::Arc::new(dashmap::DashMap::new());
 
     // Run matching commands
     match run_mode {
@@ -196,6 +197,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 api_key,
                 cors_allowed_origin: cli.cors_allowed_origin,
                 rate_limiter,
+                dedup_cache: dedup_cache.clone(),
+                cache_capacity: cli.cache_capacity,
             };
             server::start_server(cli.http_port, app_state).await?;
         }
@@ -235,6 +238,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 api_key: api_key.clone(),
                 cors_allowed_origin: cli.cors_allowed_origin.clone(),
                 rate_limiter,
+                dedup_cache: dedup_cache.clone(),
+                cache_capacity: cli.cache_capacity,
             };
 
             // Consumer Setup

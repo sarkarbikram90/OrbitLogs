@@ -31,6 +31,8 @@ pub struct AppState {
     pub api_key: String,
     pub cors_allowed_origin: String,
     pub rate_limiter: std::sync::Arc<dashmap::DashMap<String, std::sync::Mutex<TokenBucket>>>,
+    pub dedup_cache: std::sync::Arc<dashmap::DashMap<uuid::Uuid, std::time::Instant>>,
+    pub cache_capacity: usize,
 }
 
 #[derive(Serialize)]
@@ -105,6 +107,43 @@ pub async fn ingest_telemetry(
     };
 
     let sat_id = payload.satellite_id.clone();
+
+    // Deduplication layer
+    if state.dedup_cache.contains_key(&payload.event_id) {
+        warn!(
+            request_id = %request_id,
+            "Duplicate telemetry event discarded for satellite {}: {}",
+            sat_id, payload.event_id
+        );
+        let success_resp = IngestionResponse {
+            message: "Telemetry received and queued (deduplicated)".to_string(),
+            event_id: payload.event_id.to_string(),
+            request_id,
+        };
+        return (StatusCode::ACCEPTED, Json(success_resp)).into_response();
+    }
+
+    state.dedup_cache.insert(payload.event_id, std::time::Instant::now());
+
+    if state.dedup_cache.len() > state.cache_capacity {
+        let mut keys_to_remove = Vec::new();
+        for r in state.dedup_cache.iter() {
+            if r.value().elapsed() > std::time::Duration::from_secs(600) {
+                keys_to_remove.push(*r.key());
+            }
+            if keys_to_remove.len() > 100 {
+                break;
+            }
+        }
+        if keys_to_remove.is_empty() {
+            for r in state.dedup_cache.iter().take(500) {
+                keys_to_remove.push(*r.key());
+            }
+        }
+        for k in keys_to_remove {
+            state.dedup_cache.remove(&k);
+        }
+    }
 
     // Check validation constraints
     if let Err(validation_errors) = payload.validate() {
