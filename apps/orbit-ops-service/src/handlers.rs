@@ -106,13 +106,6 @@ pub async fn apply_twin_command(
         .log_operator_command(satellite.as_str(), &req.cmd_type)
         .await;
 
-    let twin_clone = state.twin.clone();
-    let sat_clone = satellite;
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(15)).await;
-        twin_clone.clear_commands(sat_clone.as_str());
-    });
-
     Ok(StatusCode::OK)
 }
 

@@ -526,6 +526,8 @@ async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord) {
         }
 
         if matched {
+            state.twin.remove_command(rec.satellite_id.as_str(), &cmd_type);
+
             if let Err(e) = sqlx::query(
                 "UPDATE commands SET status = 'CONFIRMED', executed_at = $1 WHERE id = $2",
             )

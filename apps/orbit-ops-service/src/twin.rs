@@ -104,6 +104,12 @@ impl TwinManager {
             .push(cmd_type.to_string());
     }
 
+    pub fn remove_command(&self, sat_id: &str, cmd_type: &str) {
+        if let Some(mut entry) = self.active_commands.get_mut(sat_id) {
+            entry.value_mut().retain(|c| c != cmd_type);
+        }
+    }
+
     pub fn clear_commands(&self, sat_id: &str) {
         self.active_commands.remove(sat_id);
     }
@@ -236,6 +242,13 @@ mod tests {
             assert_eq!(cmds.len(), 2);
             assert_eq!(cmds[0], "CMD_SHED_LOAD_SECONDARY");
             assert_eq!(cmds[1], "CMD_RADIATOR_YAW_ADJUST");
+        }
+
+        manager.remove_command("SAT-001", "CMD_SHED_LOAD_SECONDARY");
+        {
+            let cmds = manager.active_commands.get("SAT-001").unwrap();
+            assert_eq!(cmds.len(), 1);
+            assert_eq!(cmds[0], "CMD_RADIATOR_YAW_ADJUST");
         }
 
         manager.clear_commands("SAT-001");
