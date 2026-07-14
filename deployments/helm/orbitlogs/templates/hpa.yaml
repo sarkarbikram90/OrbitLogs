@@ -1,5 +1,28 @@
 {{- range $name, $service := .Values.services }}
-{{- if and $service.enabled (gt (int ($service.replicas | default 1)) 1) }}
+{{- if and $service.enabled $service.autoscaling }}
+{{- if eq $service.autoscaling.metricType "kafka-lag" }}
+# KEDA ScaledObject for event-driven scaling based on Kafka lag
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: orbitlogs-{{ $name }}-scaler
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: orbitlogs-{{ $name }}
+  minReplicaCount: {{ $service.autoscaling.minReplicas | default 1 }}
+  maxReplicaCount: {{ $service.autoscaling.maxReplicas | default 10 }}
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: {{ $.Values.global.kafkaBrokers | quote }}
+      consumerGroup: {{ $service.autoscaling.kafkaLag.consumerGroup | quote }}
+      topic: {{ $service.autoscaling.kafkaLag.topic | quote }}
+      lagThreshold: {{ $service.autoscaling.kafkaLag.threshold | quote }}
+---
+# Kubernetes HPA leveraging Prometheus external metrics for fallback/compatibility
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -10,7 +33,57 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: orbitlogs-{{ $name }}
-  minReplicas: 2
+  minReplicas: {{ $service.autoscaling.minReplicas | default 1 }}
+  maxReplicas: {{ $service.autoscaling.maxReplicas | default 10 }}
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: kafka_consumergroup_lag
+        selector:
+          matchLabels:
+            topic: {{ $service.autoscaling.kafkaLag.topic | quote }}
+            consumergroup: {{ $service.autoscaling.kafkaLag.consumerGroup | quote }}
+      target:
+        type: AverageValue
+        averageValue: {{ $service.autoscaling.kafkaLag.threshold | quote }}
+---
+{{- else }}
+# Standard CPU utilization based HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: orbitlogs-{{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: orbitlogs-{{ $name }}
+  minReplicas: {{ $service.autoscaling.minReplicas | default 1 }}
+  maxReplicas: {{ $service.autoscaling.maxReplicas | default 10 }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+---
+{{- end }}
+{{- else if and $service.enabled (gt (int ($service.replicas | default 1)) 1) }}
+# Default standard HPA for multi-replica services
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: orbitlogs-{{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: orbitlogs-{{ $name }}
+  minReplicas: 1
   maxReplicas: 10
   metrics:
   - type: Resource

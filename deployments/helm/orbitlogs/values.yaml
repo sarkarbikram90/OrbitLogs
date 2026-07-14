@@ -37,6 +37,15 @@ services:
       limits:
         cpu: 500m
         memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      metricType: kafka-lag
+      kafkaLag:
+        topic: telemetry.raw
+        consumerGroup: telemetry-consumer-group
+        threshold: 100
 
   telemetry-simulator:
     enabled: true
@@ -219,6 +228,15 @@ services:
       limits:
         cpu: 800m
         memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 5
+      metricType: kafka-lag
+      kafkaLag:
+        topic: telemetry.processed
+        consumerGroup: orbit-ops-group
+        threshold: 200
 
   space-otel-collector:
     enabled: true
