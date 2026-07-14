@@ -160,6 +160,13 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         }
 
-        tokio::time::sleep(Duration::from_secs(cli.interval_secs)).await;
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                info!("Shutdown signal received. Exiting Orbit Determination Service gracefully.");
+                break;
+            }
+            _ = tokio::time::sleep(Duration::from_secs(cli.interval_secs)) => {}
+        }
     }
+    Ok(())
 }
