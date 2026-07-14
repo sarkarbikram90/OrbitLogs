@@ -1,0 +1,21 @@
+[package]
+name = "constellation-scheduler"
+version = "0.1.0"
+edition = "2021"
+description = "Calculates optimized communication links and downlinks scheduling, factoring slew-rate and weather rain fade attenuation"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+orbitlogs-models = { workspace = true }
+orbitlogs-astrodynamics = { workspace = true }
+dotenvy = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rand = "0.8"

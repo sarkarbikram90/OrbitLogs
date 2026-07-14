@@ -18,6 +18,11 @@ members = [
     "crates/fleet-health",
     "apps/space-otel-collector",
     "crates/orbitlogs-astrodynamics",
+    "crates/orbitlogs-propulsion",
+    "apps/contact-window-predictor",
+    "apps/constellation-scheduler",
+    "apps/orbit-determination-service",
+    "apps/autonomous-mission-planning",
 ]
 
 [workspace.dependencies]
@@ -60,6 +65,8 @@ lru = "0.12"
 sgp4 = "0.2"
 nalgebra = { version = "0.32", features = ["serde-serialize"] }
 orbitlogs-astrodynamics = { path = "crates/orbitlogs-astrodynamics" }
+orbitlogs-propulsion = { path = "crates/orbitlogs-propulsion" }
+ort = "2.0.0-rc.9"
 
 # Optimize profiles for production build speed vs runtime execution speed
 [profile.release]

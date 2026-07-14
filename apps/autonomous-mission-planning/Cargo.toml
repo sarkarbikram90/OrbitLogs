@@ -1,0 +1,16 @@
+[package]
+name = "autonomous-mission-planning"
+version = "0.1.0"
+edition = "2021"
+description = "HTN and action planner synthesizing and safety-verifying command sequences"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+orbitlogs-models = { workspace = true }
+dotenvy = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

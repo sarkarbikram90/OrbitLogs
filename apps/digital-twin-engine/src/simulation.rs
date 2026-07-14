@@ -362,4 +362,66 @@ mod tests {
             .any(|r| r.contains("Transition to high-efficiency sparse burns")));
         assert_eq!(proj.life_expectancy_days, 1800.0 - 500.0);
     }
+
+    #[test]
+    fn test_digital_twin_solar_efficiency_estimation() {
+        let mut twin = DigitalTwinState::new("SAT-0001".to_string());
+        assert_eq!(twin.solar_efficiency, 1.0);
+        
+        // Simulating actual output of 96W when theoretical max should be 120W (exposure factor = 1.0)
+        // observed_efficiency = 96 / 120 = 0.8
+        twin.estimate_solar_efficiency(96.0, 1.0);
+        assert!(twin.solar_efficiency < 1.0);
+        assert!((twin.solar_efficiency - 0.9998).abs() < 1e-4);
+    }
 }
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct DigitalTwinState {
+    pub satellite_id: String,
+    pub solar_efficiency: f32,
+    pub battery_capacity_fade: f32,
+    pub radiator_thermal_resistance: f32,
+}
+
+impl DigitalTwinState {
+    pub fn new(satellite_id: String) -> Self {
+        Self {
+            satellite_id,
+            solar_efficiency: 1.0,
+            battery_capacity_fade: 1.0,
+            radiator_thermal_resistance: 1.0,
+        }
+    }
+
+    /// Recursively updates parameters based on actual solar generation telemetry.
+    pub fn estimate_solar_efficiency(&mut self, actual_solar_w: f32, solar_exposure_factor: f32) {
+        if solar_exposure_factor > 0.1 {
+            let theoretical_max = 120.0 * solar_exposure_factor; // nominal maximum output
+            let observed_efficiency = actual_solar_w / theoretical_max;
+            
+            // Apply recursive low-pass filter (learning factor alpha = 0.001)
+            self.solar_efficiency = 0.999 * self.solar_efficiency + 0.001 * observed_efficiency;
+        }
+    }
+
+    /// Estimate battery capacity fade recursively based on voltage drop
+    pub fn estimate_battery_capacity_fade(&mut self, discharge_current: f32, voltage_drop: f32) {
+        if discharge_current > 0.5 {
+            let observed_resistance = voltage_drop / discharge_current;
+            let fade_factor = 0.1 / observed_resistance.max(0.01);
+            self.battery_capacity_fade = 0.999 * self.battery_capacity_fade + 0.001 * fade_factor.min(1.0);
+        }
+    }
+
+    /// Estimate radiator thermal resistance recursively based on temperature and power draw
+    pub fn estimate_radiator_thermal_resistance(&mut self, temp_c: f32, cpu_power_w: f32) {
+        if cpu_power_w > 5.0 {
+            let delta_t = temp_c - 3.0; // background space temp is around 3C in shadow/sats
+            let observed_r_th = delta_t / cpu_power_w;
+            let ratio = observed_r_th / 0.5;
+            self.radiator_thermal_resistance = 0.999 * self.radiator_thermal_resistance + 0.001 * ratio;
+        }
+    }
+}
+

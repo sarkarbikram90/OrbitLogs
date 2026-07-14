@@ -1,0 +1,9 @@
+[package]
+name = "orbitlogs-propulsion"
+version = "0.1.0"
+edition = "2021"
+description = "Thruster optimization and delta-v burn calculations using the rocket equation"
+
+[dependencies]
+chrono = { workspace = true }
+serde = { workspace = true }

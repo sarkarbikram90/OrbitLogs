@@ -2,6 +2,7 @@ mod db;
 mod guardrails;
 mod handlers;
 mod runbooks;
+mod anomaly;
 
 use axum::{routing::post, Router};
 use clap::Parser;

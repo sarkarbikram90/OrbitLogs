@@ -26,4 +26,6 @@ orbitlogs-models = { workspace = true }
 tower-http = { workspace = true }
 subtle = { workspace = true }
 regex = { workspace = true }
+ort = { workspace = true }
+ndarray = "0.15"
 

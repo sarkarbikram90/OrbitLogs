@@ -210,6 +210,22 @@ pub async fn get_operations_analytics(
     }))
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum VisualDeltaMessage {
+    #[serde(rename = "MANEUVER_STARTED")]
+    ManeuverStarted {
+        satellite_id: String,
+        delta_v: [f32; 3],
+        duration_secs: u32,
+    },
+    #[serde(rename = "TELEMETRY_ANOMALY")]
+    TelemetryAnomaly {
+        satellite_id: String,
+        severity: String, // 'CRITICAL', 'WARNING'
+    },
+}
+
 // WebSocket Orbit Stream Handler
 pub async fn ws_orbit_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
@@ -223,19 +239,49 @@ pub async fn handle_orbit_ws(mut socket: axum::extract::ws::WebSocket, state: Ar
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                let mut states = Vec::new();
+                let mut deltas = Vec::new();
                 let active_sats: Vec<String> = (1..=10).map(|i| format!("SAT-{:04}", i)).collect();
-                let now = Utc::now();
-                for sat in active_sats {
-                    let (line1, line2) = orbit::get_latest_tle_or_default(&state.db_pool, &sat).await;
-                    if let Ok(st) = orbit::propagate_tle_sgp4(&sat, &line1, &line2, now) {
-                        states.push(st);
+                
+                // Let's query recent commands to see if any maneuver started
+                for sat in &active_sats {
+                    let cmd_row = sqlx::query("SELECT command_type FROM commands WHERE satellite_id = $1 AND created_at >= NOW() - INTERVAL '15 seconds'")
+                        .bind(sat)
+                        .fetch_optional(&state.db_pool)
+                        .await;
+                    
+                    if let Ok(Some(row)) = cmd_row {
+                        let cmd_type: String = row.get("command_type");
+                        if cmd_type == "CMD_PROP_THRUST" {
+                            deltas.push(VisualDeltaMessage::ManeuverStarted {
+                                satellite_id: sat.clone(),
+                                delta_v: [0.15, 0.0, 0.0],
+                                duration_secs: 10,
+                            });
+                        }
+                    }
+
+                    // Let's check health scores for telemetry anomalies
+                    if let Some(twin_state) = state.twin.twins.get(sat) {
+                        let temp = twin_state.temperature.unwrap_or(20.0);
+                        if temp > 70.0 {
+                            deltas.push(VisualDeltaMessage::TelemetryAnomaly {
+                                satellite_id: sat.clone(),
+                                severity: "CRITICAL".to_string(),
+                            });
+                        } else if temp > 50.0 {
+                            deltas.push(VisualDeltaMessage::TelemetryAnomaly {
+                                satellite_id: sat.clone(),
+                                severity: "WARNING".to_string(),
+                            });
+                        }
                     }
                 }
 
-                if let Ok(payload) = serde_json::to_string(&states) {
-                    if socket.send(axum::extract::ws::Message::Text(payload)).await.is_err() {
-                        break;
+                if !deltas.is_empty() {
+                    if let Ok(payload) = serde_json::to_string(&deltas) {
+                        if socket.send(axum::extract::ws::Message::Text(payload)).await.is_err() {
+                            break;
+                        }
                     }
                 }
             }

@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sgp4::{Constants, Elements};
 use thiserror::Error;
+use crate::coordinates::{eci_to_ecef, geodetic_to_ecef, ecef_to_enu, calculate_look_angles};
+use nalgebra::Vector3;
 
 #[derive(Error, Debug)]
 pub enum AstrodynamicsError {
@@ -47,6 +49,70 @@ impl TleRecord {
         
         Ok((prediction.position, prediction.velocity))
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContactWindow {
+    pub satellite_id: String,
+    pub ground_station_id: String,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    pub max_elevation: f32,
+}
+
+/// Predicts contact windows between a ground station and a satellite.
+pub fn predict_contact_windows(
+    tle: &TleRecord,
+    station_id: &str,
+    station_lat: f64,
+    station_lon: f64,
+    station_alt: f64,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+) -> Vec<ContactWindow> {
+    let mut windows = Vec::new();
+    let mut step = start;
+    let mut active_window: Option<ContactWindow> = None;
+    
+    // Station coordinates in ECEF (meters)
+    let station_ecef = geodetic_to_ecef(station_lat, station_lon, station_alt);
+
+    while step < end {
+        if let Ok((pos_eci, _)) = tle.propagate_to(step) {
+            // Convert ECI (km) to meters for standard WGS84 coordinate transformations
+            let pos_eci_m = Vector3::new(pos_eci[0] * 1000.0, pos_eci[1] * 1000.0, pos_eci[2] * 1000.0);
+            let pos_ecef = eci_to_ecef(pos_eci_m, step);
+            let enu = ecef_to_enu(pos_ecef, station_lat, station_lon, station_ecef);
+            let look = calculate_look_angles(&enu);
+
+            if look.elevation_deg > 10.0 { // 10 degree elevation mask
+                if let Some(ref mut win) = active_window {
+                    win.end_time = step;
+                    if look.elevation_deg > win.max_elevation as f64 {
+                        win.max_elevation = look.elevation_deg as f32;
+                    }
+                } else {
+                    active_window = Some(ContactWindow {
+                        satellite_id: tle.satellite_id.clone(),
+                        ground_station_id: station_id.to_string(),
+                        start_time: step,
+                        end_time: step,
+                        max_elevation: look.elevation_deg as f32,
+                    });
+                }
+            } else if let Some(win) = active_window.take() {
+                windows.push(win);
+            }
+        }
+        
+        step = step + chrono::Duration::seconds(30); // 30-second steps
+    }
+    
+    if let Some(win) = active_window {
+        windows.push(win);
+    }
+    
+    windows
 }
 
 #[cfg(test)]
