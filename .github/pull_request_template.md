@@ -17,6 +17,10 @@ Please describe the changes proposed in this Pull Request and their motivation/c
 - [ ] Clippy checks pass cleanly without warnings (`cargo clippy`).
 - [ ] I have verified that `cargo machete` reports no unused dependencies.
 - [ ] I have verified container builds work properly.
+- [ ] Change does not alter or violate physical cascading constraints (e.g. thermal limits, battery voltage rules).
+- [ ] Checked against OTel Trace propagation context preservation rules.
+- [ ] Checked database migration scripts for backward-compatibility compatibility.
+
 
 ## Related Issues
 Closes # (issue number)
