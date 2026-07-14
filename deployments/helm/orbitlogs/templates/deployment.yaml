@@ -1,0 +1,96 @@
+{{- range $name, $service := .Values.services }}
+{{- if $service.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbitlogs-{{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: orbitlogs-{{ $name }}
+spec:
+  replicas: {{ $service.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: orbitlogs-{{ $name }}
+  template:
+    metadata:
+      labels:
+        app: orbitlogs-{{ $name }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: orbitlogs-{{ $name }}
+        image: {{ $service.image }}
+        imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        {{- if $service.port }}
+        ports:
+        - containerPort: {{ $service.port }}
+        {{- end }}
+        {{- if and $service.port $service.livenessPath }}
+        livenessProbe:
+          httpGet:
+            path: {{ $service.livenessPath }}
+            port: {{ $service.port }}
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        {{- end }}
+        {{- if and $service.port $service.readinessPath }}
+        readinessProbe:
+          httpGet:
+            path: {{ $service.readinessPath }}
+            port: {{ $service.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        {{- end }}
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.global.databaseSecretName }}
+              key: database_url
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.global.apiKeySecretName }}
+              key: api_key
+        - name: KAFKA_BROKERS
+          value: {{ $.Values.global.kafkaBrokers | quote }}
+        {{- if $service.port }}
+        - name: PORT
+          value: {{ $service.port | quote }}
+        - name: HTTP_PORT
+          value: {{ $service.port | quote }}
+        {{- end }}
+        {{- range $envVar := $service.env }}
+        - name: {{ $envVar.name }}
+          value: {{ $envVar.value | quote }}
+        {{- end }}
+        resources:
+          {{- toYaml $service.resources | nindent 10 }}
+---
+{{- if $service.port }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: orbitlogs-{{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  ports:
+  - port: {{ $service.port }}
+    targetPort: {{ $service.port }}
+  selector:
+    app: orbitlogs-{{ $name }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

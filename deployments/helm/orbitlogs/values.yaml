@@ -1,0 +1,296 @@
+global:
+  namespace: orbitlogs
+  imagePullPolicy: IfNotPresent
+  kafkaBrokers: "orbitlogs-kafka-headless:9092"
+  databaseSecretName: "orbitlogs-secrets"
+  apiKeySecretName: "orbitlogs-secrets"
+
+secrets:
+  databaseUrl: "postgres://postgres:postgrespassword@orbitlogs-timescaledb:5432/orbitlogs"
+  apiKey: "secret-api-key"
+  jwtSecret: "secret-jwt-key"
+  geminiApiKey: "secret-gemini-key"
+
+services:
+  telemetry-collector:
+    enabled: true
+    replicas: 2
+    image: orbitlogs/telemetry-collector:latest
+    port: 8080
+    livenessPath: /liveness
+    readinessPath: /readiness
+    env:
+      - name: RUN_MIGRATIONS
+        value: "false"
+      - name: RAW_TOPIC
+        value: "telemetry.raw"
+      - name: PROCESSED_TOPIC
+        value: "telemetry.processed"
+      - name: INVALID_TOPIC
+        value: "telemetry.invalid"
+      - name: GROUP_ID
+        value: "telemetry-consumer-group"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  telemetry-simulator:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/telemetry-simulator:latest
+    env:
+      - name: FLEET_SIZE
+        value: "10"
+      - name: SEND_INTERVAL_MS
+        value: "1000"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  mission-health-engine:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/mission-health-engine:latest
+    env:
+      - name: HEALTH_TOPIC
+        value: "mission.health"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  ground-station-simulator:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/ground-station-simulator:latest
+    port: 8084
+    livenessPath: /health
+    readinessPath: /health
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  mission-replay-engine:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/mission-replay-engine:latest
+    port: 8081
+    livenessPath: /health
+    readinessPath: /health
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  mission-command-service:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/mission-command-service:latest
+    port: 8085
+    livenessPath: /health
+    readinessPath: /health
+    env:
+      - name: COMMAND_EVENTS_TOPIC
+        value: "command.events"
+      - name: TIMELINE_EVENTS_TOPIC
+        value: "timeline.events"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  digital-twin-engine:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/digital-twin-engine:latest
+    port: 8086
+    livenessPath: /health
+    readinessPath: /health
+    env:
+      - name: PROCESSED_TOPIC
+        value: "telemetry.processed"
+      - name: TIMELINE_EVENTS_TOPIC
+        value: "timeline.events"
+      - name: GROUP_ID
+        value: "digital-twin-group"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  mission-timeline:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/mission-timeline:latest
+    port: 8087
+    livenessPath: /health
+    readinessPath: /health
+    env:
+      - name: RUN_MIGRATIONS
+        value: "false"
+      - name: TIMELINE_EVENTS_TOPIC
+        value: "timeline.events"
+      - name: HEALTH_TOPIC
+        value: "mission.health"
+      - name: GROUP_ID
+        value: "mission-timeline-group"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  ai-incident-commander:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/ai-incident-commander:latest
+    port: 8088
+    livenessPath: /health
+    readinessPath: /health
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1024Mi
+
+  constellation-simulator:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/constellation-simulator:latest
+    port: 8089
+    livenessPath: /health
+    readinessPath: /health
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  orbit-ops-service:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/orbit-ops-service:latest
+    port: 8095
+    livenessPath: /health
+    readinessPath: /health
+    env:
+      - name: PROCESSED_TOPIC
+        value: "telemetry.processed"
+      - name: TIMELINE_TOPIC
+        value: "timeline.events"
+      - name: CONTACTS_TOPIC
+        value: "groundstation.contacts"
+      - name: GROUP_ID
+        value: "orbit-ops-group"
+    resources:
+      requests:
+        cpu: 150m
+        memory: 256Mi
+      limits:
+        cpu: 800m
+        memory: 512Mi
+
+  space-otel-collector:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/space-otel-collector:latest
+    env:
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: "http://otel-collector:4317"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  contact-window-predictor:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/contact-window-predictor:latest
+    env:
+      - name: PREDICTION_INTERVAL_SECS
+        value: "60"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  constellation-scheduler:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/constellation-scheduler:latest
+    env:
+      - name: SCHEDULER_INTERVAL_SECS
+        value: "60"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  orbit-determination-service:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/orbit-determination-service:latest
+    env:
+      - name: OD_INTERVAL_SECS
+        value: "60"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  autonomous-mission-planning:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/autonomous-mission-planning:latest
+    env:
+      - name: PLANNER_INTERVAL_SECS
+        value: "60"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
