@@ -1,5 +1,5 @@
 # OrbitLogs: Observability Design Specifications
-### Version: v4.0.0 (Latest)
+### Version: v4.5.0 (Latest)
 
 This document outlines the metrics registries, Prometheus scrape configurations, distributed tracing spans, and Grafana visualization frameworks of **OrbitLogs**.
 

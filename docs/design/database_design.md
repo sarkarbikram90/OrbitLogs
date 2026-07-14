@@ -1,5 +1,5 @@
 # OrbitLogs: TimescaleDB Database Design & Hardening
-### Version: v4.0.0 (Latest)
+### Version: v4.5.0 (Latest)
 
 This document details the database schema, time-series optimizations, hypertable configurations, compression indices, and data retention policies of **OrbitLogs**.
 
@@ -95,6 +95,40 @@ erDiagram
     satellites ||--o{ telemetry : "emits"
     satellites ||--o{ events : "logs"
     satellites ||--o{ orbit_positions : "occupies"
+    satellites ||--o{ conjunction_events : "threatens"
+
+    conjunction_events {
+        timestamp timestamp PK
+        varchar_50 primary_satellite_id FK
+        varchar_50 secondary_object_id
+        timestamp tca
+        double miss_distance_km
+        double radial_miss_km
+        double intrack_miss_km
+        double crosstrack_miss_km
+        double probability_of_collision
+        varchar_20 risk_level
+    }
+
+    conjunction_maneuvers {
+        uuid id PK
+        varchar_50 satellite_id FK
+        uuid conjunction_event_id
+        double delta_v_magnitude
+        double fuel_cost_kg
+        varchar_50 status
+        timestamp recommended_at
+    }
+
+    contact_schedules {
+        uuid id PK
+        varchar_50 satellite_id
+        varchar_50 station_id
+        timestamp start_time
+        timestamp end_time
+        varchar_20 priority
+        varchar_20 status
+    }
 ```
 
 ---
@@ -126,3 +160,17 @@ To protect against storage blowout, data retention policies are enforced:
 *   **Telemetry Retention**: Automatically drops chunks older than **90 days**.
 *   **Events Retention**: Drops chunks older than **180 days** to preserve incident logs for SRE audits.
 *   **Orbit Positions Retention**: Automatically drops chunks older than **30 days** (relying on raw TLE files for long-term orbital regressions).
+
+---
+
+## 5. Continuous Aggregates
+
+To prevent CPU exhaustion during heavy Grafana dashboard queries, TimescaleDB **Continuous Aggregates** pre-calculate hourly averages of key telemetry metrics:
+
+*   `hourly_battery_avg`: Average `battery_voltage` per satellite per hour.
+*   `hourly_solar_avg`: Average `solar_panel_output` per satellite per hour.
+*   `hourly_cpu_avg`: Average `cpu_usage` per satellite per hour.
+*   `hourly_temperature_avg`: Average `temperature` per satellite per hour.
+*   `hourly_altitude_avg`: Average `altitude` per satellite per hour.
+
+These materialized views are defined in migration `20260101000011_continuous_aggregates.sql` and refreshed automatically by TimescaleDB policies.

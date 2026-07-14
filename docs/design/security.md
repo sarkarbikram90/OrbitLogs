@@ -1,5 +1,5 @@
 # OrbitLogs: Security Practices & Hardening Guide
-### Version: v4.0.0 (Latest)
+### Version: v4.5.0 (Latest)
 
 This document outlines the security controls, validation architecture, and infrastructure hardening practices implemented across **OrbitLogs**.
 

@@ -1,5 +1,5 @@
 # Phase 1: Spacecraft Subsystem Telemetry Architecture & Design
-### Version: v4.0.0 (Latest)
+### Version: v4.5.0 (Latest)
 
 This document details the architecture, design, failure modes, operational runbooks, and troubleshooting guides for the spacecraft subsystem telemetry system of **OrbitLogs**.
 

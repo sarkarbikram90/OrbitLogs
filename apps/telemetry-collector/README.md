@@ -39,7 +39,16 @@ Run the executable with specific roles:
 
 - **`POST /telemetry`**
   - **Description**: Ingest a new telemetry payload (accepts JSON or binary stream).
+- **`POST /telemetry/tles/ingest`**
+  - **Description**: Ingest a batch of standard Two-Line Element (TLE) sets. Validates TLE integrity via SGP4 propagation sanity checks before archiving to TimescaleDB.
 - **`GET /ws`**
   - **Description**: WebSocket endpoint for real-time telemetry streaming to dashboards.
+- **`GET /health`**
+  - **Description**: Returns combined health status of TimescaleDB and Kafka connections.
+- **`GET /liveness`**
+  - **Description**: Kubernetes liveness probe. Returns `200 OK` if the process is alive.
+- **`GET /readiness`**
+  - **Description**: Kubernetes readiness probe. Returns `200 OK` when database and Kafka connections are established.
 - **`GET /metrics`**
   - **Description**: Exposes Prometheus metrics tracking ingestion rates and validation counts.
+

@@ -1,5 +1,5 @@
 # OrbitLogs: Telemetry Ingestion Design & Architecture
-### Version: v4.0.0 (Latest)
+### Version: v4.5.0 (Latest)
 
 This document details the design specifications, ingestion routing, schema validation, and quarantine handling logic of the **Telemetry Ingestion API** (`telemetry-collector`).
 
@@ -17,7 +17,7 @@ The Telemetry Ingestion tier is the gateway for all space-to-ground downlink fee
 
 ## 2. Ingestion Routing & Protocol Handling
 
-The server listens on `:8080` and exposes three endpoints:
+The server listens on `:8080` and exposes the following endpoints:
 
 ### `POST /telemetry`
 Accepts downlink telemetry streams.
@@ -27,10 +27,22 @@ Accepts downlink telemetry streams.
 *   **Rate Limiting**: Employs an IP-partitioned token-bucket rate limiter via `DashMap` to prevent request starvation under load.
 *   **Returns**: HTTP `202 Accepted` with a unique transaction UUID.
 
+### `POST /telemetry/tles/ingest`
+Accepts batches of standard Two-Line Element (TLE) sets.
+*   Validates TLE integrity at the edge via SGP4 propagation sanity checks.
+*   Archives valid TLE records to the TimescaleDB `tle_records` table.
+*   Returns HTTP `200 OK` with a count of successfully ingested records.
+
 ### `GET /health`
 Validates connection pools:
 *   Performs real-time checks on TimescaleDB pools and Kafka broker connectivity.
 *   Exposes liveness and readiness states to Kubernetes probes.
+
+### `GET /liveness`
+Kubernetes liveness probe endpoint. Returns `200 OK` if the process is alive.
+
+### `GET /readiness`
+Kubernetes readiness probe endpoint. Returns `200 OK` when database and Kafka connections are established and verified.
 
 ### `GET /metrics`
 Exposes Prometheus-formatted counters and histograms for request validation speeds and database insertion latencies.

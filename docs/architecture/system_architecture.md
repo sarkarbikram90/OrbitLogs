@@ -1,5 +1,5 @@
 # 🛰️ OrbitLogs: System Architecture & Distributed Systems Design
-### Version: v4.0.0 (Latest)
+### Version: v4.5.0 (Latest)
 
 This document details the engineering specifications, data flow, failure handling modes, and architectural decisions of the **OrbitLogs** real-time spacecraft ground segment operations platform.
 
@@ -7,7 +7,7 @@ This document details the engineering specifications, data flow, failure handlin
 
 ## 1. System Topology Overview
 
-OrbitLogs decouples real-time high-throughput telemetry ingestion from database persistence through a key-based partitioned **Apache Kafka** event stream running on a 3-broker KRaft cluster. In v4.0.0, the architecture is expanded to include a dedicated **Orbit Operations Service** (`orbit-ops-service`) managing SGP4 orbit propagation, TLE records, ground station pass schedules, and collision avoidance dynamics.
+OrbitLogs decouples real-time high-throughput telemetry ingestion from database persistence through a key-based partitioned **Apache Kafka** event stream running on a 3-broker KRaft cluster. In v4.5.0, the architecture encompasses 17 application services and 7 shared library crates. Key additions since v4.0.0 include the **Orbit Operations Service** (`orbit-ops-service`) managing SGP4 orbit propagation, TLE records, ground station pass schedules, and collision avoidance dynamics; the **Contact Window Predictor** (`contact-window-predictor`) computing ground station access windows; the **Constellation Scheduler** (`constellation-scheduler`) optimizing communication task allocation; the **Orbit Determination Service** (`orbit-determination-service`) running Extended Kalman Filtering for precise state estimation; and the **Autonomous Mission Planning** service (`autonomous-mission-planning`) synthesizing command sequences via hierarchical task networks.
 
 ```
        [ Telemetry Simulator ] ──(SGP4 Propagated Lat/Lon)

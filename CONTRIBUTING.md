@@ -8,10 +8,12 @@ To align with Staff-level engineering standards, we enforce strict code formatti
 
 ## 1. Repository Structure
 
-OrbitLogs is organized as a Rust monorepo:
+OrbitLogs is organized as a Rust monorepo with **26 workspace members** (17 applications + 7 shared library crates + 2 utility crates):
 
-*   **`apps/`**: Standalone binary microservices (e.g., `telemetry-collector`, `mission-timeline`, `digital-twin-engine`).
-*   **`crates/`**: Reusable shared libraries utilized across multiple applications (e.g., `orbitlogs-models`, `orbitlogs-packets`).
+*   **`apps/`**: Standalone binary microservices:
+    *   `telemetry-simulator`, `telemetry-collector`, `mission-health-engine`, `ground-station-simulator`, `mission-replay-engine`, `mission-command-service`, `digital-twin-engine`, `mission-timeline`, `ai-incident-commander`, `constellation-simulator`, `orbit-ops-service`, `space-otel-collector`, `contact-window-predictor`, `constellation-scheduler`, `orbit-determination-service`, `autonomous-mission-planning`, `mission-control-ui` (React/TypeScript).
+*   **`crates/`**: Reusable shared libraries utilized across multiple applications:
+    *   `orbitlogs-models`, `orbitlogs-packets`, `space-schema-registry`, `fleet-health`, `orbitlogs-astrodynamics`, `orbitlogs-propulsion`, `orbitlogs-test-utils`.
 *   **`deployments/`**: Kubernetes manifests, Docker Compose setups, and configurations for Prometheus, Grafana, Alertmanager, and OpenTelemetry.
 *   **`migrations/`**: TimescaleDB / Postgres SQL migration scripts (consolidated source of truth).
 
@@ -69,7 +71,15 @@ Verify that all unit and integration tests compile and pass successfully:
 cargo test --all-targets --all-features
 ```
 
-### D. Coverage (Optional)
+### D. Security Auditing
+We use `cargo-audit` and `cargo-deny` to check for known vulnerabilities and license compliance:
+```bash
+cargo install cargo-audit
+cargo audit
+cargo deny check
+```
+
+### E. Coverage (Optional)
 Generate a coverage report locally using `cargo-tarpaulin`:
 ```bash
 cargo install cargo-tarpaulin

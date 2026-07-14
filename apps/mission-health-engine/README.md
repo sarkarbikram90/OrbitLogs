@@ -20,7 +20,7 @@ The **Mission Health Engine** evaluates real-time telemetry events and ground li
 | **Processed Topic** | `--processed-topic` | `PROCESSED_TOPIC` | `telemetry.processed` | Kafka topic containing processed telemetry |
 | **Health Topic** | `--health-topic` | `HEALTH_TOPIC` | `mission.health` | Target Kafka topic for health assessments |
 | **GS Health Topic** | `--gs-health-topic` | `GS_HEALTH_TOPIC` | `groundstation.health` | Kafka topic containing ground station health |
-| **DLQ Topic** | `--dlq-topic` | `DLQ_TOPIC` | `telemetry.dlq` | Kafka topic for routing error/invalid events |
+| **DLQ Topic** | `--dlq-topic` | `DLQ_TOPIC` | `telemetry.invalid` | Kafka topic for routing error/invalid events |
 | **Group ID** | `--group-id` | `GROUP_ID` | `mission-health-group` | Kafka consumer group ID |
 | **Metrics Port** | `--metrics-port` | `METRICS_PORT` | `8082` | Port for the Prometheus metrics scrape target |
 

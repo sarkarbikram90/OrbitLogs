@@ -1,5 +1,5 @@
 # OrbitLogs: Telemetry Simulator Design
-### Version: v4.0.0 (Latest)
+### Version: v4.5.0 (Latest)
 
 This document details the design specifications, scenario evolution state machines, and physics calculations of the **Telemetry Simulator** service.
 

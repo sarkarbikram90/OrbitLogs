@@ -129,7 +129,7 @@ graph TD
 
 ## 🚀 Key Technical Features & Services
 
-OrbitLogs 2.0 introduces a decentralized suite of async Rust microservices and premium visualization panels representing a complete telemetry, command, and diagnostics ground operations architecture.
+OrbitLogs v4.5 introduces a decentralized suite of async Rust microservices and premium visualization panels representing a complete telemetry, command, diagnostics, and astrodynamics ground operations architecture.
 
 ### 1. Onboard Spacecraft Subsystems Modeling
 *   Emits independent telemetry streams from **7 core subsystems**:
@@ -162,7 +162,7 @@ OrbitLogs 2.0 introduces a decentralized suite of async Rust microservices and p
     *   **Risk Score**: Cumulative degradation scoring incorporating thermal stress and battery aging.
     *   **Capacity & Utilization**: Propellant reserves and flight computer throughput metrics.
 
-### 6. Space OTel Collector (`crates/space-otel-collector`)
+### 6. Space OTel Collector (`apps/space-otel-collector`)
 *   Consumes raw telemetry, commands, and ground station logs from Kafka streams.
 *   Converts events into unified OpenTelemetry Metrics, Spans, and Logs. Exposes a standard Prometheus scrape endpoint `/metrics` on port `8091`.
 
@@ -208,7 +208,33 @@ OrbitLogs 2.0 introduces a decentralized suite of async Rust microservices and p
 *   Secure HTTP endpoint `/telemetry/tles/ingest` accepting batches of standard TLE sets.
 *   Validates TLE integrity at the edge via SGP4 propagation sanity checks before archiving to the TimescaleDB back-end.
 
+### 15. Contact Window Predictor (`apps/contact-window-predictor`)
+*   Background microservice computing ground station access windows using SGP4 orbital propagation and line-of-sight elevation geometry.
+*   Evaluates visibility between Earth-fixed WGS84 ground station positions and orbiting satellites by transforming ECI coordinates to local East-North-Up (ENU) frames.
+*   Produces a contact schedule matrix consumed by the constellation scheduler.
 
+### 16. Constellation Scheduler (`apps/constellation-scheduler`)
+*   Solves the NP-hard communication task allocation problem using greedy heuristics with look-ahead optimization.
+*   Respects antenna slew-rate constraints, thermal/power budgets, and no-overlap rules for ground station terminals.
+*   Outputs optimized downlink/uplink communication schedules to TimescaleDB.
+
+### 17. Orbit Determination Service (`apps/orbit-determination-service`)
+*   Implements an Extended Kalman Filter (EKF) for precise orbit state estimation from GPS pseudorange and ground-station range/range-rate measurements.
+*   Incorporates J2 oblateness perturbation modeling for improved accuracy over SGP4 in operational scenarios.
+*   State vector: $\mathbf{x} = [x, y, z, v_x, v_y, v_z]^T$ (position and velocity in ECI).
+
+### 18. Autonomous Mission Planning (`apps/autonomous-mission-planning`)
+*   Hierarchical Task Network (HTN) planner for synthesizing safe command sequences in response to orbital anomalies.
+*   Runs all proposed commands through the digital twin engine for pre-validation before uplink transmission.
+*   Validates flight safety constraints (e.g., battery capacity thresholds) during simulation to prevent harmful command sequences.
+
+### 19. Propulsion Optimization (`crates/orbitlogs-propulsion`)
+*   Implements Tsiolkovsky rocket equation fuel optimization and delta-v burn calculations.
+*   Computes fuel consumption for station-keeping maneuvers and collision avoidance burns.
+
+### 20. Shared Test Utilities (`crates/orbitlogs-test-utils`)
+*   Centralized test fixture factories and mock builders for `TelemetryRecord`, `HealthAssessment`, and `Command` structures.
+*   Eliminates test code duplication across multiple service crates.
 ---
 
 ## ⚡ Recent Production & Security Hardening
@@ -257,6 +283,10 @@ Once fully initialized, the platform exposes the following developer interfaces:
 | **Constellation Simulator** | `8089` | HTTP | High-efficiency constellation state loop |
 | **Space OTel Collector** | `8091` | HTTP | OpenTelemetry metrics mapping scraper |
 | **Orbit Operations & STM Service** | `8095` | HTTP | Space Traffic Management & Conjunction Assessment API |
+| **Contact Window Predictor** | `8096` | HTTP | Ground station access window prediction service |
+| **Constellation Scheduler** | `8097` | HTTP | Communication task scheduling & optimization |
+| **Orbit Determination Service** | `8098` | HTTP | Extended Kalman Filter orbit estimation |
+| **Autonomous Mission Planning** | `8099` | HTTP | HTN command sequence planner |
 | **TimescaleDB (Postgres)** | `5432` | TCP | Hypertable telemetry, command audits, and events |
 | **Prometheus** | `9090` | HTTP | Ingestion metrics database & scrapers |
 | **Grafana** | `3005` | HTTP | Fleet and SRE infrastructure dashboard |
@@ -337,4 +367,8 @@ OrbitLogs has been engineered to comply with enterprise-grade reliability and se
 - [x] **Phase 18**: Advanced sidebar navigation layout & integrated sub-dashboards.
 - [x] **Phase 19**: Space Traffic Management (STM), Conjunction Alerts, Debris Risk Scoring & 3D Debris Visualizer.
 - [x] **Phase 20**: SGP4 Astrodynamics Library, coordinate frames rotation (ECI/ECEF/ENU) & real-time TLE Ingestion API.
-
+- [x] **Phase 21**: Contact Window Prediction using SGP4 + line-of-sight elevation geometry.
+- [x] **Phase 22**: Constellation Scheduling & ground-station communication task optimization.
+- [x] **Phase 23**: Orbit Determination Service (Extended Kalman Filter with J2 perturbations).
+- [x] **Phase 24**: Autonomous Mission Planning (HTN planner with digital twin pre-validation).
+- [x] **Phase 25**: Propulsion Optimization (Tsiolkovsky fuel calc) & shared test utilities crate.

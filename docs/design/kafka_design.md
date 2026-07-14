@@ -1,5 +1,5 @@
 # OrbitLogs: Apache Kafka Topology & Design
-### Version: v4.0.0 (Latest)
+### Version: v4.5.0 (Latest)
 
 This document details the event-streaming design, topic architectures, partition strategies, and durability policies of the **Apache Kafka** event backbone of **OrbitLogs**.
 
@@ -20,6 +20,8 @@ The platform operates several topics to decouple telemetry collection, state pro
 | **`timeline.events`** | `3` | `satellite_id` | `30 days` (720h) | Unified event stream for operational analysis |
 | **`orbit.state`** | `3` | `satellite_id` | `7 days` (168h) | Real-time propagated SGP4 orbital positions |
 | **`command.verification.events`**| `3` | `satellite_id` | `30 days` (720h) | Telemetry matches for command completion |
+| **`conjunction.alerts`** | `3` | `satellite_id` | `30 days` (720h) | Close approach conjunction event alerts with $P_c$ and miss distances |
+| **`conjunction.maneuvers`** | `3` | `satellite_id` | `30 days` (720h) | Recommended collision avoidance maneuver burn vectors |
 
 ---
 
