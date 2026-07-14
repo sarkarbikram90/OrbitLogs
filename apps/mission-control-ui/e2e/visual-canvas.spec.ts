@@ -51,4 +51,21 @@ test.describe('Starlink Mission Control UI - E2E Visual Canvas Tests', () => {
     const wsErrors = consoleErrors.filter(err => err.toLowerCase().includes('websocket') || err.toLowerCase().includes('ws:'));
     expect(wsErrors.length).toBe(0);
   });
+
+  test('should verify navigation tabs and view toggles exist', async ({ page }) => {
+    await page.evaluate(() => {
+      sessionStorage.setItem('VITE_API_KEY', 'test-key');
+      sessionStorage.setItem('JWT_TOKEN', 'test-token');
+    });
+    await page.reload();
+
+    const headerTitle = page.locator('.header-title');
+    await expect(headerTitle).toContainText('OrbitLogs');
+
+    const dashboardTab = page.locator('button:has-text("DASHBOARD")');
+    await expect(dashboardTab).toBeVisible();
+
+    const commandsTab = page.locator('button:has-text("COMMANDS")');
+    await expect(commandsTab).toBeVisible();
+  });
 });
