@@ -93,10 +93,12 @@ async fn main() -> Result<(), anyhow::Error> {
                         );
 
                         for window in windows {
-                            // Insert window or ignore on duplicate
+                            // Insert window or update on duplicate conflict
                             let insert_res = sqlx::query(
                                 "INSERT INTO contact_windows (satellite_id, ground_station_id, start_time, end_time, max_elevation)
-                                 VALUES ($1, $2, $3, $4, $5)"
+                                 VALUES ($1, $2, $3, $4, $5)
+                                 ON CONFLICT (satellite_id, ground_station_id, start_time)
+                                 DO UPDATE SET end_time = EXCLUDED.end_time, max_elevation = EXCLUDED.max_elevation"
                             )
                             .bind(&window.satellite_id)
                             .bind(&window.ground_station_id)

@@ -94,7 +94,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 // 2. Simple Heuristic Solver: Schedule links based on elevation and rain rate
                 for window in windows {
-                    let mut rng = rand::thread_now_rx();
+                    let mut rng = rand::thread_rng();
                     let rain_rate: f64 = rng.gen_range(0.0..15.0); // simulated rain rate in mm/h
                     let distance_km = 550.0; // typical low earth orbit altitude
                     let frequency_ghz = 28.0; // Ka-band downlink frequency
