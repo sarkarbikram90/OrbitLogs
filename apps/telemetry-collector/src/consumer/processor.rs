@@ -85,8 +85,26 @@ impl<S: db::TelemetryStore> TelemetryConsumer<S> {
             .set("auto.offset.reset", "earliest")
             .set("statistics.interval.ms", "1000");
 
-        let consumer: StreamConsumer<MetricsContext> =
-            client_config.create_with_context(MetricsContext)?;
+        let mut retry_count = 5;
+        let mut backoff = Duration::from_secs(2);
+        let consumer: StreamConsumer<MetricsContext> = loop {
+            match client_config.create_with_context(MetricsContext) {
+                Ok(c) => break c,
+                Err(e) => {
+                    if retry_count == 0 {
+                        error!("Failed to create Kafka consumer after all retries: {}", e);
+                        return Err(e.into());
+                    }
+                    warn!(
+                        "Failed to create Kafka consumer: {}. Retrying in {:?}...",
+                        e, backoff
+                    );
+                    tokio::time::sleep(backoff).await;
+                    retry_count -= 1;
+                    backoff *= 2;
+                }
+            }
+        };
 
         consumer.subscribe(&[&self.config.raw_topic])?;
         info!(

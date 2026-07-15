@@ -1,7 +1,8 @@
 extern crate orbitlogs_models;
 
 use clap::{Parser, Subcommand};
-use tracing::{error, info};
+use std::time::Duration;
+use tracing::{error, info, warn};
 
 use telemetry_collector::{
     consumer, metrics, server, server::handlers::AppState, server::producer::KafkaProducer,
@@ -128,25 +129,38 @@ async fn main() -> Result<(), anyhow::Error> {
     // Register Prometheus collector metrics
     metrics::register_metrics();
 
-    // Init Kafka Producer (used by both Server to queue and Consumer to route to DLQ)
-    let kafka_producer = match KafkaProducer::new(
-        &cli.kafka_brokers,
-        cli.kafka_security_protocol.as_deref(),
-        cli.kafka_sasl_mechanism.as_deref(),
-        cli.kafka_sasl_username.as_deref(),
-        cli.kafka_sasl_password.as_deref(),
-        cli.kafka_ssl_ca_location.as_deref(),
-    ) {
-        Ok(p) => {
-            info!(
-                "Kafka Producer successfully initialized for brokers: {}",
-                cli.kafka_brokers
-            );
-            p
-        }
-        Err(e) => {
-            error!("Failed to initialize Kafka Producer: {}", e);
-            return Err(e);
+    // Init Kafka Producer (configured with retries for rolling deployments)
+    let mut retry_count = 5;
+    let mut backoff = Duration::from_secs(2);
+    let kafka_producer = loop {
+        match KafkaProducer::new(
+            &cli.kafka_brokers,
+            cli.kafka_security_protocol.as_deref(),
+            cli.kafka_sasl_mechanism.as_deref(),
+            cli.kafka_sasl_username.as_deref(),
+            cli.kafka_sasl_password.as_deref(),
+            cli.kafka_ssl_ca_location.as_deref(),
+        ) {
+            Ok(p) => {
+                info!(
+                    "Kafka Producer successfully initialized for brokers: {}",
+                    cli.kafka_brokers
+                );
+                break p;
+            }
+            Err(e) => {
+                if retry_count == 0 {
+                    error!("Failed to initialize Kafka Producer after all retries: {}", e);
+                    return Err(e);
+                }
+                warn!(
+                    "Failed to initialize Kafka Producer: {}. Retrying in {:?}...",
+                    e, backoff
+                );
+                tokio::time::sleep(backoff).await;
+                retry_count -= 1;
+                backoff *= 2;
+            }
         }
     };
 

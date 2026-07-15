@@ -36,6 +36,8 @@ spec:
             secretKeyRef:
               name: orbitlogs-secrets
               key: database_url
+        - name: RUN_MIGRATIONS
+          value: "false"
         - name: OD_INTERVAL_SECS
           value: "60"
         resources:
