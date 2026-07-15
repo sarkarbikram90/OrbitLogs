@@ -471,8 +471,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **`benchmarks/load_test.js`**: k6 load testing script for telemetry ingestion endpoint throughput testing.
 - **`docs/` documentation suite**: Architecture, design, runbooks, and testing strategy documents:
   - `docs/architecture/system_architecture.md`
-  - `docs/design/collector_design.md`, `database_design.md`, `kafka_design.md`, `observability_design.md`, `security.md`, `simulator_design.md`
-  - `docs/runbooks/operations.md`
+  - `docs/design/collector_design.md`, `database_design.md`, `kafka_design.md`, `observability_design.md`, `security_practices_design.md`, `simulator_design.md`
+  - `docs/runbooks/operations_runbook.md`
   - `docs/testing/testing_strategy.md`
 - **`CONTRIBUTING.md`**: Initial contributing guidelines (later removed in v2.1.0 rebrand).
 - **`CHANGELOG.md`**: Initial changelog file added to the repository.

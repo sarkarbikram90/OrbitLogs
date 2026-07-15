@@ -58,7 +58,7 @@ An audit of all key files in the repository yields the following inventory class
 | `Project-Rust-Code-Audit-Review.md` | **ARCHIVE** | Early Rust audit. Move to `docs/reviews/rust_audit_v4.0.0.md`. |
 | `Rust-Code-Level.md` | **ARCHIVE** | Rust assessment. Move to `docs/reviews/rust_code_assessment_v4.4.0.md`. |
 | `Starlink-Rust-Evaluation-Report.md` | **ARCHIVE** | Post-refactor audit. Move to `docs/reviews/starlink_rating_v4.4.0.md`. |
-| `Rust-Learning-Report.md` | **ARCHIVE** | Pedagogical review. Move to `docs/reviews/rust_learning_report.md`. |
+| `Rust-Learning-Report.md` | **ARCHIVE** | Pedagogical review. Move to `docs/reviews/rust_pedagogy_review_v4.5.0.md`. |
 | `Space-Traffic-Management-Walkthrough.md` | **MOVE** | Feature guide. Move to `docs/architecture/space_traffic_management.md`. |
 
 
