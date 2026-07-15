@@ -419,6 +419,239 @@ services:
           cpus: '0.25'
           memory: 256M
     restart: unless-stopped
+  mission-command-service:
+    build:
+      context: ../../
+      dockerfile: apps/mission-command-service/Dockerfile
+    container_name: orbitlogs-mission-command
+    ports:
+    - 8085:8085
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
+    environment:
+    - RUST_LOG=info,mission_command_service=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    - PORT=8085
+    - COMMAND_EVENTS_TOPIC=command.events
+    - TIMELINE_EVENTS_TOPIC=timeline.events
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  digital-twin-engine:
+    build:
+      context: ../../
+      dockerfile: apps/digital-twin-engine/Dockerfile
+    container_name: orbitlogs-digital-twin
+    ports:
+    - 8086:8086
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
+    environment:
+    - RUST_LOG=info,digital_twin_engine=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    - PORT=8086
+    - PROCESSED_TOPIC=telemetry.processed
+    - TIMELINE_EVENTS_TOPIC=timeline.events
+    - GROUP_ID=digital-twin-group
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  mission-timeline:
+    build:
+      context: ../../
+      dockerfile: apps/mission-timeline/Dockerfile
+    container_name: orbitlogs-mission-timeline
+    ports:
+    - 8087:8087
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
+    environment:
+    - RUST_LOG=info,mission_timeline=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    - PORT=8087
+    - TIMELINE_EVENTS_TOPIC=timeline.events
+    - HEALTH_TOPIC=mission.health
+    - GROUP_ID=mission-timeline-group
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  ai-incident-commander:
+    build:
+      context: ../../
+      dockerfile: apps/ai-incident-commander/Dockerfile
+    container_name: orbitlogs-ai-incident
+    ports:
+    - 8088:8088
+    environment:
+    - RUST_LOG=info,ai_incident_commander=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    - PORT=8088
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  constellation-simulator:
+    build:
+      context: ../../
+      dockerfile: apps/constellation-simulator/Dockerfile
+    container_name: orbitlogs-constellation-sim
+    ports:
+    - 8089:8089
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
+    environment:
+    - RUST_LOG=info,constellation_simulator=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    - PORT=8089
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  contact-window-predictor:
+    build:
+      context: ../../
+      dockerfile: apps/contact-window-predictor/Dockerfile
+    container_name: orbitlogs-contact-predictor
+    environment:
+    - RUST_LOG=info,contact_window_predictor=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - PREDICTION_INTERVAL_SECS=60
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 128M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  constellation-scheduler:
+    build:
+      context: ../../
+      dockerfile: apps/constellation-scheduler/Dockerfile
+    container_name: orbitlogs-constellation-sched
+    environment:
+    - RUST_LOG=info,constellation_scheduler=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - SCHEDULER_INTERVAL_SECS=60
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 128M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  orbit-determination-service:
+    build:
+      context: ../../
+      dockerfile: apps/orbit-determination-service/Dockerfile
+    container_name: orbitlogs-orbit-det
+    environment:
+    - RUST_LOG=info,orbit_determination_service=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - OD_INTERVAL_SECS=60
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 128M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  autonomous-mission-planning:
+    build:
+      context: ../../
+      dockerfile: apps/autonomous-mission-planning/Dockerfile
+    container_name: orbitlogs-mission-planner
+    environment:
+    - RUST_LOG=info,autonomous_mission_planning=debug
+    - PLANNER_INTERVAL_SECS=60
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 128M
+    restart: unless-stopped
   kafka-1:
     image: confluentinc/cp-kafka:7.4.0
     container_name: orbitlogs-kafka-1

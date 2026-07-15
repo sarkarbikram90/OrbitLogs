@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbitlogs-autonomous-mission-planning
+  namespace: orbitlogs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orbitlogs-autonomous-mission-planning
+  template:
+    metadata:
+      labels:
+        app: orbitlogs-autonomous-mission-planning
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: orbitlogs-autonomous-mission-planning
+        image: orbitlogs/autonomous-mission-planning:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        env:
+        - name: RUST_LOG
+          value: "info,autonomous_mission_planning=debug"
+        - name: PLANNER_INTERVAL_SECS
+          value: "60"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi

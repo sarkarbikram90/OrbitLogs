@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbitlogs-contact-window-predictor
+  namespace: orbitlogs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orbitlogs-contact-window-predictor
+  template:
+    metadata:
+      labels:
+        app: orbitlogs-contact-window-predictor
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: orbitlogs-contact-window-predictor
+        image: orbitlogs/contact-window-predictor:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        env:
+        - name: RUST_LOG
+          value: "info,contact_window_predictor=debug"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: orbitlogs-secrets
+              key: database_url
+        - name: PREDICTION_INTERVAL_SECS
+          value: "60"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi

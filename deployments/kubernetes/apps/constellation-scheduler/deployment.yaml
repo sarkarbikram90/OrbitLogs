@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbitlogs-constellation-scheduler
+  namespace: orbitlogs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orbitlogs-constellation-scheduler
+  template:
+    metadata:
+      labels:
+        app: orbitlogs-constellation-scheduler
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: orbitlogs-constellation-scheduler
+        image: orbitlogs/constellation-scheduler:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        env:
+        - name: RUST_LOG
+          value: "info,constellation_scheduler=debug"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: orbitlogs-secrets
+              key: database_url
+        - name: SCHEDULER_INTERVAL_SECS
+          value: "60"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi

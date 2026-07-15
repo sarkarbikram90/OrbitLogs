@@ -22,3 +22,7 @@ resources:
   - apps/mission-timeline/deployment.yaml
   - apps/constellation-simulator/deployment.yaml
   - apps/space-otel-collector/deployment.yaml
+  - apps/contact-window-predictor/deployment.yaml
+  - apps/constellation-scheduler/deployment.yaml
+  - apps/orbit-determination-service/deployment.yaml
+  - apps/autonomous-mission-planning/deployment.yaml

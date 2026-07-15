@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbitlogs-orbit-determination-service
+  namespace: orbitlogs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orbitlogs-orbit-determination-service
+  template:
+    metadata:
+      labels:
+        app: orbitlogs-orbit-determination-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: orbitlogs-orbit-determination-service
+        image: orbitlogs/orbit-determination-service:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        env:
+        - name: RUST_LOG
+          value: "info,orbit_determination_service=debug"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: orbitlogs-secrets
+              key: database_url
+        - name: OD_INTERVAL_SECS
+          value: "60"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
