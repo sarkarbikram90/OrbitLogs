@@ -1,17 +1,30 @@
-use crate::ServiceState;
+// Copyright 2026 OrbitLogs Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use crate::kafka_guard;
+use crate::ServiceState;
+use chrono::Utc;
+use orbitlogs_models::kafka::KafkaConfigBuilder;
 use orbitlogs_models::TelemetryRecord;
 use rdkafka::consumer::{CommitMode, Consumer};
 use rdkafka::message::Message;
-use rdkafka::producer::{FutureRecord, FutureProducer};
-use uuid::Uuid;
-use chrono::Utc;
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use sqlx::Row;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
-use orbitlogs_models::kafka::KafkaConfigBuilder;
-use sqlx::Row;
+use uuid::Uuid;
 
 pub async fn run_telemetry_loop(
     state: Arc<ServiceState>,
@@ -125,7 +138,9 @@ pub async fn verify_pending_commands(state: &ServiceState, rec: &TelemetryRecord
         }
 
         if matched {
-            state.twin.remove_command(rec.satellite_id.as_str(), &cmd_type);
+            state
+                .twin
+                .remove_command(rec.satellite_id.as_str(), &cmd_type);
 
             if let Err(e) = sqlx::query(
                 "UPDATE commands SET status = 'CONFIRMED', executed_at = $1 WHERE id = $2",

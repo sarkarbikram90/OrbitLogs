@@ -1,3 +1,16 @@
+// Copyright 2026 OrbitLogs Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use orbitlogs_models::TelemetryRecord;
 use serde::Serialize;
 
@@ -367,7 +380,7 @@ mod tests {
     fn test_digital_twin_solar_efficiency_estimation() {
         let mut twin = DigitalTwinState::new("SAT-0001".to_string());
         assert_eq!(twin.solar_efficiency, 1.0);
-        
+
         // Simulating actual output of 96W when theoretical max should be 120W (exposure factor = 1.0)
         // observed_efficiency = 96 / 120 = 0.8
         twin.estimate_solar_efficiency(96.0, 1.0);
@@ -399,7 +412,7 @@ impl DigitalTwinState {
         if solar_exposure_factor > 0.1 {
             let theoretical_max = 120.0 * solar_exposure_factor; // nominal maximum output
             let observed_efficiency = actual_solar_w / theoretical_max;
-            
+
             // Apply recursive low-pass filter (learning factor alpha = 0.001)
             self.solar_efficiency = 0.999 * self.solar_efficiency + 0.001 * observed_efficiency;
         }
@@ -410,7 +423,8 @@ impl DigitalTwinState {
         if discharge_current > 0.5 {
             let observed_resistance = voltage_drop / discharge_current;
             let fade_factor = 0.1 / observed_resistance.max(0.01);
-            self.battery_capacity_fade = 0.999 * self.battery_capacity_fade + 0.001 * fade_factor.min(1.0);
+            self.battery_capacity_fade =
+                0.999 * self.battery_capacity_fade + 0.001 * fade_factor.min(1.0);
         }
     }
 
@@ -420,8 +434,8 @@ impl DigitalTwinState {
             let delta_t = temp_c - 3.0; // background space temp is around 3C in shadow/sats
             let observed_r_th = delta_t / cpu_power_w;
             let ratio = observed_r_th / 0.5;
-            self.radiator_thermal_resistance = 0.999 * self.radiator_thermal_resistance + 0.001 * ratio;
+            self.radiator_thermal_resistance =
+                0.999 * self.radiator_thermal_resistance + 0.001 * ratio;
         }
     }
 }
-

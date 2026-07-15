@@ -1,3 +1,16 @@
+// Copyright 2026 OrbitLogs Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use axum::http::HeaderMap;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use chrono::{DateTime, Utc};
@@ -123,7 +136,9 @@ pub async fn ingest_telemetry(
         return (StatusCode::ACCEPTED, Json(success_resp)).into_response();
     }
 
-    state.dedup_cache.insert(payload.event_id, std::time::Instant::now());
+    state
+        .dedup_cache
+        .insert(payload.event_id, std::time::Instant::now());
 
     if state.dedup_cache.len() > state.cache_capacity {
         let mut keys_to_remove = Vec::new();
@@ -467,10 +482,10 @@ pub async fn ingest_tles(
         };
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(err_resp)).into_response();
     }
-    
+
     let db = state.db_pool.as_ref().unwrap();
     let mut success_count = 0;
-    
+
     for record in &records {
         if let Err(e) = record.to_elements() {
             let err_resp = ErrorResponse {
@@ -480,7 +495,7 @@ pub async fn ingest_tles(
             };
             return (StatusCode::BAD_REQUEST, Json(err_resp)).into_response();
         }
-        
+
         let query = sqlx::query(
             r#"
             INSERT INTO satellite_tles (satellite_id, epoch, line1, line2)
@@ -495,7 +510,7 @@ pub async fn ingest_tles(
         .bind(&record.line2)
         .execute(db)
         .await;
-        
+
         match query {
             Ok(_) => {
                 success_count += 1;
@@ -511,7 +526,7 @@ pub async fn ingest_tles(
             }
         }
     }
-    
+
     let resp = TleIngestionResponse {
         message: "TLE data ingested successfully".to_string(),
         count: success_count,

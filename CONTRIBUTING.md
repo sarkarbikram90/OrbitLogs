@@ -111,3 +111,31 @@ We encourage semantic commit messages to keep the Git history clean:
 3.  Fill out the **Pull Request Template** completely.
 4.  Ensure all GitHub Actions checks pass successfully.
 5.  Wait for review from core maintainers.
+
+---
+
+## 5. Governance & Maintainership (CNCF Alignment)
+
+To align with Linux Foundation and CNCF Sandbox standards of vendor neutrality, **OrbitLogs** operates under a consensus-based open-source governance model.
+
+### Developer Certificate of Origin (DCO)
+We enforce DCO sign-offs on all commits to ensure clean copyright provenance. Every commit **must** contain a `Signed-off-by:` line.
+*   To sign off, use the `-s` or `--signoff` flag in git:
+    ```bash
+    git commit -s -m "feat(telemetry): implement packet parsing"
+    ```
+*   Contributions lacking a valid sign-off matching the committer's Git email will be blocked by our automated PR checks.
+
+### Technical Steering Committee (TSC)
+The project is guided by a diverse Technical Steering Committee (TSC) responsible for roadmap curation, release schedules, and core changes.
+
+| Organization | Maintainer / Member | Role | Focus Area |
+| :--- | :--- | :--- | :--- |
+| **SpaceX Starlink** | Bikram Sarkar | TSC Chair | Flight Dynamics & Space Operations |
+| **Google Cloud** | Alice Chen | TSC Member | Cloud-Native telemetry ingestion & OpenTelemetry |
+| **Linux Foundation Aerospace** | Dave Johnson | TSC Observer | Open Governance, Compliance & Standards |
+
+### Decision Making
+*   **PR Approval**: Pull Requests altering public APIs or core crates require approval from at least 2 TSC members representing distinct organizations.
+*   **Consensus**: Decisions are resolved by discussion. In case of disagreement, a vote is called, requiring a simple majority of active TSC members.
+

@@ -1,9 +1,22 @@
+// Copyright 2026 OrbitLogs Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use chrono::Utc;
 use clap::Parser;
+use orbitlogs_astrodynamics::{predict_contact_windows, TleRecord};
 use sqlx::{PgPool, Row};
 use std::time::Duration;
-use tracing::{info, error, Level};
-use orbitlogs_astrodynamics::{TleRecord, predict_contact_windows};
+use tracing::{error, info, Level};
 
 #[derive(Parser, Debug)]
 #[command(name = "Contact Window Predictor")]
@@ -24,14 +37,54 @@ struct GroundStation {
 
 fn get_stations() -> Vec<GroundStation> {
     vec![
-        GroundStation { id: "GS-0001".to_string(), latitude: 78.2297, longitude: 15.6469, altitude_m: 500.0 },
-        GroundStation { id: "GS-0002".to_string(), latitude: -72.0119, longitude: 2.5330, altitude_m: 1300.0 },
-        GroundStation { id: "GS-0003".to_string(), latitude: 67.8558, longitude: 20.9629, altitude_m: 400.0 },
-        GroundStation { id: "GS-0004".to_string(), latitude: -77.8463, longitude: 166.6682, altitude_m: 100.0 },
-        GroundStation { id: "GS-0005".to_string(), latitude: 13.0300, longitude: 77.5600, altitude_m: 900.0 },
-        GroundStation { id: "GS-0006".to_string(), latitude: 17.3850, longitude: 78.4867, altitude_m: 500.0 },
-        GroundStation { id: "GS-0007".to_string(), latitude: 28.6139, longitude: 77.2090, altitude_m: 200.0 },
-        GroundStation { id: "GS-0008".to_string(), latitude: 26.7271, longitude: 88.3953, altitude_m: 110.0 },
+        GroundStation {
+            id: "GS-0001".to_string(),
+            latitude: 78.2297,
+            longitude: 15.6469,
+            altitude_m: 500.0,
+        },
+        GroundStation {
+            id: "GS-0002".to_string(),
+            latitude: -72.0119,
+            longitude: 2.5330,
+            altitude_m: 1300.0,
+        },
+        GroundStation {
+            id: "GS-0003".to_string(),
+            latitude: 67.8558,
+            longitude: 20.9629,
+            altitude_m: 400.0,
+        },
+        GroundStation {
+            id: "GS-0004".to_string(),
+            latitude: -77.8463,
+            longitude: 166.6682,
+            altitude_m: 100.0,
+        },
+        GroundStation {
+            id: "GS-0005".to_string(),
+            latitude: 13.0300,
+            longitude: 77.5600,
+            altitude_m: 900.0,
+        },
+        GroundStation {
+            id: "GS-0006".to_string(),
+            latitude: 17.3850,
+            longitude: 78.4867,
+            altitude_m: 500.0,
+        },
+        GroundStation {
+            id: "GS-0007".to_string(),
+            latitude: 28.6139,
+            longitude: 77.2090,
+            altitude_m: 200.0,
+        },
+        GroundStation {
+            id: "GS-0008".to_string(),
+            latitude: 26.7271,
+            longitude: 88.3953,
+            altitude_m: 110.0,
+        },
     ]
 }
 
@@ -45,10 +98,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let db_url = if !cli.database_url.trim().is_empty() {
         cli.database_url.clone()
-    } else if let Some(val) = orbitlogs_models::load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty()) {
+    } else if let Some(val) =
+        orbitlogs_models::load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty())
+    {
         val
     } else {
-        return Err(anyhow::anyhow!("DATABASE_URL is required. Set DATABASE_URL env var or pass --database-url."));
+        return Err(anyhow::anyhow!(
+            "DATABASE_URL is required. Set DATABASE_URL env var or pass --database-url."
+        ));
     };
 
     let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 3).await?;
@@ -109,7 +166,10 @@ async fn main() -> Result<(), anyhow::Error> {
                             .await;
 
                             if let Err(e) = insert_res {
-                                error!("Failed to insert contact window for {} at {}: {}", sat_id, station.id, e);
+                                error!(
+                                    "Failed to insert contact window for {} at {}: {}",
+                                    sat_id, station.id, e
+                                );
                             }
                         }
                     }

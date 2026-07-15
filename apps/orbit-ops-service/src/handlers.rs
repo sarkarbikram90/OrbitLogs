@@ -1,3 +1,16 @@
+// Copyright 2026 OrbitLogs Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -234,14 +247,14 @@ pub async fn handle_orbit_ws(mut socket: axum::extract::ws::WebSocket, state: Ar
             _ = interval.tick() => {
                 let mut deltas = Vec::new();
                 let active_sats: Vec<String> = (1..=10).map(|i| format!("SAT-{:04}", i)).collect();
-                
+
                 // Let's query recent commands to see if any maneuver started
                 for sat in &active_sats {
                     let cmd_row = sqlx::query("SELECT command_type FROM commands WHERE satellite_id = $1 AND created_at >= NOW() - INTERVAL '15 seconds'")
                         .bind(sat)
                         .fetch_optional(&state.db_pool)
                         .await;
-                    
+
                     if let Ok(Some(row)) = cmd_row {
                         let cmd_type: String = row.get("command_type");
                         if cmd_type == "CMD_PROP_THRUST" {

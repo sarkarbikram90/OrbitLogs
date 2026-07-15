@@ -1,9 +1,22 @@
+// Copyright 2026 OrbitLogs Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use chrono::{DateTime, Utc};
 use clap::Parser;
+use nalgebra::{Matrix3, Matrix3x6, Matrix6, Vector3, Vector6};
 use sqlx::{PgPool, Row};
 use std::time::Duration;
-use tracing::{info, error, Level};
-use nalgebra::{Matrix3, Matrix3x6, Matrix6, Vector3, Vector6};
+use tracing::{error, info, Level};
 
 #[derive(Parser, Debug)]
 #[command(name = "Orbit Determination Service")]
@@ -104,10 +117,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let db_url = if !cli.database_url.trim().is_empty() {
         cli.database_url.clone()
-    } else if let Some(val) = orbitlogs_models::load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty()) {
+    } else if let Some(val) =
+        orbitlogs_models::load_secret("DATABASE_URL").filter(|s| !s.trim().is_empty())
+    {
         val
     } else {
-        return Err(anyhow::anyhow!("DATABASE_URL is required. Set DATABASE_URL env var or pass --database-url."));
+        return Err(anyhow::anyhow!(
+            "DATABASE_URL is required. Set DATABASE_URL env var or pass --database-url."
+        ));
     };
 
     let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 3).await?;
@@ -122,7 +139,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 "SELECT latitude, longitude, altitude, velocity 
                  FROM orbit_positions 
                  WHERE satellite_id = $1 
-                 ORDER BY timestamp DESC LIMIT 1"
+                 ORDER BY timestamp DESC LIMIT 1",
             )
             .bind(sat_id)
             .fetch_optional(&db_pool)
@@ -137,8 +154,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     // Initial state estimation
                     let initial_state = Vector6::new(
-                        6378.1 + alt, 0.0, 0.0, // x, y, z
-                        0.0, vel, 0.0,          // vx, vy, vz
+                        6378.1 + alt,
+                        0.0,
+                        0.0, // x, y, z
+                        0.0,
+                        vel,
+                        0.0, // vx, vy, vz
                     );
 
                     let mut ekf = ExtendedKalmanFilter::new(initial_state);
@@ -150,8 +171,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     ekf.update(&measurement, &r_noise);
 
-                    info!("Orbit determined for {}: Est Position = [{:.2}, {:.2}, {:.2}]", 
-                          sat_id, ekf.state[0], ekf.state[1], ekf.state[2]);
+                    info!(
+                        "Orbit determined for {}: Est Position = [{:.2}, {:.2}, {:.2}]",
+                        sat_id, ekf.state[0], ekf.state[1], ekf.state[2]
+                    );
                 }
                 Ok(None) => {}
                 Err(e) => {

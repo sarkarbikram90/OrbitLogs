@@ -1,3 +1,16 @@
+// Copyright 2026 OrbitLogs Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use nalgebra::Vector3;
 
@@ -43,11 +56,7 @@ pub fn datetime_to_jd(dt: DateTime<Utc>) -> f64 {
     let a = (y / 100.0).floor();
     let b = 2.0 - a + (a / 4.0).floor();
 
-    let jd = (365.25 * (y + 4716.0)).floor()
-        + (30.6001 * (m + 1.0)).floor()
-        + day
-        + b
-        - 1524.5;
+    let jd = (365.25 * (y + 4716.0)).floor() + (30.6001 * (m + 1.0)).floor() + day + b - 1524.5;
 
     let day_fraction = (hour + min / 60.0 + (sec + ms / 1000.0) / 3600.0) / 24.0;
     jd + day_fraction
@@ -57,14 +66,14 @@ pub fn datetime_to_jd(dt: DateTime<Utc>) -> f64 {
 pub fn calculate_gmst_rad(dt: DateTime<Utc>) -> f64 {
     let jd = datetime_to_jd(dt);
     let t = (jd - 2451545.0) / 36525.0;
-    
+
     // GMST in seconds of time (IAU 1982 model)
     let gmst_sec = 24110.54841 + 8640184.812866 * t + 0.093104 * t.powi(2) - 6.2e-6 * t.powi(3);
-    
+
     // Convert to hours, then to radians
     let gmst_hours = (gmst_sec / 3600.0) % 24.0;
     let gmst_rad = gmst_hours * (2.0 * std::f64::consts::PI / 24.0);
-    
+
     // Normalize to [0, 2pi]
     let two_pi = 2.0 * std::f64::consts::PI;
     (gmst_rad % two_pi + two_pi) % two_pi
@@ -142,7 +151,7 @@ pub fn geodetic_to_ecef(lat_deg: f64, lon_deg: f64, alt_m: f64) -> Vector3<f64> 
     let e2: f64 = f * (2.0 - f);
 
     let n = a / (1.0 - e2 * lat.sin().powi(2)).sqrt();
-    
+
     let x = (n + alt_m) * lat.cos() * lon.cos();
     let y = (n + alt_m) * lat.cos() * lon.sin();
     let z = (n * (1.0 - e2) + alt_m) * lat.sin();

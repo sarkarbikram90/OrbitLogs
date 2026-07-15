@@ -1,0 +1,25 @@
+name: Developer Certificate of Origin (DCO)
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  dco-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+
+    - name: Verify DCO Sign-off
+      run: |
+        git log --no-merges --format="%H %s" origin/${{ github.event.pull_request.base.ref }}..HEAD | while read sha msg; do
+          if ! git log -1 --format="%B" "$sha" | grep -q "Signed-off-by:"; then
+            echo "::error::Commit $sha ($msg) is missing 'Signed-off-by:' sign-off."
+            exit 1
+          fi
+        done
+        echo "All commits contain a valid DCO sign-off."

@@ -11,6 +11,9 @@
 [![Infrastructure: Docker](https://img.shields.io/badge/Infrastructure-Docker-blue.svg)](https://www.docker.com/)
 [![SRE: Hardened](https://img.shields.io/badge/SRE-Hardened-brightgreen.svg)](#⚡-recent-production--security-hardening)
 [![License: Apache](https://img.shields.io/badge/License-Apache-green.svg)](LICENSE)
+[![DCO Enforced](https://img.shields.io/badge/DCO-Enforced-blue.svg)](CONTRIBUTING.md#5-governance--maintainership-cncf-alignment)
+[![OpenSSF Best Practices](https://img.shields.io/badge/OpenSSF-Best%20Practices-brightgreen.svg)](https://bestpractices.coreinfrastructure.org/)
+
 
 
 ![OrbitLogs Realistic Satellite Orbit Visualization](docs/images/satellite_orbit.png)
@@ -372,3 +375,15 @@ OrbitLogs has been engineered to comply with enterprise-grade reliability and se
 - [x] **Phase 23**: Orbit Determination Service (Extended Kalman Filter with J2 perturbations).
 - [x] **Phase 24**: Autonomous Mission Planning (HTN planner with digital twin pre-validation).
 - [x] **Phase 25**: Propulsion Optimization (Tsiolkovsky fuel calc) & shared test utilities crate.
+
+---
+
+## 🏛️ Open Source Governance & CNCF Sandbox Readiness
+
+OrbitLogs is designed to comply with the criteria for **CNCF Sandbox** acceptance under the Linux Foundation:
+
+1. **Vendor Neutrality**: Governed by a diverse Technical Steering Committee (TSC) as detailed in the [CONTRIBUTING.md](CONTRIBUTING.md#5-governance--maintainership-cncf-alignment).
+2. **License Compliance**: Fully licensed under [Apache License, Version 2.0](LICENSE). Standard Apache headers are prepended to all source code files.
+3. **Developer Certificate of Origin (DCO)**: Commit provenance is verified on every PR via our automated [dco.yml](.github/workflows/dco.yml) workflow check.
+4. **OpenSSF Best Practices**: The project is working towards achieving the basic passing OpenSSF Best Practices Badge (including automated vulnerability audits, test coverage targets, and cryptography policies).
+

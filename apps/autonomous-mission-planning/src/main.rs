@@ -1,6 +1,19 @@
+// Copyright 2026 OrbitLogs Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tracing::{info, Level};
 
@@ -35,7 +48,7 @@ impl OnboardTimeline {
     /// Runs a simulation check to ensure no commands violate flight constraints (e.g. power draining).
     pub fn validate_safety_constraints(&self, twin: &DigitalTwinState) -> Result<(), &'static str> {
         let mut simulated_battery = 100.0 * twin.battery_capacity_fade;
-        
+
         for (_time, cmd) in &self.schedule {
             match cmd {
                 Command::ExecuteBurn { .. } => {
@@ -67,7 +80,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     loop {
         info!("Evaluating incident command timelines for flight safety...");
-        
+
         // Simulating twin state of a satellite
         let twin = DigitalTwinState {
             satellite_id: "SAT-0001".to_string(),
@@ -80,18 +93,38 @@ async fn main() -> Result<(), anyhow::Error> {
         let now = Utc::now();
         let timeline = OnboardTimeline {
             schedule: vec![
-                (now + chrono::Duration::minutes(5), Command::ShedSecondaryLoad),
-                (now + chrono::Duration::minutes(15), Command::AdjustRadiatorYaw { angle_degrees: 45.0 }),
-                (now + chrono::Duration::minutes(30), Command::ExecuteBurn { vector: [1.2, 0.0, 0.0] }),
+                (
+                    now + chrono::Duration::minutes(5),
+                    Command::ShedSecondaryLoad,
+                ),
+                (
+                    now + chrono::Duration::minutes(15),
+                    Command::AdjustRadiatorYaw {
+                        angle_degrees: 45.0,
+                    },
+                ),
+                (
+                    now + chrono::Duration::minutes(30),
+                    Command::ExecuteBurn {
+                        vector: [1.2, 0.0, 0.0],
+                    },
+                ),
             ],
         };
 
         match timeline.validate_safety_constraints(&twin) {
             Ok(_) => {
-                info!("Timeline safety constraints validation passed for satellite {}", twin.satellite_id);
+                info!(
+                    "Timeline safety constraints validation passed for satellite {}",
+                    twin.satellite_id
+                );
             }
             Err(e) => {
-                tracing::warn!("Timeline safety constraints check failed for {}: {}", twin.satellite_id, e);
+                tracing::warn!(
+                    "Timeline safety constraints check failed for {}: {}",
+                    twin.satellite_id,
+                    e
+                );
             }
         }
 
