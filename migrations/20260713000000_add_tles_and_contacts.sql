@@ -1,4 +1,4 @@
--- Migration to add Two-Line Elements (TLEs) and Contact Windows tables for Starlink Operations
+-- Migration to add Two-Line Elements (TLEs) and Contact Windows tables for OrbitLogs Operations
 CREATE TABLE IF NOT EXISTS satellite_tles (
     satellite_id VARCHAR(50) NOT NULL,
     epoch TIMESTAMPTZ NOT NULL,

@@ -1,6 +1,6 @@
 # Security Policy 🛡️
 
-We take the security of **OrbitLogs** seriously. This document outlines how to report security vulnerabilities and our policies surrounding security.
+We take the security of OrbitLogs seriously. This document outlines how to report security vulnerabilities and our policies surrounding security.
 
 ## Supported Versions
 
@@ -13,11 +13,12 @@ Only the latest release (and active development on the `main` branch) is activel
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, please do **NOT** open a public issue. Instead, report it privately to ensure that we can address it before disclosure.
+If you discover a security vulnerability, please do **NOT** open a public issue. 
 
-1.  Send an email to **sarkarbikram90@gmail.com** detailing the vulnerability.
-2.  Provide a clear description of the issue, step-by-step instructions or code to reproduce the exploit (PoC), and potential impacts.
-3.  We will acknowledge receipt of your report within 48 hours and work with you to coordinate a release plan.
+1.  **GitHub Private Vulnerability Reporting**: Go to the Security tab of the repository on GitHub and select "Report a vulnerability" to submit a report privately.
+2.  **Email Escalation**: If GitHub reporting is unavailable, send an email to **sarkarbikram90@gmail.com** detailing the vulnerability.
+
+Provide a clear description of the issue, step-by-step instructions or code to reproduce the exploit (PoC), and potential impacts. We will acknowledge receipt of your report within 48 hours and work with you to coordinate a release plan.
 
 ## Our Security Commitment
 

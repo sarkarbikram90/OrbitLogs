@@ -126,16 +126,6 @@ We enforce DCO sign-offs on all commits to ensure clean copyright provenance. Ev
     ```
 *   Contributions lacking a valid sign-off matching the committer's Git email will be blocked by our automated PR checks.
 
-### Technical Steering Committee (TSC)
-The project is guided by a diverse Technical Steering Committee (TSC) responsible for roadmap curation, release schedules, and core changes.
-
-| Organization | Maintainer / Member | Role | Focus Area |
-| :--- | :--- | :--- | :--- |
-| **SpaceX Starlink** | Bikram Sarkar | TSC Chair | Flight Dynamics & Space Operations |
-| **Google Cloud** | Alice Chen | TSC Member | Cloud-Native telemetry ingestion & OpenTelemetry |
-| **Linux Foundation Aerospace** | Dave Johnson | TSC Observer | Open Governance, Compliance & Standards |
-
-### Decision Making
-*   **PR Approval**: Pull Requests altering public APIs or core crates require approval from at least 2 TSC members representing distinct organizations.
-*   **Consensus**: Decisions are resolved by discussion. In case of disagreement, a vote is called, requiring a simple majority of active TSC members.
+### Maintainership & Governance
+For detailed information on project maintainership, roles, and decision-making, please refer to our [GOVERNANCE.md](GOVERNANCE.md) and [MAINTAINERS.md](MAINTAINERS.md) documents.
 

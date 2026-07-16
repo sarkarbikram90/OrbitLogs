@@ -240,9 +240,9 @@ mod tests {
 
     fn mock_nominal_telemetry() -> TelemetryRecord {
         TelemetryRecord {
-            satellite_id: orbitlogs_models::SatelliteId::new("STARLINK-9999"),
+            satellite_id: orbitlogs_models::SatelliteId::new("ORBITLOGS-9999"),
             subsystem_id: orbitlogs_models::Subsystem::Adcs,
-            mission_id: orbitlogs_models::MissionId::new("STARLINK-V2"),
+            mission_id: orbitlogs_models::MissionId::new("ORBITLOGS-V2"),
             timestamp: chrono::Utc::now(),
             battery_voltage: Some(13.8),
             battery_current: Some(1.2),
@@ -268,9 +268,9 @@ mod tests {
     #[test]
     fn test_nominal_health_projection() {
         let rec = mock_nominal_telemetry();
-        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        let proj = project_twin_health("ORBITLOGS-9999".to_string(), &rec);
 
-        assert_eq!(proj.satellite_id, "STARLINK-9999");
+        assert_eq!(proj.satellite_id, "ORBITLOGS-9999");
         assert_eq!(proj.subsystems.power.status, SubsystemStatus::Nominal);
         assert_eq!(proj.subsystems.power.score, 100);
         assert_eq!(proj.subsystems.thermal.status, SubsystemStatus::Nominal);
@@ -295,7 +295,7 @@ mod tests {
         let mut rec = mock_nominal_telemetry();
         rec.battery_voltage = Some(11.2); // < 11.5
 
-        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        let proj = project_twin_health("ORBITLOGS-9999".to_string(), &rec);
         assert_eq!(proj.subsystems.power.status, SubsystemStatus::Degraded);
         assert_eq!(proj.subsystems.power.score, 60);
         assert!(proj
@@ -311,7 +311,7 @@ mod tests {
         rec.battery_voltage = Some(10.2); // < 10.5
         rec.solar_panel_output = Some(0.0);
 
-        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        let proj = project_twin_health("ORBITLOGS-9999".to_string(), &rec);
         assert_eq!(proj.subsystems.power.status, SubsystemStatus::Failed);
         assert_eq!(proj.subsystems.power.score, 20);
         assert!(proj
@@ -326,7 +326,7 @@ mod tests {
         let mut rec = mock_nominal_telemetry();
         rec.temperature = Some(78.0); // > 75.0
 
-        let proj1 = project_twin_health("STARLINK-9999".to_string(), &rec);
+        let proj1 = project_twin_health("ORBITLOGS-9999".to_string(), &rec);
         assert_eq!(proj1.subsystems.thermal.status, SubsystemStatus::Degraded);
         assert_eq!(proj1.subsystems.thermal.score, 55);
         assert!(proj1
@@ -336,7 +336,7 @@ mod tests {
         assert_eq!(proj1.life_expectancy_days, 1800.0 - 200.0);
 
         rec.temperature = Some(92.0); // > 90.0
-        let proj2 = project_twin_health("STARLINK-9999".to_string(), &rec);
+        let proj2 = project_twin_health("ORBITLOGS-9999".to_string(), &rec);
         assert_eq!(proj2.subsystems.thermal.status, SubsystemStatus::Failed);
         assert_eq!(proj2.subsystems.thermal.score, 10);
         assert!(proj2
@@ -351,7 +351,7 @@ mod tests {
         let mut rec = mock_nominal_telemetry();
         rec.orientation_pitch = Some(12.5); // > 10.0
 
-        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        let proj = project_twin_health("ORBITLOGS-9999".to_string(), &rec);
         assert_eq!(proj.subsystems.adcs.status, SubsystemStatus::Degraded);
         assert_eq!(proj.subsystems.adcs.score, 65);
         assert!(proj
@@ -366,7 +366,7 @@ mod tests {
         let mut rec = mock_nominal_telemetry();
         rec.fuel_remaining = Some(15.0); // < 20.0
 
-        let proj = project_twin_health("STARLINK-9999".to_string(), &rec);
+        let proj = project_twin_health("ORBITLOGS-9999".to_string(), &rec);
         assert_eq!(proj.subsystems.propulsion.status, SubsystemStatus::Degraded);
         assert_eq!(proj.subsystems.propulsion.score, 40);
         assert!(proj

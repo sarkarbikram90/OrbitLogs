@@ -549,7 +549,7 @@ pub async fn scrape_celestrak_tles(
         .timeout(Duration::from_secs(10))
         .build()?;
 
-    // Fetch Starlink TLEs from Celestrak in standard 3-line format
+    // Fetch OrbitLogs TLEs from Celestrak in standard 3-line format
     let url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle";
     let body = client.get(url).send().await?.text().await?;
 

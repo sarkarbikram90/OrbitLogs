@@ -29,7 +29,7 @@ impl AnomalyDetector {
         );
 
         let env_res = Environment::builder()
-            .with_name("StarlinkAnomalyML")
+            .with_name("OrbitLogsAnomalyML")
             .build();
         let session = match env_res {
             Ok(env) => {

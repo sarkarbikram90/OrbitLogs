@@ -102,6 +102,37 @@ jobs:
       - name: Run license and advisory checks
         uses: EmbarkStudios/cargo-deny-action@v2
 
+  license-check:
+    name: License Header Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify License Headers
+        run: |
+          echo "Verifying Apache 2.0 license headers in source files..."
+          missing_headers=0
+          
+          # Search for source files that do not contain the license copyright text
+          # Excludes target, node_modules, build directories, and lock files
+          while IFS= read -r file; do
+            if ! head -n 15 "$file" | grep -q "Licensed under the Apache License, Version 2.0"; then
+              echo "::error file=$file::Missing Apache 2.0 license header in $file"
+              missing_headers=$((missing_headers + 1))
+            fi
+          done < <(find . -type f \( -name "*.rs" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" \) \
+            -not -path "*/target/*" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/dist/*" \
+            -not -path "*/build/*" \
+            -not -path "./apps/mission-control-ui/vite-env.d.ts" )
+          
+          if [ $missing_headers -gt 0 ]; then
+            echo "Failed: $missing_headers file(s) are missing license headers."
+            exit 1
+          fi
+          echo "All source files verified with license headers."
+
   container-builds:
     name: Container Build Verification
     runs-on: ubuntu-latest

@@ -1,10 +1,10 @@
-# SpaceX Starlink Next-Gen Constellation Management: System Architecture Proposal
+# OrbitLogs Next-Gen Constellation Management: System Architecture Proposal
 
 > **Status: ✅ All 10 features have been implemented** as of v4.5.0. The workspace now includes all proposed applications and library crates described below. This document is preserved as the original design specification.
 
 This proposal outlines the engineering design and implementation plan for integrating advanced astrodynamics, optimization, machine learning, and autonomous operations into the **OrbitLogs** platform. 
 
-As a Staff Engineer at SpaceX Starlink, the focus is on **scalability** (handling $10,000+$ satellites and dozens of ground stations), **mathematical rigor** (astrodynamics, optimal control), and **resilient software engineering** (Rust, axum, Kafka/Redpanda, and TimescaleDB).
+As a Staff Engineer at OrbitLogs, the focus is on **scalability** (handling $10,000+$ satellites and dozens of ground stations), **mathematical rigor** (astrodynamics, optimal control), and **resilient software engineering** (Rust, axum, Kafka/Redpanda, and TimescaleDB).
 
 ---
 
@@ -160,7 +160,7 @@ pub struct AnomalyDetector {
 
 impl AnomalyDetector {
     pub fn new(model_path: &str) -> Result<Self, ort::Error> {
-        let env = Arc::new(Environment::builder().with_name("StarlinkAnomalyML").build()?);
+        let env = Arc::new(Environment::builder().with_name("OrbitLogsAnomalyML").build()?);
         let session = SessionBuilder::new(&env)?
             .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
             .with_model_from_file(model_path)?;
