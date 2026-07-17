@@ -140,7 +140,7 @@ impl SchemaRegistry {
         }
 
         if errors.is_empty() {
-            Ok((is_ok))
+            Ok(())
         } else {
             Err(errors)
         }
