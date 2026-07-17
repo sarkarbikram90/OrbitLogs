@@ -4,4 +4,19 @@ rustflags = [
     "-C", "linker=rust-lld",
     "-L", "native=C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64",
     "-L", "native=C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64",
+    "-L", "native=C:\\Users\\bikrams\\orbitlogs\\OrbitLOgs\\.cargo\\lib",
+    "-l", "shims",
+    "-l", "ucrt",
 ]
+
+[target.x86_64-pc-windows-gnu.rdkafka]
+rustc-link-lib = ["rdkafka"]
+rustc-link-search = ["C:\\Users\\bikrams\\orbitlogs\\OrbitLOgs\\.cargo\\lib"]
+
+[target.x86_64-pc-windows-gnu.z]
+rustc-link-lib = ["z"]
+rustc-link-search = ["C:\\Users\\bikrams\\orbitlogs\\OrbitLOgs\\.cargo\\lib"]
+
+[target.x86_64-pc-windows-gnu.onnxruntime]
+rustc-link-lib = ["onnxruntime"]
+rustc-link-search = ["C:\\Users\\bikrams\\orbitlogs\\OrbitLOgs\\.cargo\\lib"]

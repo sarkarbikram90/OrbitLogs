@@ -27,5 +27,5 @@ tower-http = { workspace = true }
 subtle = { workspace = true }
 regex = { workspace = true }
 ort = { workspace = true }
-ndarray = "0.15"
+ndarray = "0.17"
 

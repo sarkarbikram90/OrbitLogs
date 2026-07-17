@@ -11,12 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use ort::{Environment, Session, SessionBuilder, Value};
-use std::sync::Arc;
+use ort::session::Session;
+use std::sync::Mutex;
 use tracing::{info, warn};
 
 pub struct AnomalyDetector {
-    session: Option<Session>,
+    session: Option<Mutex<Session>>,
 }
 
 impl AnomalyDetector {
@@ -28,30 +28,12 @@ impl AnomalyDetector {
             model_path
         );
 
-        let env_res = Environment::builder()
-            .with_name("OrbitLogsAnomalyML")
-            .build();
-        let session = match env_res {
-            Ok(env) => {
-                let env_arc = Arc::new(env);
-                let builder = SessionBuilder::new(&env_arc);
-                match builder {
-                    Ok(b) => {
-                        let opt_builder =
-                            b.with_optimization_level(ort::GraphOptimizationLevel::Level3);
-                        match opt_builder {
-                            Ok(ob) => ob.with_model_from_file(model_path).ok(),
-                            Err(_) => None,
-                        }
-                    }
-                    Err(_) => None,
-                }
-            }
-            Err(_) => {
-                warn!("ONNX Environment could not be initialized. Using fallback heuristic anomaly detector.");
-                None
-            }
-        };
+        let session = (|| -> Result<Session, ort::Error> {
+            let builder = Session::builder()?;
+            let mut builder = builder.with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?;
+            let session = builder.commit_from_file(model_path)?;
+            Ok(session)
+        })().map(Mutex::new).ok();
 
         if session.is_some() {
             info!("Successfully loaded ONNX model for real-time anomaly detection.");
@@ -63,19 +45,18 @@ impl AnomalyDetector {
     }
 
     pub fn predict(&self, features: &[f32; 10]) -> Result<bool, ort::Error> {
-        if let Some(ref session) = self.session {
-            let input_tensor = Value::from_array(
-                session.allocator(),
-                ndarray::Array2::from_shape_vec((1, 10), features.to_vec()).unwrap(),
-            )?;
+        if let Some(ref session_mutex) = self.session {
+            let mut session = session_mutex.lock().unwrap();
+            let input_tensor = ndarray::Array2::from_shape_vec((1, 10), features.to_vec()).unwrap();
+            let input_value = ort::value::Tensor::from_array(input_tensor)?;
 
-            let outputs = session.run(ort::inputs![input_tensor]?)?;
-            let output_tensor = outputs[0].extract_tensor::<f32>()?;
+            let outputs = session.run(ort::inputs![input_value])?;
+            let output_tensor = outputs[0].try_extract_array::<f32>()?;
 
             // Calculate Reconstruction Loss (MSE)
             let loss: f32 = features
                 .iter()
-                .zip(output_tensor.view().iter())
+                .zip(output_tensor.iter())
                 .map(|(&orig, &recon)| (orig - recon).powi(2))
                 .sum::<f32>()
                 / 10.0;

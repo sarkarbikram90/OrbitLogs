@@ -68,7 +68,7 @@ nalgebra = { version = "0.32", features = ["serde-serialize"] }
 orbitlogs-astrodynamics = { path = "crates/orbitlogs-astrodynamics" }
 orbitlogs-propulsion = { path = "crates/orbitlogs-propulsion" }
 orbitlogs-test-utils = { path = "crates/orbitlogs-test-utils" }
-ort = "2.0.0-rc.9"
+ort = { version = "2.0.0-rc.9", features = ["ndarray"] }
 
 # Optimize profiles for production build speed vs runtime execution speed
 [profile.release]
