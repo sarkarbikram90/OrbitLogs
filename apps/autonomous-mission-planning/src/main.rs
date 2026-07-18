@@ -21,8 +21,8 @@ use tracing::{info, Level};
 #[derive(Parser, Debug)]
 #[command(name = "Autonomous Mission Planner")]
 struct Cli {
-    #[arg(long, env = "PLANNER_INTERVAL_SECS", default_value = "60")]
-    interval_secs: u64,
+    #[arg(long, env = "PLANNER_INTERVAL_SECS", default_value = "60.0")]
+    interval_secs: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,7 +134,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 info!("Shutdown signal received. Exiting Autonomous Mission Planner gracefully.");
                 break;
             }
-            _ = tokio::time::sleep(Duration::from_secs(cli.interval_secs)) => {}
+            _ = tokio::time::sleep(Duration::from_secs_f64(cli.interval_secs)) => {}
         }
     }
     Ok(())
