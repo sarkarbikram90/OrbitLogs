@@ -47,7 +47,11 @@ pub struct OnboardTimeline {
 
 impl OnboardTimeline {
     /// Runs a simulation check to ensure no commands violate flight constraints (e.g. power draining).
-    pub fn validate_safety_constraints(&self, twin: &DigitalTwinState) -> Result<(), &'static str> {
+    pub fn validate_safety_constraints(
+        &self, 
+        twin: &DigitalTwinState
+    ) -> Result<(), &'static str> {
+        
         let mut simulated_battery = 100.0 * twin.battery_capacity_fade;
 
         for (_time, cmd) in &self.schedule {
