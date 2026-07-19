@@ -8,19 +8,14 @@ Please describe the changes proposed in this Pull Request and their motivation/c
 - [ ] Refactor (non-breaking change that improves code quality)
 - [ ] Documentation update
 
-## Checklist
-- [ ] My code follows the code style and formatting guidelines of this project (`cargo fmt`).
-- [ ] I have performed a self-review of my own code.
-- [ ] I have commented my code, particularly in hard-to-understand areas.
-- [ ] I have made corresponding changes to the documentation.
-- [ ] I have added tests that prove my fix is effective or that my feature works (`cargo test`).
-- [ ] Clippy checks pass cleanly without warnings (`cargo clippy`).
-- [ ] I have verified that `cargo machete` reports no unused dependencies.
-- [ ] I have verified container builds work properly.
-- [ ] Change does not alter or violate physical cascading constraints (e.g. thermal limits, battery voltage rules).
-- [ ] Checked against OTel Trace propagation context preservation rules.
-- [ ] Checked database migration scripts for backward-compatibility compatibility.
-
+## Quality & Compliance Checklist
+- [ ] **Developer Certificate of Origin (DCO)**: I have signed off all commits in this PR (`git commit -s`).
+- [ ] **Code Formatting**: Code follows project style guidelines (`cargo fmt --all --check`).
+- [ ] **Linting**: Code passes Clippy checks cleanly (`cargo clippy --workspace --all-targets --all-features -- -D warnings`).
+- [ ] **Testing**: Added/updated unit and integration tests (`cargo test --all-targets --all-features`).
+- [ ] **Unused Dependencies**: Verified no unused dependencies (`cargo machete`).
+- [ ] **Documentation**: Updated relevant `README.md` files or architectural docs.
+- [ ] **Telemetry & Tracing**: Maintained OpenTelemetry context propagation across async boundaries.
 
 ## Related Issues
 Closes # (issue number)

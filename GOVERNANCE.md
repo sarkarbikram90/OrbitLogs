@@ -1,44 +1,51 @@
-# OrbitLogs Project Governance
+# OrbitLogs Project Governance 🏛️
 
-OrbitLogs is a community-driven, vendor-neutral open-source project. This document outlines the project's governance structure, roles, decision-making processes, and procedures for maintainer onboarding and lifecycle.
+OrbitLogs is an open-source, vendor-neutral project focused on real-time spacecraft telemetry, flight observability, and mission control engineering. This document details the project's open governance structure, decision-making processes, maintainership rules, and Technical Steering Committee (TSC) policies, adhering to **Cloud Native Computing Foundation (CNCF)** Sandbox guidelines.
 
-## 1. Project Leadership & Maintainership
+---
 
-Currently, OrbitLogs is in its early stages and is led by the Project Founder and Lead Maintainer:
+## 1. Principles of Open Governance
 
-*   **Bikram Sarkar** (`@sarkarbikram90`) — Lead Maintainer & Technical Lead
+OrbitLogs operates under four core principles:
 
-As the project transitions into the CNCF Sandbox, the governance structure is designed to support growth and transition toward a Technical Steering Committee (TSC) as new contributors and maintainers join the project.
+1. **Vendor Neutrality**: No single corporate entity holds a permanent majority or exclusive rights over project direction or governance.
+2. **Meritocracy**: Influence and leadership roles are earned through active, sustained technical and community contributions.
+3. **Openness**: All project discussions, design proposals (RFCs), issue triage, and technical decisions take place publicly on GitHub and community forums.
+4. **Inclusivity**: Every contributor is welcomed and evaluated fairly under our adopted [CNCF Code of Conduct](CODE_OF_CONDUCT.md).
 
-### Responsibilities of the Lead Maintainer
-*   Determining the project roadmap and release schedules.
-*   Approving API changes, core architectural modifications, and dependencies.
-*   Reviewing contributions and coordinating releases.
-*   Managing maintainer status and onboarding.
+---
 
-## 2. Contributor Roles & Progression
-
-We define a clear progression path for community involvement:
+## 2. Leadership Roles & Progression
 
 ### A. Contributors
-Contributors are community members who submit pull requests, report issues, write documentation, or participate in discussions.
-*   **Privileges**: Can open issues and pull requests, participate in discussions.
-*   **Requirements**: Must sign off all commits using the Developer Certificate of Origin (DCO).
+Contributors are community members who submit pull requests, report issues, improve documentation, or participate in design discussions.
+* **Privileges**: Can open issues and pull requests, participate in design reviews.
+* **Requirements**: Must sign off all commits using the Developer Certificate of Origin (`git commit -s`).
 
 ### B. Maintainers
-Maintainers are contributors who have demonstrated a sustained commitment to the project and have been granted write access to the repository.
-*   **Privileges**: Can review, approve, and merge pull requests; moderate community channels.
-*   **Onboarding**: Contributors who have submitted high-quality contributions (typically 5+ significant PRs) and actively participated in reviews/discussions for 3+ months can be nominated by an existing maintainer. Onboarding is finalized upon agreement by the active maintainers.
-*   **Maintenance**: To remain active, a maintainer must review pull requests or submit contributions regularly. Maintainers who become inactive for 6 months will be transitioned to "Emeritus" status.
+Maintainers are contributors who have demonstrated sustained technical excellence, code quality, and active community participation.
+* **Privileges**: Maintainers have write access to the repository, can approve and merge pull requests, manage issue triage, and participate in security reviews.
+* **Onboarding Process**: Any active maintainer may nominate a contributor who has submitted significant pull requests (typically 5+ substantial contributions) and actively participated in code reviews over a 3-month period. Approval requires a 2/3 majority vote among active maintainers.
+* **Offboarding & Emeritus Status**: A maintainer who is inactive for 6 months without notice will be transitioned to "Maintainer Emeritus" status, relinquishing write access. Emeritus maintainers can be reinstated upon active re-engagement.
 
 ### C. Technical Steering Committee (TSC)
-Once the project grows to have 3 or more active maintainers from multiple organizations or backgrounds, a Technical Steering Committee (TSC) will be formed to run annual elections and govern the project roadmaps, ensuring vendor neutrality (no single corporate entity holding a majority of seats).
+The Technical Steering Committee governs overall architecture, security policies, release schedules, and vendor neutrality compliance.
+* **Composition**: The TSC consists of up to 5 elected maintainers representing diverse organizations.
+* **Voting Thresholds**:
+  - **Lazy Consensus**: Standard day-to-day decisions and minor pull requests are approved unless an explicit objection is raised within 72 hours.
+  - **Majority Vote**: Architectural shifts, dependency additions, and governance amendments require a simple majority (>50%) vote.
+  - **Supermajority Vote (2/3)**: Maintainer onboarding/offboarding, security policy modifications, and CNCF transition milestones require a 2/3 supermajority vote.
 
-## 3. Decision-Making Process
+---
 
-*   **Consensus**: Our primary decision-making model is lazy consensus. If there are no objections raised to a proposal or pull request within 72 hours, it is considered approved.
-*   **Active Maintainer Approval**: Major architectural shifts require explicit approval from the Lead Maintainer (or a majority of active maintainers once expanded).
-*   **Deadlocks**: Any unresolved technical deadlocks are resolved by the Lead Maintainer.
+## 3. Current Maintainer Roster
 
-## 4. Modifying Governance
-This governance document may be amended by the active maintainers.
+The current active project maintainer list is maintained in **[MAINTAINERS.md](MAINTAINERS.md)**.
+
+* **Project Lead**: Bikram Sarkar (`@sarkarbikram90`)
+
+---
+
+## 4. Conflict Resolution & Escalations
+
+Technical disputes that cannot be resolved through lazy consensus will be brought to the TSC for discussion and resolution. If a vote is required, each TSC member receives one vote. Ties are resolved by the Project Lead.

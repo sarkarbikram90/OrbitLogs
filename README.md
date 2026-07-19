@@ -5,43 +5,51 @@
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript-blue.svg)](https://www.typescriptlang.org/)
 [![Database: TimescaleDB](https://img.shields.io/badge/Database-TimescaleDB-blue.svg)](https://www.timescale.com/)
 [![Message Queue: Kafka (KRaft)](https://img.shields.io/badge/Queue-Kafka%20(KRaft)-green.svg)](https://kafka.apache.org/)
-[![Security: Constant--Time](https://img.shields.io/badge/Security-Constant--Time-red.svg)](https://crates.io/crates/subtle)
 [![Observability: OpenTelemetry](https://img.shields.io/badge/Observability-OpenTelemetry-blueviolet.svg)](https://opentelemetry.io/)
 [![3D Graphics: Three.js](https://img.shields.io/badge/3D%20Graphics-Three.js-black.svg)](https://threejs.org/)
 [![Infrastructure: Docker](https://img.shields.io/badge/Infrastructure-Docker-blue.svg)](https://www.docker.com/)
-[![SRE: Hardened](https://img.shields.io/badge/SRE-Hardened-brightgreen.svg)](#⚡-recent-production--security-hardening)
-[![License: Apache](https://img.shields.io/badge/License-Apache-green.svg)](LICENSE)
-[![DCO Enforced](https://img.shields.io/badge/DCO-Enforced-blue.svg)](CONTRIBUTING.md#5-governance--maintainership-cncf-alignment)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+[![DCO Enforced](https://img.shields.io/badge/DCO-Enforced-blue.svg)](CONTRIBUTING.md#developer-certificate-of-origin-dco)
 [![OpenSSF Best Practices](https://img.shields.io/badge/OpenSSF-Best%20Practices-brightgreen.svg)](https://bestpractices.coreinfrastructure.org/)
-
-
+[![CNCF Sandbox Status](https://img.shields.io/badge/CNCF-Sandbox%20Applicant-purple.svg)](GOVERNANCE.md)
 
 ![OrbitLogs Realistic Satellite Orbit Visualization](docs/images/satellite_orbit.png)
 
-
 > **Real-Time Spacecraft Telemetry & Mission Control Observability Platform**
 
-OrbitLogs is a production-grade, highly performant real-time satellite telemetry ingestion, processing, replay, and visualization platform. Built entirely with Rust, React, and TypeScript, and designed with decoupled event-driven principles, it demonstrates how contemporary SRE, platform, and observability frameworks can monitor, troubleshoot, and analyze large-scale satellite fleets orbiting Earth.
+OrbitLogs is a production-grade, high-performance real-time satellite telemetry ingestion, stream processing, historical replay, and 3D visualization platform. Built entirely with Rust, React, and TypeScript, and designed with decoupled event-driven microservice principles, OrbitLogs demonstrates how modern Site Reliability Engineering (SRE), Cloud Native Computing Foundation (CNCF) frameworks, and OpenTelemetry standards can monitor, troubleshoot, and analyze satellite fleets orbiting Earth.
+
+---
+
+## 🏛️ CNCF Sandbox Project Alignment
+
+OrbitLogs is designed from the ground up to comply with the **Cloud Native Computing Foundation (CNCF)** Sandbox criteria:
+
+1. **Vendor Neutrality**: Governed by open, meritocratic community processes as detailed in [GOVERNANCE.md](GOVERNANCE.md).
+2. **Open Source Licensing**: Fully licensed under the [Apache License, Version 2.0](LICENSE). Standard Apache header notices are included across all codebase source files.
+3. **Developer Certificate of Origin (DCO)**: Commit provenance is verified on every pull request via DCO (`git commit -s`), as detailed in [CONTRIBUTING.md](CONTRIBUTING.md).
+4. **Cloud-Native Native Ecosystem Integration**: Built with native support for OpenTelemetry (OTLP), Prometheus metrics, Kafka KRaft event streaming, and Kubernetes deployment targets.
+5. **OpenSSF Security Compliance**: Adheres to responsible disclosure policies in [SECURITY.md](SECURITY.md) and strict supply chain verification.
 
 ---
 
 ## 🌌 Core Philosophy & Significance
 
-Traditional satellite ground segment systems have historically relied on monolithic, closed-source, or outdated legacy monitoring software. OrbitLogs bridges the gap between modern cloud-native software engineering and aerospace operations by applying **Site Reliability Engineering (SRE)** and **Observability Engineering** principles to space missions:
-*   **Subsystem-Level Observability**: Satellites are not treated as black boxes. Telemetry is parsed, processed, and tracked at the individual spacecraft subsystem level.
+Traditional satellite ground segment software has historically relied on monolithic, closed-source, or legacy proprietary monitoring software. OrbitLogs bridges the gap between modern cloud-native software engineering and aerospace mission control by applying **Site Reliability Engineering (SRE)** and **Observability Engineering** principles to space systems:
+
+*   **Subsystem-Level Observability**: Satellites are not treated as monolithic black boxes. Telemetry is parsed, processed, and tracked across individual spacecraft subsystems (EPS, TCS, TTC, PROP, ADCS, Payload, OBC).
 *   **Time-Series Replay ("What Happened?")**: Operators can scrub back through timeline history at up to 100x speed to analyze complex failure cascades and conduct postmortems.
 *   **Space-to-Ground Physics Modulations**: Communications latency, signal strength, and packet loss are dynamically simulated using real-world link budgets, weather states, and ground segment health parameters.
-*   **Zero-Loss Engineering**: Built using Rust's memory safety guarantees and manual Kafka offset commits to guarantee at-least-once delivery of mission-critical state data.
+*   **Zero-Loss Engineering**: Memory safety guarantees in Rust combined with manual Kafka offset commits guarantee at-least-once delivery of mission-critical state data.
 
 ---
 
 ## 🛠️ System Architecture
 
-The decoupled, event-driven architecture of OrbitLogs enables low-latency telemetry processing and high scalability.
+The decoupled, event-driven architecture of OrbitLogs enables low-latency telemetry processing and horizontal microservice scalability.
 
 ```mermaid
 graph TD
-    %% Define styles and colors for high aesthetics
     classDef simulator fill:#E05A47,stroke:#FFF,stroke-width:1px,color:#FFF;
     classDef api fill:#2B6CB0,stroke:#FFF,stroke-width:1px,color:#FFF;
     classDef broker fill:#2F855A,stroke:#FFF,stroke-width:1px,color:#FFF;
@@ -50,7 +58,6 @@ graph TD
     classDef visual fill:#D53F8C,stroke:#FFF,stroke-width:1px,color:#FFF;
     classDef trace fill:#DD6B20,stroke:#FFF,stroke-width:1px,color:#FFF;
 
-    %% Nodes
     SIM["🚀 Telemetry Simulator<br/>(7 Subsystems Loop + GS Modulator)"]:::simulator
     GS_SIM["📡 Ground Station Simulator<br/>(Svalbard, Troll, Kiruna, McMurdo)"]:::simulator
     API["🔌 Ingestion API<br/>(Rust Axum Server on Port 8080)"]:::api
@@ -69,7 +76,6 @@ graph TD
     OTEL["🔌 OTel Collector"]:::trace
     JAEG["🔍 Jaeger UI (OTLP Tracing)"]:::trace
 
-    %% Data Flow Connections
     SIM -->|CCSDS Binary Frames| API
     API -->|Schema/CRC Failures| K_DLQ
     API -->|Validated Payload| K_RAW
@@ -84,13 +90,11 @@ graph TD
     HLTH -->|Evaluate & Write Health| TSDB
     HLTH -->|Publish Health State| K_HLTH
     
-    %% Playback and Console Live UI
     API -.->|Real-time WS Telemetry| UI
     REPLAY -.->|SSE Replay Stream| UI
     TSDB -->|Query ranges & seek| REPLAY
     UI -->|Interactive timeline seek/speed| REPLAY
     
-    %% Observability Scrapes & Connections
     API -.->|Metrics /metrics| PROM
     HLTH -.->|Metrics /metrics| PROM
     PROM -.->|Query Metrics| GRA
@@ -130,146 +134,55 @@ graph TD
 
 ---
 
-## 🚀 Key Technical Features & Services
+## 🚀 Microservices & Shared Libraries
 
-OrbitLogs v4.5 introduces a decentralized suite of async Rust microservices and premium visualization panels representing a complete telemetry, command, diagnostics, and astrodynamics ground operations architecture.
+OrbitLogs consists of **26 workspace components** (17 application services + 7 shared library crates + 2 utility crates):
 
-### 1. Onboard Spacecraft Subsystems Modeling
-*   Emits independent telemetry streams from **7 core subsystems**:
-    1.  **Power (EPS)**: Battery voltage, currents, and solar array output metrics.
-    2.  **Thermal Control (TCS)**: Onboard core CPU temperatures.
-    3.  **Communications (TTC)**: Signal strength (RSSI), packet loss, and transmission latency.
-    4.  **Propulsion (PROP)**: Fuel capacity, altitude, and current velocity.
-    5.  **ADCS (Attitude Determination & Control)**: Orientation pitch, roll, and yaw angles.
-    6.  **Payload**: Instrument activity state and power draw levels.
-    7.  **Flight Computer (OBC)**: CPU load and memory usage metrics.
-*   Physical side-effects are dynamically propagated across subsystems (e.g., thermal spikes trigger CPU throttling, causing ADCS control degradation; battery depletion causes payload safety shutdowns).
+### Applications (`apps/`)
 
-### 2. Ground Station Link Modulator
-*   Simulates four main polar ground stations: **Svalbard (GS-0001)**, **Troll (GS-0002)**, **Kiruna (GS-0003)**, and **McMurdo (GS-0004)**.
-*   Injects real-time orbital pass factors including signal degradation, antenna mechanical faults, backhaul network congestion, and atmospheric weather states (storms, heavy snow).
+1. **[telemetry-collector](apps/telemetry-collector)**: Edge HTTP/binary telemetry ingestion gateway.
+2. **[telemetry-simulator](apps/telemetry-simulator)**: 7-subsystem satellite telemetry stream generator.
+3. **[ground-station-simulator](apps/ground-station-simulator)**: Polar ground station link budget modulator.
+4. **[mission-health-engine](apps/mission-health-engine)**: Rules-based health score & anomaly evaluator.
+5. **[mission-replay-engine](apps/mission-replay-engine)**: High-speed historical telemetry timeline scrub/SSE server.
+6. **[mission-command-service](apps/mission-command-service)**: RBAC-gated spacecraft command lifecycle manager.
+7. **[digital-twin-engine](apps/digital-twin-engine)**: Synchronized virtual satellite state & failure injector.
+8. **[mission-timeline](apps/mission-timeline)**: Unified event aggregator & TimescaleDB indexer.
+9. **[ai-incident-commander](apps/ai-incident-commander)**: RAG operational diagnostic copilot powered by Gemini/OpenAI.
+10. **[constellation-simulator](apps/constellation-simulator)**: Concurrent state generator for 5,000+ satellites.
+11. **[orbit-ops-service](apps/orbit-ops-service)**: Space Traffic Management (STM), conjunction risk scoring & 3D debris visualization.
+12. **[space-otel-collector](apps/space-otel-collector)**: OpenTelemetry metrics transformation exporter (`/metrics`).
+13. **[contact-window-predictor](apps/contact-window-predictor)**: Orbital pass predictor using SGP4 line-of-sight elevation geometry.
+14. **[constellation-scheduler](apps/constellation-scheduler)**: Optimization engine for ground terminal task allocation.
+15. **[orbit-determination-service](apps/orbit-determination-service)**: Extended Kalman Filter (EKF) state estimator with J2 perturbation modeling.
+16. **[autonomous-mission-planning](apps/autonomous-mission-planning)**: HTN command sequence planner with digital twin validation.
+17. **[mission-control-ui](apps/mission-control-ui)**: React + Three.js 3D earth track mission control console.
 
-### 3. CCSDS-Inspired Binary Telemetry Layer
-*   Uses [crates/orbitlogs-packets](crates/orbitlogs-packets) to enforce structured binary serialization (`application/octet-stream`).
-*   Implements a custom **CRC-16-CCITT checksum validation** to reject corrupt packets during ground segment uplink, maintaining a JSON fallback endpoint for open integrations.
+### Shared Crates (`crates/`)
 
-### 4. Space Schema Registry (`crates/space-schema-registry`)
-*   Manages version compatibility checking (Backward, Forward, Full) for spacecraft telemetry payloads.
-*   Supports runtime schema validation for **V1 (Legacy)**, **V2 (Standard)**, and **V3 (Extended)** telemetry packets, ensuring seamless data format migrations without ingestion outages.
-
-### 5. Fleet Health Engine (`crates/fleet-health`)
-*   Aggregates health states across all active assets.
-*   Calculates key operations indicators:
-    *   **Fleet Readiness**: Mission-readiness percentages based on active payload schedules.
-    *   **Subsystem Availability**: Redundant equipment state analysis.
-    *   **Risk Score**: Cumulative degradation scoring incorporating thermal stress and battery aging.
-    *   **Capacity & Utilization**: Propellant reserves and flight computer throughput metrics.
-
-### 6. Space OTel Collector (`apps/space-otel-collector`)
-*   Consumes raw telemetry, commands, and ground station logs from Kafka streams.
-*   Converts events into unified OpenTelemetry Metrics, Spans, and Logs. Exposes a standard Prometheus scrape endpoint `/metrics` on port `8091`.
-
-### 7. Mission Command Service (`apps/mission-command-service`)
-*   Exposes secure endpoints (Port `8085`) to create, approve, queue, and execute spacecraft commands.
-*   Enforces Role-Based Access Control (RBAC):
-    *   **Operator**: Can create commands, queue them, and trigger transmissions.
-    *   **Flight Director**: Gated authorization required to approve critical commands (e.g., safe mode, orbit burns).
-*   Tracks full execution lifecycle: `CREATED` -> `APPROVED` -> `QUEUED` -> `TRANSMITTED` -> `RECEIVED` -> `VERIFIED`/`FAILED`.
-*   Publishes audit trails linked directly to OpenTelemetry Trace IDs.
-
-### 8. Digital Twin Engine (`apps/digital-twin-engine`)
-*   Maintains synchronized in-memory virtual states (Port `8086`) for the entire constellation by consuming `telemetry.processed`.
-*   Calculates predictive diagnostics and expected hardware lifecycle durations.
-*   Features a **Failure Simulator** allowing operators to inject artificial subsystem faults (e.g., ADCS guidance drift, solar panel blockages) to evaluate operator response times and RAG automated diagnoses.
-
-### 9. Mission Timeline (`apps/mission-timeline`)
-*   Consolidates events, state transitions, and anomaly logs into a TimescaleDB unified table (Port `8087`).
-*   Exposes high-speed historical search, severity filtering, and correlation analysis APIs.
-
-### 10. AI Incident Commander (`apps/ai-incident-commander`)
-*   AI Operations Assistant (Port `8088`) integrating Gemini/OpenAI RAG.
-*   Correlates real-time telemetry anomalies, past command audits, and operational manuals to compile incident postmortems, root-cause analyses, and recommended recovery procedures.
-*   Includes a robust, local rule-based diagnostic engine fallback if external LLM APIs are offline.
-
-### 11. Constellation Simulator (`apps/constellation-simulator`)
-*   High-efficiency constellation loop (Port `8089`) capable of generating concurrent states for up to **5,000 satellites**.
-*   Simulates orbit degradation, battery capacity decay, and hardware failures.
-
-### 12. Space Traffic Management & Conjunction Assessment (`apps/orbit-ops-service`)
-*   Automated close approach screening and Space Traffic Management (Port `8095`).
-*   Calculates Time of Closest Approach (TCA), 2D/3D spatial covariance, and Probability of Collision ($P_c$) every 10 seconds.
-*   Renders an interactive **250-particle orbital debris cloud** on the 3D Three.js Earth globe visualizer.
-*   Integrates with `ai-incident-commander` to generate autonomous Collision Avoidance Maneuvers (CAM), calculating optimal Delta-v ($\Delta v$) burn vectors, propellant mass cost, payload standby windows, and post-burn safety margins.
-
-### 13. Astrodynamics & Coordinate Transformations (`crates/orbitlogs-astrodynamics`)
-*   High-fidelity SGP4 orbital propagation wrapper utilizing standard Two-Line Element (TLE) variables.
-*   Greenwich Mean Sidereal Time (GMST) calculations to rotate coordinates from Earth-Centered Inertial (ECI / TEME) to Earth-Centered, Earth-Fixed (ECEF) frames, incorporating Earth rotation rate Coriolis effects.
-*   Closed-form conversions between WGS84 geodetic coordinates (latitude, longitude, altitude) and Cartesian ECEF.
-*   Local East-North-Up (ENU) coordinate rotations and look angles (Azimuth, Elevation, Range) computation for tracking antenna targeting.
-
-### 14. Real TLE Ingestion API (`apps/telemetry-collector`)
-*   Secure HTTP endpoint `/telemetry/tles/ingest` accepting batches of standard TLE sets.
-*   Validates TLE integrity at the edge via SGP4 propagation sanity checks before archiving to the TimescaleDB back-end.
-
-### 15. Contact Window Predictor (`apps/contact-window-predictor`)
-*   Background microservice computing ground station access windows using SGP4 orbital propagation and line-of-sight elevation geometry.
-*   Evaluates visibility between Earth-fixed WGS84 ground station positions and orbiting satellites by transforming ECI coordinates to local East-North-Up (ENU) frames.
-*   Produces a contact schedule matrix consumed by the constellation scheduler.
-
-### 16. Constellation Scheduler (`apps/constellation-scheduler`)
-*   Solves the NP-hard communication task allocation problem using greedy heuristics with look-ahead optimization.
-*   Respects antenna slew-rate constraints, thermal/power budgets, and no-overlap rules for ground station terminals.
-*   Outputs optimized downlink/uplink communication schedules to TimescaleDB.
-
-### 17. Orbit Determination Service (`apps/orbit-determination-service`)
-*   Implements an Extended Kalman Filter (EKF) for precise orbit state estimation from GPS pseudorange and ground-station range/range-rate measurements.
-*   Incorporates J2 oblateness perturbation modeling for improved accuracy over SGP4 in operational scenarios.
-*   State vector: $\mathbf{x} = [x, y, z, v_x, v_y, v_z]^T$ (position and velocity in ECI).
-
-### 18. Autonomous Mission Planning (`apps/autonomous-mission-planning`)
-*   Hierarchical Task Network (HTN) planner for synthesizing safe command sequences in response to orbital anomalies.
-*   Runs all proposed commands through the digital twin engine for pre-validation before uplink transmission.
-*   Validates flight safety constraints (e.g., battery capacity thresholds) during simulation to prevent harmful command sequences.
-
-### 19. Propulsion Optimization (`crates/orbitlogs-propulsion`)
-*   Implements Tsiolkovsky rocket equation fuel optimization and delta-v burn calculations.
-*   Computes fuel consumption for station-keeping maneuvers and collision avoidance burns.
-
-### 20. Shared Test Utilities (`crates/orbitlogs-test-utils`)
-*   Centralized test fixture factories and mock builders for `TelemetryRecord`, `HealthAssessment`, and `Command` structures.
-*   Eliminates test code duplication across multiple service crates.
----
-
-## ⚡ Recent Production & Security Hardening
-
-To elevate OrbitLogs to mission-grade standard, the core platform has been hardened with the following enterprise features:
-
-*   **Kafka KRaft Migration**: Migrated Kafka deployment from Zookeeper (deprecated) to native KRaft mode, reducing local/CI memory footprints by **~256MB** and accelerating boot times.
-*   **Distributed Trace context Propagation**: Implemented W3C text map propagation over Kafka. Request trace spans span from edge HTTP endpoints through Kafka raw topics to the telemetry consumers and final DB persistence.
-*   **Constant-Time Comparisons**: Security endpoints and WebSocket upgrades now use constant-time string checks via the `subtle` crate to prevent timing side-channel profiling attacks.
-*   **TimescaleDB Compression & Retention Policies**: Enabled automated database compression policies (older than 7 days) and strict retention windows (older than 90 days) on TimescaleDB hypertables to optimize disk usage.
-*   **Replay Engine Database Throttling**: Updates to historical replay positions are throttled to 5-second intervals and stored inside thread-safe local caches (`DashMap`) instead of writing to Postgres on every 200ms tick, reducing database write load by **96%**.
-*   **At-Least-Once Delivery**: Downstream consumer queues perform manual commits only after database write validation. A double-failure scenario (database failure + DLQ publisher breakdown) immediately triggers a consumer panic to halt ingestion and prevent offset loss.
-*   **Graceful Shutdown Routing**: Added signal handlers (`SIGTERM` / `SIGINT`) to all Rust binaries to gracefully shut down TCP loops and flush pending Kafka buffers.
-*   **HTTP Metrics Exporters**: Converted legacy TCP scraping servers to Axum HTTP compliance servers.
+- **[orbitlogs-astrodynamics](crates/orbitlogs-astrodynamics)**: SGP4 orbital propagation & ECI/ECEF/ENU coordinate frame transformations.
+- **[orbitlogs-models](crates/orbitlogs-models)**: Core domain structures (`TelemetryRecord`, `Command`, `HealthAssessment`).
+- **[orbitlogs-packets](crates/orbitlogs-packets)**: CCSDS binary frame parser & CRC-16-CCITT checksum validator.
+- **[orbitlogs-propulsion](crates/orbitlogs-propulsion)**: Tsiolkovsky rocket equation & $\Delta v$ maneuver fuel calculators.
+- **[fleet-health](crates/fleet-health)**: Constellation readiness, availability, and cumulative risk scoring.
+- **[space-schema-registry](crates/space-schema-registry)**: V1/V2/V3 telemetry payload schema compatibility validator.
+- **[orbitlogs-test-utils](crates/orbitlogs-test-utils)**: Centralized test fixture factories and mock generators.
 
 ---
 
-## 📊 OpenTelemetry Standards & Specifications Compliance
+## 📊 OpenTelemetry Standards & Compliance
 
-OrbitLogs is built to strictly adhere to official **OpenTelemetry standards and specifications**, enabling seamless telemetry collection and trace visualization through native integrations:
+OrbitLogs strictly adheres to official **OpenTelemetry (OTel)** standards:
 
-*   **W3C Context Propagation**: Utilizes the standard W3C Trace Context propagator (`TraceContextPropagator`) to inject and extract `traceparent` parameters across asynchronous system boundaries (Kafka record headers), complying with the OTel Context Propagation specification.
-*   **OTLP Exporter Pipeline**: Telemetry pipelines are built using the official `opentelemetry_otlp` crate utilizing standard gRPC connections (`tonic`) to export spans to local collectors on port `4317`.
-*   **Production SDK Tracing**: Configured with an asynchronous `BatchSpanProcessor` (`install_batch(runtime::Tokio)`) to flush tracing data efficiently without blocking the event loops of mission-critical services.
-*   **Resource Semantics**: Integrates OTel Resource semantic conventions, explicitly mapping `service.name` onto tracing metadata.
-*   **Metrics Integration**: Exposes metrics on a standard Prometheus `/metrics` endpoint (port `8091` inside the `space-otel-collector`), ensuring complete compatibility with standard OTel Collector scraping receivers.
+*   **W3C Context Propagation**: Uses `TraceContextPropagator` to inject and extract `traceparent` headers across asynchronous Kafka streams.
+*   **OTLP Exporter Pipeline**: Exports spans asynchronously using `opentelemetry_otlp` via gRPC to OTLP receivers on port `4317`.
+*   **Production SDK Tracing**: Utilizes non-blocking `BatchSpanProcessor` with `tokio` runtime execution.
+*   **Semantic Conventions**: Complies with OTel semantic conventions for `service.name`, `telemetry.sdk`, and HTTP attributes.
+*   **Prometheus Metrics**: Exposes aggregated metrics at `/metrics` (port `8091`), compatible with Prometheus and OTel scrapers.
 
 ---
 
-## 🔌 Port Mapping & Endpoints
-
-Once fully initialized, the platform exposes the following developer interfaces:
+## 🔌 Port Mapping & Developer Interfaces
 
 | Service / Interface | Port | Protocol | Description |
 | :--- | :--- | :--- | :--- |
@@ -301,11 +214,11 @@ Once fully initialized, the platform exposes the following developer interfaces:
 
 ### Prerequisites
 *   **Docker** & **Docker Compose**
-*   **Node.js (v20+ )** (for local UI development)
-*   **Rust (v1.82+)** (for local backend compilation)
+*   **Rust (v1.82+)**
+*   **Node.js (v20+)** (for UI development)
 
-### Initial Launch & Bootstrap
-Configure directories, build local images, run migrations, and seed default tables using the integrated script:
+### Launch Infrastructure & Services
+Run the automated bootstrap script:
 
 ```bash
 # Set script permissions
@@ -315,20 +228,20 @@ chmod +x scripts/*.sh
 ./scripts/bootstrap.sh
 ```
 
-This launches all components in the background. Open [http://localhost:3000](http://localhost:3000) to view the Mission Control UI.
+Navigate to [http://localhost:3000](http://localhost:3000) to access the **Mission Control Console**.
 
 ---
 
-## 🧪 Testing & Validation
+## 🧪 Testing & Quality Gates
 
-Verify system-wide health and constraints by running the integrated Rust test suite:
+Run workspace-wide test suites:
 
 ```bash
 # Run unit and integration tests across all workspace crates
-cargo test --all
+cargo test --all-targets --all-features
 ```
 
-For frontend client verification:
+Verify frontend client compilation:
 
 ```bash
 cd apps/mission-control-ui
@@ -337,53 +250,20 @@ npm run build
 
 ---
 
-## 🛡️ Production Hardening (SRE Profile)
+## 🤝 Community Governance & Contributing
 
-OrbitLogs has been engineered to comply with enterprise-grade reliability and security audits:
+OrbitLogs welcomes community contributions! Please review our community governance documents:
 
-*   **Non-Root Execution**: Every service container runs under a dedicated system user `orbitlogs` with UID/GID `10001` (complying with standard Kubernetes security policies).
-*   **At-Least-Once Database Guarantee**: The processor commits Kafka offsets manually only after successful batch insertion into TimescaleDB or writing to the Dead Letter Queue (DLQ).
-*   **Ingestion Defense**: Axum endpoints reject payloads exceeding **10KB** via `DefaultBodyLimit` and apply a strict token-bucket rate limiter (partitioned per client token or IP) to protect resources from Denial of Service (DoS) attempts.
-*   **Serde Deny**: Shared models enforce `#[serde(deny_unknown_fields)]` to prevent injection of unmapped attributes.
-
----
-
-## 🗺️ Project Roadmap
-
-- [x] **Phase 1**: Spacecraft Subsystem Models & sparse streams.
-- [x] **Phase 2**: Mission Health Engine & Fleet score evaluator.
-- [x] **Phase 3**: Ground Station Simulator & space-to-ground link modulations.
-- [x] **Phase 4**: CCSDS-inspired binary telemetry format & CRC-16 layers.
-- [x] **Phase 5**: Mission Replay playback engine with SSE streams.
-- [x] **Phase 6**: React/TypeScript Mission Control console.
-- [x] **Phase 7**: Three.js 3D earth track and communication beams visualization.
-- [x] **Phase 8**: AI Incident Commander (RAG operational co-pilot using Gemini).
-- [x] **Phase 9**: Space Schema Registry (V1, V2, V3 compatibility check).
-- [x] **Phase 10**: Fleet Health calculations (Readiness, Availability, Risk).
-- [x] **Phase 11**: Space OTel Collector metrics mapping loop.
-- [x] **Phase 12**: Axum Mission Command Service & RBAC authorizations.
-- [x] **Phase 13**: Digital Twin Engine Virtual State & failure simulator.
-- [x] **Phase 14**: Mission Timeline TimescaleDB aggregator.
-- [x] **Phase 15**: Constellation Simulator mass fleet test (5,000+ assets).
-- [x] **Phase 16**: ISS Orbit and TLE orbital propagator adapters.
-- [x] **Phase 17**: Ground Station Simulator weather/backhaul network attenuation.
-- [x] **Phase 18**: Advanced sidebar navigation layout & integrated sub-dashboards.
-- [x] **Phase 19**: Space Traffic Management (STM), Conjunction Alerts, Debris Risk Scoring & 3D Debris Visualizer.
-- [x] **Phase 20**: SGP4 Astrodynamics Library, coordinate frames rotation (ECI/ECEF/ENU) & real-time TLE Ingestion API.
-- [x] **Phase 21**: Contact Window Prediction using SGP4 + line-of-sight elevation geometry.
-- [x] **Phase 22**: Constellation Scheduling & ground-station communication task optimization.
-- [x] **Phase 23**: Orbit Determination Service (Extended Kalman Filter with J2 perturbations).
-- [x] **Phase 24**: Autonomous Mission Planning (HTN planner with digital twin pre-validation).
-- [x] **Phase 25**: Propulsion Optimization (Tsiolkovsky fuel calc) & shared test utilities crate.
+*   **[CONTRIBUTING.md](CONTRIBUTING.md)**: Developer guide, DCO sign-off rules, formatting, and PR submission guidelines.
+*   **[GOVERNANCE.md](GOVERNANCE.md)**: Technical Steering Committee structure, voting rules, and maintainer onboarding.
+*   **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)**: CNCF Code of Conduct pledge and reporting procedures.
+*   **[SECURITY.md](SECURITY.md)**: Vulnerability disclosure policy and security response timelines.
+*   **[MAINTAINERS.md](MAINTAINERS.md)**: Active project maintainers list and contact information.
+*   **[ADOPTERS.md](ADOPTERS.md)**: Roster of organizations evaluating or deploying OrbitLogs.
+*   **[ROADMAP.md](ROADMAP.md)**: Short-term, medium-term, and long-term technical goals.
 
 ---
 
-## 🏛️ Open Source Governance & CNCF Sandbox Readiness
+## ⚖️ License
 
-OrbitLogs is designed to comply with the criteria for **CNCF Sandbox** acceptance under the Linux Foundation:
-
-1. **Vendor Neutrality**: Governed by a diverse Technical Steering Committee (TSC) as detailed in the [CONTRIBUTING.md](CONTRIBUTING.md#5-governance--maintainership-cncf-alignment).
-2. **License Compliance**: Fully licensed under [Apache License, Version 2.0](LICENSE). Standard Apache headers are prepended to all source code files.
-3. **Developer Certificate of Origin (DCO)**: Commit provenance is verified on every PR via our automated [dco.yml](.github/workflows/dco.yml) workflow check.
-4. **OpenSSF Best Practices**: The project is working towards achieving the basic passing OpenSSF Best Practices Badge (including automated vulnerability audits, test coverage targets, and cryptography policies).
-
+OrbitLogs is licensed under the [Apache License, Version 2.0](LICENSE). Copyright © OrbitLogs Authors.

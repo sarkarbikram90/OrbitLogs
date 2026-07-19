@@ -1,12 +1,18 @@
-# Code of Conduct
+# CNCF Code of Conduct 🤝
 
-## Our Pledge
+As a contributor, maintainer, or participant in the **OrbitLogs** project, we adopt and enforce the official [Cloud Native Computing Foundation (CNCF) Code of Conduct v2.1](https://github.com/cncf/foundation/blob/main/code-of-conduct.md).
+
+---
+
+## 1. Our Pledge
 
 We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
 We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
 
-## Our Standards
+---
+
+## 2. Our Standards
 
 Examples of behavior that contributes to a positive environment for our community include:
 *   Demonstrating empathy and kindness toward other people.
@@ -22,11 +28,28 @@ Examples of unacceptable behavior include:
 *   Publishing others' private information, such as a physical or email address, without their explicit permission.
 *   Other conduct which could reasonably be considered inappropriate in a professional setting.
 
-## Enforcement & Reporting
+---
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the OrbitLogs Technical Steering Committee (TSC) by emailing **sarkarbikram90@gmail.com**. All complaints will be reviewed and investigated promptly and fairly.
+## 3. Enforcement & Reporting
+
+### Local Project Reporting
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the OrbitLogs Maintainers by emailing **sarkarbikram90@gmail.com**. All complaints will be reviewed and investigated promptly and fairly.
 
 ### CNCF Escalation
-Because OrbitLogs is a CNCF project, you may also report violations of this Code of Conduct to the CNCF Code of Conduct Committee at **conduct@cncf.io**. 
+Because OrbitLogs is aligned with the CNCF ecosystem, you may also report violations of this Code of Conduct directly to the CNCF Code of Conduct Committee at **conduct@cncf.io** or submit a confidential report online at [https://cncf.io/conduct](https://cncf.io/conduct).
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
+
+---
+
+## 4. Enforcement Responsibilities
+
+Community leaders are responsible for clarifying and enforcing our standards of acceptable behavior and will take appropriate and fair corrective action in response to any behavior that they deem inappropriate, threatening, offensive, or harmful.
+
+Community leaders have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, and will communicate reasons for cleanup decisions when appropriate.
+
+---
+
+## 5. Scope
+
+This Code of Conduct applies within all project spaces (GitHub repositories, issue trackers, pull requests, community calls, event channels), and also applies when an individual is officially representing the project in public spaces.

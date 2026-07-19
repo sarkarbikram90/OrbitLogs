@@ -1,24 +1,39 @@
 # OrbitLogs Project Roadmap 🗺️
 
-OrbitLogs is a real-time spacecraft telemetry and mission control observability platform. This document outlines our future development milestones, categorized by timeline.
+This document outlines the development roadmap and technical milestones for **OrbitLogs**, aligning with CNCF Sandbox criteria and space industry observability requirements.
 
-## 🟢 Completed Milestones (v1.0.0 - v4.5.0)
-*   **Core Subsystems & Health Engine**: 7 onboard subsystems simulated with green/yellow/red rules-based evaluation.
-*   **Astrodynamics & Ground Stations**: Integrated SGP4 orbital propagation, coordinate rotations (ECI/ECEF/ENU), and weather link budgets.
-*   **Operations & Planning**: HTN-based command planner, Extended Kalman Filter (EKF) orbit determination, and satellite conjunction assessment.
-*   **Reliability & Security**: TimescaleDB compression policies, Kafka manual offset commits, and non-root Docker builds.
-*   **OpenTelemetry Compliance**: W3C context propagation over Kafka headers, OTLP exporters, and Prometheus scraper integration.
+---
 
-## 🟡 Short-Term Goals (Next 1 - 3 Months)
-*   **CI License Header Auditing**: Implement an automated pull request check to ensure all source code files have proper Apache 2.0 license headers.
-*   **API Error Standardization**: Replace raw string error payloads with a structured JSON schema containing application-specific error codes.
-*   **Zero-Copy Parser Refactoring**: Enhance telemetry ingestion performance by using lifetime references (`TelemetryView<'buf>`) rather than allocating owned structures.
+## 🟢 Completed Milestones (v1.0.0 – v4.5.0)
 
-## 🔵 Medium-Term Goals (Next 3 - 6 Months)
-*   **WASM Client-Side Propagation**: Compile `orbitlogs-astrodynamics` to WebAssembly so that the web client can propagate 10,000+ orbits directly in the browser, offloading the backend.
-*   **Ingress Deduplication Buffer**: Establish a window-based deduplication queue in the ingestion service to filter duplicate packets received by multiple overlapping ground stations.
-*   **Unified Helm Chart**: Author a production-ready Helm chart to deploy all 17 microservices on Kubernetes, supporting custom overrides.
+- [x] **Subsystem Telemetry Engine**: 7 core spacecraft subsystems (EPS, TCS, TTC, PROP, ADCS, Payload, OBC) with physics-based side-effect modeling.
+- [x] **Astrodynamics Library**: SGP4 propagation engine, coordinate rotations (ECI/ECEF/ENU), and ground station access predictor.
+- [x] **Operations & Planning**: HTN-based command planner, Extended Kalman Filter (EKF) orbit determination, and satellite conjunction risk scoring.
+- [x] **OpenTelemetry & Kafka Compliance**: W3C trace context propagation over Kafka headers, OTLP exporters, and Prometheus scraper integration (`/metrics`).
+- [x] **Production Security Hardening**: Non-root container builds, constant-time token checks, TimescaleDB hypertable compression, and at-least-once Kafka offset commits.
+
+---
+
+## 🟡 Short-Term Goals (Next 1 – 3 Months)
+
+- [ ] **CNCF Sandbox Application**: Formal submission of OrbitLogs to the CNCF Sandbox under the Linux Foundation.
+- [ ] **Automated License Header Verification**: Integrate a CI action to verify Apache 2.0 license header notices across all workspace files.
+- [ ] **Zero-Copy Parser Refactoring**: Optimize telemetry ingestion throughput by implementing lifetime references (`TelemetryView<'a>`).
+- [ ] **Unified Error Payload Schema**: Standardize REST/WebSocket error responses with application error codes and OTel trace context identifiers.
+
+---
+
+## 🔵 Medium-Term Goals (Next 3 – 6 Months)
+
+- [ ] **Production Helm Charts**: Author official production Helm charts to deploy all 17 microservices on Kubernetes with Prometheus/Grafana integration.
+- [ ] **WebAssembly (WASM) Astrodynamics**: Compile `orbitlogs-astrodynamics` to WASM for client-side orbit propagation directly inside the web console.
+- [ ] **Ingress Deduplication Buffer**: Implement time-windowed packet deduplication in `telemetry-collector` for overlapping ground station passes.
+- [ ] **OpenTelemetry Space Payload Semantic Conventions**: Author a draft specification for spacecraft telemetry semantic conventions within the OTel community.
+
+---
 
 ## 🔴 Long-Term Goals (6 Months+)
-*   **Multi-Region TimescaleDB Replication**: Implement geo-distributed database replication to ensure minimal write latencies for ground stations distributed across polar regions.
-*   **KubeEdge Integration**: Adapt the Telemetry Collector to run as a KubeEdge edge app, optimizing processing on low-bandwidth satellite links.
+
+- [ ] **Multi-Region TimescaleDB Replication**: Geo-distributed database replication across polar ground stations.
+- [ ] **KubeEdge & Edge Deployment**: Deploy `telemetry-collector` as a KubeEdge application on low-bandwidth ground terminal gateways.
+- [ ] **Autonomous Orbital Collision Avoidance Maneuver (CAM) Automation**: End-to-end integration between `orbit-ops-service`, `ai-incident-commander`, and `mission-command-service`.

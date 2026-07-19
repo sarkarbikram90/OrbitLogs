@@ -1,12 +1,30 @@
-# OrbitLogs Maintainers
+# OrbitLogs Maintainers 👥
 
-This document lists the active maintainers, their areas of focus, and contact information.
+This document lists the active maintainers of the **OrbitLogs** project, their affiliations, contact details, and component ownership.
+
+---
 
 ## Active Maintainers
 
-| Name | GitHub Username | Email | Area of Focus |
-| :--- | :--- | :--- | :--- |
-| **Bikram Sarkar** | `@sarkarbikram90` | `sarkarbikram90@gmail.com` | Lead Maintainer, Astrodynamics, Ingestion API, Observability, Simulation Engines |
+| Name | GitHub Username | Organization / Affiliation | Primary Focus Areas | Location |
+| :--- | :--- | :--- | :--- | :--- |
+| **Bikram Sarkar** | [`@sarkarbikram90`](https://github.com/sarkarbikram90) | OrbitLogs Project Lead | Astrodynamics, Ingestion API, Telemetry Engine, OpenTelemetry Integrations | Austin, TX, USA |
+
+---
+
+## Emergency Contacts & Security Response
+
+For critical security disclosures or urgent infrastructure reports, please contact the maintainers via:
+- **Primary Security Contact**: `sarkarbikram90@gmail.com`
+- **Security Escalation**: See [SECURITY.md](SECURITY.md)
+
+---
 
 ## Becoming a Maintainer
-We welcome new maintainers! If you are interested in contributing and joining the maintainer tier, please review the requirements in [GOVERNANCE.md](GOVERNANCE.md). Typically, you should have at least 5 significant PRs merged and have actively participated in reviews and issue discussions for at least 3 months.
+
+OrbitLogs welcomes new maintainers from the community! If you are interested in joining the maintainer roster, please review the requirements in [GOVERNANCE.md](GOVERNANCE.md). 
+
+Nominees should typically have:
+1. Submitted at least 5 substantial pull requests.
+2. Demonstrated active participation in issue triage and pull request reviews for at least 3 months.
+3. Signed off all commits under the Developer Certificate of Origin (DCO).

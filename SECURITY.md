@@ -1,27 +1,49 @@
 # Security Policy 🛡️
 
-We take the security of OrbitLogs seriously. This document outlines how to report security vulnerabilities and our policies surrounding security.
+The OrbitLogs maintainers take the security of our real-time spacecraft telemetry and mission control platform seriously. This document outlines our vulnerability reporting process, supported versions, and response SLAs.
+
+---
 
 ## Supported Versions
 
-Only the latest release (and active development on the `main` branch) is actively supported with security updates.
+Only the latest release tag and active development on the `main` branch receive security patches.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| >=4.5.x | :white_check_mark: |
-| < 4.5   | :x:                |
+| Version Tag | Supported | Security Patch Policy |
+| :--- | :---: | :--- |
+| **>= 4.5.x** | ✅ | Actively supported with security patches and advisory releases. |
+| **< 4.5.0** | ❌ | End of Life (EOL). Upgrade to the latest release. |
+
+---
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, please do **NOT** open a public issue. 
+If you discover a security vulnerability, please do **NOT** open a public issue.
 
-1.  **GitHub Private Vulnerability Reporting**: Go to the Security tab of the repository on GitHub and select "Report a vulnerability" to submit a report privately.
-2.  **Email Escalation**: If GitHub reporting is unavailable, send an email to **sarkarbikram90@gmail.com** detailing the vulnerability.
+### Primary Reporting Method
+1. **GitHub Private Security Advisory**: Go to the [Security Tab](https://github.com/sarkarbikram90/OrbitLogs/security) of the OrbitLogs repository and click **Report a vulnerability**.
+2. **Email Escalation**: If private reporting is unavailable, email the maintainers directly at **sarkarbikram90@gmail.com**.
 
-Provide a clear description of the issue, step-by-step instructions or code to reproduce the exploit (PoC), and potential impacts. We will acknowledge receipt of your report within 48 hours and work with you to coordinate a release plan.
+### Information to Include
+- Detailed description of the vulnerability and potential impact.
+- Step-by-step instructions or Proof-of-Concept (PoC) code to reproduce the issue.
+- Impacted workspace microservices or library crates.
 
-## Our Security Commitment
+---
 
-*   **Prompt Triaging**: We review reports and aim to confirm the presence of vulnerabilities within 3 days.
-*   **Responsible Disclosure**: We adhere to responsible disclosure principles. We request that reporter(s) give us a reasonable timeframe (typically 90 days) to deploy a fix before disclosing the issue publicly.
-*   **Credit**: We are happy to attribute and credit researchers who responsibly disclose security bugs.
+## Response & Disclosure Timeline (SLA)
+
+| Phase | Timeline SLA | Description |
+| :--- | :--- | :--- |
+| **Acknowledgment** | Within **24 Hours** | Maintainers confirm receipt of report. |
+| **Triage & Assessment** | Within **72 Hours** | Maintainers validate vulnerability and assign severity rating (CVSS). |
+| **Fix Development** | Within **14 Days** | Patch is developed, reviewed privately, and tested. |
+| **Responsible Disclosure** | Within **90 Days** | Public security advisory (GHSA/CVE) and patch release published. |
+
+---
+
+## Security Commitments & Quality Practices
+
+OrbitLogs enforces automated security checks across all pull requests:
+- **Dependency Auditing**: `cargo-audit` and `cargo-deny` execute on every CI build to detect vulnerable or non-compliant dependencies.
+- **Constant-Time Cryptography**: Authentication and security token checks utilize `subtle` constant-time operations to prevent timing side-channel attacks.
+- **Non-Root Containers**: Service containers run under unprivileged dedicated user account `orbitlogs` (UID/GID `10001`).

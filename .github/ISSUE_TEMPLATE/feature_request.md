@@ -1,6 +1,6 @@
 ---
 name: Feature request 💡
-about: Suggest an idea for this project
+about: Propose a new feature, service, or enhancement for OrbitLogs
 title: '[FEAT] '
 labels: enhancement
 assignees: ''
@@ -8,13 +8,16 @@ assignees: ''
 ---
 
 **Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. "I'm always frustrated when..."
+A clear description of the problem or limitation you are addressing.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**Describe the Solution You'd Like**
+A clear description of the feature or architecture enhancement you would like to see implemented.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+**Describe Alternatives Considered**
+A description of any alternative solutions, libraries, or designs evaluated.
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+**Target Component**
+Which sub-service or shared crate does this feature impact?
+
+**Additional Context**
+Add any other diagrams, telemetry payload samples, or references to OpenTelemetry specifications.

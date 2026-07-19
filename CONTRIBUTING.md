@@ -1,131 +1,109 @@
 # Contributing to OrbitLogs 🚀
 
-Thank you for your interest in contributing to **OrbitLogs**! This document provides guidelines and workflows for contributing to our monorepo.
+Thank you for your interest in contributing to **OrbitLogs**! This document provides guidelines and workflows for contributing to our cloud-native spacecraft telemetry workspace.
 
-To align with Staff-level engineering standards, we enforce strict code formatting, linting, testing, and security checks on all contributions.
+To align with Linux Foundation and CNCF Sandbox standards, we enforce Developer Certificate of Origin (DCO) commit sign-offs, automated code formatting, linting, testing, and security checks on all contributions.
 
 ---
 
-## 1. Repository Structure
+## 1. Developer Certificate of Origin (DCO)
+
+To ensure vendor neutrality and clean copyright provenance across all contributions, OrbitLogs requires all committers to certify their contributions under the **Developer Certificate of Origin (DCO)**.
+
+### How to Sign Off Commits
+Every Git commit **must** contain a `Signed-off-by:` header line matching the committer's Git email address.
+
+```bash
+git commit -s -m "feat(telemetry): add CRC-16 checksum validation layer"
+```
+
+If you forget to sign off a commit, you can amend your last commit before pushing:
+
+```bash
+git commit --amend -s
+```
+
+Pull requests containing unsigned commits will be automatically flagged and blocked by our DCO CI check ([.github/workflows/dco.yml](.github/workflows/dco.yml)).
+
+---
+
+## 2. Workspace Structure
 
 OrbitLogs is organized as a Rust monorepo with **26 workspace members** (17 applications + 7 shared library crates + 2 utility crates):
 
 *   **`apps/`**: Standalone binary microservices:
     *   `telemetry-simulator`, `telemetry-collector`, `mission-health-engine`, `ground-station-simulator`, `mission-replay-engine`, `mission-command-service`, `digital-twin-engine`, `mission-timeline`, `ai-incident-commander`, `constellation-simulator`, `orbit-ops-service`, `space-otel-collector`, `contact-window-predictor`, `constellation-scheduler`, `orbit-determination-service`, `autonomous-mission-planning`, `mission-control-ui` (React/TypeScript).
-*   **`crates/`**: Reusable shared libraries utilized across multiple applications:
+*   **`crates/`**: Reusable shared libraries:
     *   `orbitlogs-models`, `orbitlogs-packets`, `space-schema-registry`, `fleet-health`, `orbitlogs-astrodynamics`, `orbitlogs-propulsion`, `orbitlogs-test-utils`.
 *   **`deployments/`**: Kubernetes manifests, Docker Compose setups, and configurations for Prometheus, Grafana, Alertmanager, and OpenTelemetry.
-*   **`migrations/`**: TimescaleDB / Postgres SQL migration scripts (consolidated source of truth).
+*   **`migrations/`**: TimescaleDB / Postgres SQL migration scripts.
 
 ---
 
-## 2. Setting Up Your Development Environment
+## 3. Setting Up Your Development Environment
 
 ### Prerequisites
-
-Ensure you have the following installed locally:
-*   [Rust](https://www.rust-lang.org/tools/install) (stable toolchain)
+*   [Rust](https://www.rust-lang.org/tools/install) (stable toolchain, v1.82+)
 *   [Docker](https://www.docker.com/products/docker-desktop) & Docker Compose
-*   [PostgreSQL Client](https://www.postgresql.org/download/) (optional, for running migration checks)
-*   [Node.js](https://nodejs.org/) (optional, for frontend changes in `mission-control-ui`)
+*   [Node.js](https://nodejs.org/) (v20+, for `mission-control-ui`)
 
-### Clone and Bootstrap
+### Bootstrap Local Infrastructure
+```bash
+git clone https://github.com/sarkarbikram90/OrbitLogs.git
+cd OrbitLogs
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/sarkarbikram90/OrbitLogs.git
-    cd OrbitLogs
-    ```
-2.  Set up local development configuration:
-    ```bash
-    cp .env.example .env
-    ```
-3.  Initialize the TimescaleDB database:
-    ```bash
-    docker compose -f deployments/docker-compose/docker-compose.yml up timescaledb -d
-    ```
+cp .env.example .env
+docker compose -f deployments/docker-compose/docker-compose.yml up timescaledb kafka -d
+```
 
 ---
 
-## 3. Pre-Commit Checklist & Quality Gates
+## 4. Pre-Commit Quality Gates
 
-Before submitting a Pull Request, please run the following checks locally to ensure a green CI pipeline:
+Before submitting a Pull Request, run the following checks locally:
 
 ### A. Formatting & Linting
-We enforce standard formatting and deny compiler/Clippy warnings:
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
-### B. Unused Dependency Check
-We use `cargo-machete` to identify unused crates in our manifests:
-```bash
-cargo install cargo-machete
-cargo machete
-```
-
-### C. Testing
-Verify that all unit and integration tests compile and pass successfully:
+### B. Unit & Integration Testing
 ```bash
 cargo test --all-targets --all-features
 ```
 
-### D. Security Auditing
-We use `cargo-audit` and `cargo-deny` to check for known vulnerabilities and license compliance:
+### C. Unused Dependency Check
 ```bash
-cargo install cargo-audit
+cargo machete
+```
+
+### D. Security Auditing
+```bash
 cargo audit
 cargo deny check
 ```
 
-### E. Coverage (Optional)
-Generate a coverage report locally using `cargo-tarpaulin`:
-```bash
-cargo install cargo-tarpaulin
-cargo tarpaulin --workspace --all-features
-```
+---
+
+## 5. Development Workflow & Pull Requests
+
+1. **Branching**: Create feature branches off `main` using `username/feature-name` or `issue-number/description`.
+2. **Conventional Commits**: Use conventional commit titles:
+   - `feat(service)`: New features
+   - `fix(service)`: Bug fixes
+   - `refactor(crate)`: Refactorings without behavior changes
+   - `docs`: Documentation updates
+3. **Pull Request Submission**:
+   - Open a PR against `main`.
+   - Complete the [Pull Request Template](.github/pull_request_template.md).
+   - Ensure all automated GitHub Action checks pass.
 
 ---
 
-## 4. Development Workflow
+## 6. Governance & Code of Conduct
 
-### Branching Strategy
-*   Always create a feature branch off of the `main` branch.
-*   Branch naming convention: `username/feature-name` or `issue-number/short-description`.
-
-### Commit Message Guidelines
-We encourage semantic commit messages to keep the Git history clean:
-*   `feat`: A new feature (e.g., `feat(ssa): add orbital debris tracking`)
-*   `fix`: A bug fix (e.g., `fix(timeline): resolve CORS preflight header typo`)
-*   `refactor`: Code changes that do not fix a bug or add a feature (e.g., `refactor(db): break down digital twin main.rs`)
-*   `test`: Adding or modifying tests (e.g., `test(auth): add rate limiter unit tests`)
-*   `docs`: Documentation changes (e.g., `docs: update deployment guidelines`)
-
-### Submitting a Pull Request
-1.  Push your branch to your fork or origin:
-    ```bash
-    git push origin username/feature-name
-    ```
-2.  Open a Pull Request against the `main` branch.
-3.  Fill out the **Pull Request Template** completely.
-4.  Ensure all GitHub Actions checks pass successfully.
-5.  Wait for review from core maintainers.
-
----
-
-## 5. Governance & Maintainership (CNCF Alignment)
-
-To align with Linux Foundation and CNCF Sandbox standards of vendor neutrality, **OrbitLogs** operates under a consensus-based open-source governance model.
-
-### Developer Certificate of Origin (DCO)
-We enforce DCO sign-offs on all commits to ensure clean copyright provenance. Every commit **must** contain a `Signed-off-by:` line.
-*   To sign off, use the `-s` or `--signoff` flag in git:
-    ```bash
-    git commit -s -m "feat(telemetry): implement packet parsing"
-    ```
-*   Contributions lacking a valid sign-off matching the committer's Git email will be blocked by our automated PR checks.
-
-### Maintainership & Governance
-For detailed information on project maintainership, roles, and decision-making, please refer to our [GOVERNANCE.md](GOVERNANCE.md) and [MAINTAINERS.md](MAINTAINERS.md) documents.
-
+*   **Governance Model**: See [GOVERNANCE.md](GOVERNANCE.md) for details on maintainer roles, lazy consensus, and decision making.
+*   **Maintainers Roster**: See [MAINTAINERS.md](MAINTAINERS.md).
+*   **Code of Conduct**: All participants must abide by the [CNCF Code of Conduct](CODE_OF_CONDUCT.md).
+*   **Security Disclosures**: Report security issues according to [SECURITY.md](SECURITY.md).
