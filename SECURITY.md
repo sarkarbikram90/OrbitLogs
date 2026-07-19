@@ -1,49 +1,42 @@
-# Security Policy 🛡️
+# Enterprise Security & Compliance Policy 🛡️
 
-The OrbitLogs maintainers take the security of our real-time spacecraft telemetry and mission control platform seriously. This document outlines our vulnerability reporting process, supported versions, and response SLAs.
+At OrbitLogs, security is fundamental to our mission control observability platform. This document outlines our vulnerability disclosure SLAs, enterprise security controls, and SOC 2 Type II compliance framework.
 
 ---
 
 ## Supported Versions
 
-Only the latest release tag and active development on the `main` branch receive security patches.
+Only the active release version line receives security patches and hotfixes.
 
-| Version Tag | Supported | Security Patch Policy |
+| Version Tag | Supported | Security Policy |
 | :--- | :---: | :--- |
-| **>= 4.5.x** | ✅ | Actively supported with security patches and advisory releases. |
-| **< 4.5.0** | ❌ | End of Life (EOL). Upgrade to the latest release. |
+| **>= 4.5.x** | ✅ | Actively supported with security hotfixes and vulnerability patches. |
+| **< 4.5.0** | ❌ | End of Life (EOL). Upgrade to current release. |
 
 ---
 
-## Reporting a Vulnerability
+## Enterprise Security Controls
 
-If you discover a security vulnerability, please do **NOT** open a public issue.
-
-### Primary Reporting Method
-1. **GitHub Private Security Advisory**: Go to the [Security Tab](https://github.com/sarkarbikram90/OrbitLogs/security) of the OrbitLogs repository and click **Report a vulnerability**.
-2. **Email Escalation**: If private reporting is unavailable, email the maintainers directly at **sarkarbikram90@gmail.com**.
-
-### Information to Include
-- Detailed description of the vulnerability and potential impact.
-- Step-by-step instructions or Proof-of-Concept (PoC) code to reproduce the issue.
-- Impacted workspace microservices or library crates.
+- **Tenant Isolation**: Multi-tenant data pipelines enforce `tenant_id` context isolation across API gateways, Kafka streams, and TimescaleDB hypertables.
+- **Immutable Audit Logging**: RBAC authorization state changes, satellite command submissions, and override executions are recorded in tamper-evident audit hypertables with OpenTelemetry trace identifiers.
+- **Constant-Time Cryptography**: Token validation and WebSocket upgrade authentication utilize `subtle` constant-time comparisons to prevent timing side-channel profiling attacks.
+- **Unprivileged Container Hardening**: Production microservice containers execute under a dedicated unprivileged user `orbitlogs` (UID/GID `10001`).
 
 ---
 
-## Response & Disclosure Timeline (SLA)
+## Reporting a Security Vulnerability
 
-| Phase | Timeline SLA | Description |
+If you discover a security vulnerability or potential threat in OrbitLogs, please report it privately:
+
+### Contact Information
+- **Private Reporting**: Submit via [GitHub Private Security Advisory](https://github.com/sarkarbikram90/OrbitLogs/security).
+- **Security Escalation Email**: `security@orbitlogs.io` (or `sarkarbikram90@gmail.com`).
+
+### Vulnerability Response SLA
+
+| Phase | SLA | Action |
 | :--- | :--- | :--- |
-| **Acknowledgment** | Within **24 Hours** | Maintainers confirm receipt of report. |
-| **Triage & Assessment** | Within **72 Hours** | Maintainers validate vulnerability and assign severity rating (CVSS). |
-| **Fix Development** | Within **14 Days** | Patch is developed, reviewed privately, and tested. |
-| **Responsible Disclosure** | Within **90 Days** | Public security advisory (GHSA/CVE) and patch release published. |
-
----
-
-## Security Commitments & Quality Practices
-
-OrbitLogs enforces automated security checks across all pull requests:
-- **Dependency Auditing**: `cargo-audit` and `cargo-deny` execute on every CI build to detect vulnerable or non-compliant dependencies.
-- **Constant-Time Cryptography**: Authentication and security token checks utilize `subtle` constant-time operations to prevent timing side-channel attacks.
-- **Non-Root Containers**: Service containers run under unprivileged dedicated user account `orbitlogs` (UID/GID `10001`).
+| **Acknowledgment** | Within **24 Hours** | Maintainers confirm receipt of vulnerability report. |
+| **Triage & Assessment** | Within **48 Hours** | Security team assesses severity (CVSS v3) and affected microservices. |
+| **Patch Resolution** | Within **7 Days** | Private fix developed, tested, and validated. |
+| **Public Advisory / Customer Release** | Within **30 Days** | Customer patch released and advisory issued. |

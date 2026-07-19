@@ -19,9 +19,12 @@ mod error;
 mod planner;
 mod timeline;
 
+use std::net::SocketAddr;
 use std::time::Duration;
 use anyhow::Result;
+use axum::{routing::get, Json, Router};
 use clap::Parser;
+use serde_json::{json, Value};
 use tracing::{info, warn, Level};
 
 pub use command::Command;
@@ -30,6 +33,24 @@ pub use digital_twin::DigitalTwinState;
 pub use error::SafetyViolation;
 pub use planner::run_planner_cycle;
 pub use timeline::OnboardTimeline;
+
+/// Liveness probe handler
+async fn healthz_handler() -> Json<Value> {
+    Json(json!({
+        "status": "healthy",
+        "service": "autonomous-mission-planning",
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+/// Readiness probe handler
+async fn readyz_handler() -> Json<Value> {
+    Json(json!({
+        "status": "ready",
+        "service": "autonomous-mission-planning",
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -45,6 +66,21 @@ async fn main() -> Result<()> {
         .init();
 
     info!("Starting Autonomous Mission Planner...");
+
+    // Spawn HTTP server for Kubernetes / production health probes (/healthz and /readyz)
+    let app = Router::new()
+        .route("/healthz", get(healthz_handler))
+        .route("/readyz", get(readyz_handler));
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
+    info!(listen_addr = %addr, "Production health probe server active");
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    tokio::spawn(async move {
+        if let Err(err) = axum::serve(listener, app).await {
+            warn!(error = %err, "Health probe HTTP server error");
+        }
+    });
 
     // Sanitize planner interval input against negative values or NaN
     let interval_secs = if cli.interval_secs.is_finite() && cli.interval_secs > 0.0 {

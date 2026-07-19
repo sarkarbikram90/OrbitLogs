@@ -25,4 +25,12 @@ pub struct Cli {
         default_value = "60.0"
     )]
     pub interval_secs: f64,
+
+    /// HTTP port for health and readiness probes.
+    #[arg(
+        long,
+        env = "PORT",
+        default_value = "8099"
+    )]
+    pub port: u16,
 }
