@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { SatelliteHealth, TelemetryRecord } from '../types';
 
 interface SatelliteDetailProps {
@@ -20,11 +20,92 @@ interface SatelliteDetailProps {
   telemetry: TelemetryRecord | null;
 }
 
+interface SparklineProps {
+  data: number[];
+  width?: number;
+  height?: number;
+  color?: string;
+  min?: number;
+  max?: number;
+}
+
+export const SparklineChart: React.FC<SparklineProps> = ({
+  data,
+  width = 90,
+  height = 20,
+  color = '#38bdf8',
+  min,
+  max,
+}) => {
+  if (!data || data.length < 2) {
+    return (
+      <svg width={width} height={height} style={{ display: 'block', overflow: 'visible' }}>
+        <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="rgba(255,255,255,0.1)" strokeDasharray="2 2" />
+      </svg>
+    );
+  }
+
+  const dataMin = min !== undefined ? min : Math.min(...data);
+  const dataMax = max !== undefined ? max : Math.max(...data);
+  const range = dataMax - dataMin || 1;
+
+  const points = data
+    .map((val, idx) => {
+      const x = (idx / (data.length - 1)) * width;
+      const y = height - ((val - dataMin) / range) * (height - 4) - 2;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  const gradientId = `grad-${color.replace('#', '')}`;
+
+  return (
+    <svg width={width} height={height} style={{ display: 'block', overflow: 'visible' }}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,${height} ${points} ${width},${height}`} fill={`url(#${gradientId})`} />
+      <polyline fill="none" stroke={color} strokeWidth="1.5" points={points} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
 export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
   satelliteId,
   health,
   telemetry,
 }) => {
+  const [history, setHistory] = useState<{
+    voltage: number[];
+    temperature: number[];
+    solar: number[];
+    cpu: number[];
+  }>({
+    voltage: [],
+    temperature: [],
+    solar: [],
+    cpu: [],
+  });
+
+  // Reset history when satelliteId changes
+  useEffect(() => {
+    setHistory({ voltage: [], temperature: [], solar: [], cpu: [] });
+  }, [satelliteId]);
+
+  // Update history buffer when new telemetry arrives (keep last 20 samples)
+  useEffect(() => {
+    if (!telemetry) return;
+    setHistory((prev) => ({
+      voltage: telemetry.battery_voltage !== undefined ? [...prev.voltage, telemetry.battery_voltage].slice(-20) : prev.voltage,
+      temperature: telemetry.temperature !== undefined ? [...prev.temperature, telemetry.temperature].slice(-20) : prev.temperature,
+      solar: telemetry.solar_panel_output !== undefined ? [...prev.solar, telemetry.solar_panel_output].slice(-20) : prev.solar,
+      cpu: telemetry.cpu_usage !== undefined ? [...prev.cpu, telemetry.cpu_usage].slice(-20) : prev.cpu,
+    }));
+  }, [telemetry]);
+
   if (!satelliteId) {
     return (
       <div className="glass-panel" style={{ height: '100%', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
@@ -39,14 +120,12 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
     );
   }
 
-  // Helper to get status class
   const getStatusClass = (state?: string) => {
     if (state === 'GREEN') return 'green';
     if (state === 'YELLOW') return 'yellow';
     return 'red';
   };
 
-  // Helper to format values
   const fmt = (val?: number, unit = '', decimals = 1) => {
     if (val === undefined || val === null) return 'N/A';
     return `${val.toFixed(decimals)}${unit}`;
@@ -85,7 +164,7 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
 
         {/* Subsystems grid */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          
+
           {/* 1. POWER SYSTEM */}
           <div style={subsystemStyle}>
             <div style={subsystemHeaderStyle}>
@@ -98,7 +177,10 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
             <div style={telemetryRowStyle}>
               <div style={telemetryColStyle}>
                 <div style={telemetryLabelStyle}>Battery Voltage</div>
-                <div style={telemetryValStyle}>{fmt(telemetry?.battery_voltage, ' V', 2)}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={telemetryValStyle}>{fmt(telemetry?.battery_voltage, ' V', 2)}</div>
+                  <SparklineChart data={history.voltage} color="#10b981" min={11.0} max={15.0} />
+                </div>
               </div>
               <div style={telemetryColStyle}>
                 <div style={telemetryLabelStyle}>Battery Current</div>
@@ -106,7 +188,10 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
               </div>
               <div style={telemetryColStyle}>
                 <div style={telemetryLabelStyle}>Solar Panel Out</div>
-                <div style={telemetryValStyle}>{fmt(telemetry?.solar_panel_output, ' W', 1)}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={telemetryValStyle}>{fmt(telemetry?.solar_panel_output, ' W', 1)}</div>
+                  <SparklineChart data={history.solar} color="#f59e0b" min={0} max={160} />
+                </div>
               </div>
             </div>
           </div>
@@ -123,7 +208,10 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
             <div style={telemetryRowStyle}>
               <div style={telemetryColStyle}>
                 <div style={telemetryLabelStyle}>Core Temperature</div>
-                <div style={telemetryValStyle}>{fmt(telemetry?.temperature, ' °C', 1)}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={telemetryValStyle}>{fmt(telemetry?.temperature, ' °C', 1)}</div>
+                  <SparklineChart data={history.temperature} color={telemetry?.temperature && telemetry.temperature > 50 ? '#ef4444' : '#0ea5e9'} min={0} max={90} />
+                </div>
               </div>
             </div>
           </div>
@@ -238,7 +326,10 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
             <div style={telemetryRowStyle}>
               <div style={telemetryColStyle}>
                 <div style={telemetryLabelStyle}>CPU Load</div>
-                <div style={telemetryValStyle}>{fmt(telemetry?.cpu_usage, ' %', 1)}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={telemetryValStyle}>{fmt(telemetry?.cpu_usage, ' %', 1)}</div>
+                  <SparklineChart data={history.cpu} color="#a855f7" min={0} max={100} />
+                </div>
               </div>
               <div style={telemetryColStyle}>
                 <div style={telemetryLabelStyle}>Memory Usage</div>
@@ -253,7 +344,6 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
   );
 };
 
-// Component style tokens
 const subsystemStyle: React.CSSProperties = {
   padding: '12px',
   borderRadius: '6px',

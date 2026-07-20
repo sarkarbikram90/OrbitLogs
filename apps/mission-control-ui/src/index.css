@@ -222,3 +222,77 @@ html, body {
   overflow: hidden;
   height: 100%;
 }
+
+/* =========================================================================
+   RESPONSIVE BREAKPOINTS (Laptop, Tablet, Mobile)
+   ========================================================================= */
+
+/* Laptop & Tablet (768px - 1199px) */
+@media (max-width: 1199px) {
+  html, body {
+    overflow-y: auto !important;
+  }
+
+  .app-container {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .main-content {
+    display: flex !important;
+    flex-direction: column;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .center-column {
+    display: flex !important;
+    flex-direction: column;
+    height: auto !important;
+  }
+
+  .header {
+    padding: 0 12px;
+  }
+
+  .header-title {
+    font-size: 15px;
+  }
+}
+
+/* Mobile & Touch (< 768px) */
+@media (max-width: 767px) {
+  .app-container {
+    grid-template-rows: auto 1fr;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+    height: auto;
+  }
+
+  .header-title-container {
+    justify-content: center;
+  }
+
+  .header-status {
+    width: 100%;
+    justify-content: space-between;
+    font-size: 11px;
+    flex-wrap: wrap;
+  }
+
+  .main-content {
+    padding: 8px;
+    gap: 12px;
+  }
+
+  /* Touch-friendly tap targets */
+  button, select, input {
+    min-height: 40px;
+  }
+}
+
