@@ -890,7 +890,11 @@ impl_sqlx_string_enum!(MissionPlanType);
 pub mod auth;
 pub mod db;
 pub mod kafka;
+pub mod rate_limit;
 pub mod telemetry;
+
+pub use rate_limit::{PlanTier, TenantRateLimiter};
+
 
 #[cfg(test)]
 mod tests {

@@ -54,6 +54,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "alert-notification-service"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "hmac",
+ "orbitlogs-models",
+ "rdkafka",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2292,6 +2316,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "jsonwebtoken",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -2330,6 +2355,19 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "serde",
+]
+
+[[package]]
+name = "orbitlogs-pus"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "orbitlogs-models",
+ "orbitlogs-packets",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "uuid",
 ]
 
 [[package]]
@@ -3676,6 +3714,27 @@ dependencies = [
  "tower 0.5.3",
  "tracing",
  "tracing-opentelemetry",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "telemetry-metering-service"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "orbitlogs-models",
+ "rdkafka",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tower-http",
+ "tracing",
  "tracing-subscriber",
  "uuid",
 ]

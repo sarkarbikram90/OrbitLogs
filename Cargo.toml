@@ -24,6 +24,9 @@ members = [
     "apps/orbit-determination-service",
     "apps/autonomous-mission-planning",
     "crates/orbitlogs-test-utils",
+    "crates/orbitlogs-pus",
+    "apps/telemetry-metering-service",
+    "apps/alert-notification-service",
 ]
 
 [workspace.dependencies]
@@ -38,6 +41,7 @@ reqwest = { version = "0.11", features = ["json"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid", "migrate"] }
 sha2 = "0.10"
+hmac = "0.12"
 rdkafka = { version = "0.36", features = ["cmake-build"] }
 prometheus = { version = "0.13", features = ["process"] }
 tracing = "0.1"

@@ -1,0 +1,25 @@
+[package]
+name = "alert-notification-service"
+version = "1.0.0"
+edition = "2021"
+description = "Real-time webhook and alert notification service for satellite health breaches and conjunction risks"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { version = "0.7" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+rdkafka = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+dotenvy = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+reqwest = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+orbitlogs-models = { workspace = true }
+tower-http = { version = "0.5", features = ["cors"] }
