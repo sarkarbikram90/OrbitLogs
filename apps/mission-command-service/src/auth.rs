@@ -20,24 +20,54 @@ use std::sync::Arc;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String,
+    #[serde(default = "default_tenant_id")]
+    pub tenant_id: String,
+    #[serde(default = "default_tenant_slug")]
+    pub tenant_slug: String,
     pub role: String,
     pub exp: usize,
+    #[serde(default)]
+    pub iat: usize,
+}
+
+fn default_tenant_id() -> String {
+    "00000000-0000-0000-0000-000000000001".to_string()
+}
+
+fn default_tenant_slug() -> String {
+    "system".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoginRequest {
+    #[serde(default)]
+    pub email: String,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default)]
     pub api_key: String,
+    #[serde(default)]
     pub role: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub token: String,
+    pub tenant_id: String,
+    pub tenant_slug: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RegisterResponse {
+    pub tenant_id: String,
+    pub tenant_slug: String,
+    pub token: String,
 }
 
 // Simple RBAC roles
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub enum Role {
+    Viewer = 0,
     Operator = 1,
     FlightDirector = 2,
     MissionManager = 3,
@@ -48,10 +78,11 @@ impl Role {
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_uppercase().as_str() {
+            "VIEWER" => Some(Role::Viewer),
             "OPERATOR" => Some(Role::Operator),
             "FLIGHTDIRECTOR" | "FLIGHT_DIRECTOR" | "FLIGHT DIRECTOR" => Some(Role::FlightDirector),
             "MISSIONMANAGER" | "MISSION_MANAGER" | "MISSION MANAGER" => Some(Role::MissionManager),
-            "ADMINISTRATOR" | "ADMIN" => Some(Role::Administrator),
+            "ADMINISTRATOR" | "ADMIN" | "TENANTADMIN" | "SUPERADMIN" => Some(Role::Administrator),
             _ => None,
         }
     }
@@ -101,6 +132,73 @@ pub fn check_role(
     }
 }
 
+pub async fn register_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<orbitlogs_models::auth::RegisterRequest>,
+) -> Result<(axum::http::StatusCode, Json<RegisterResponse>), crate::error::AppError> {
+    if req.tenant_name.trim().is_empty() || req.tenant_slug.trim().is_empty() {
+        return Err(crate::error::AppError::Validation("Tenant name and slug are required".to_string()));
+    }
+    if req.email.trim().is_empty() || req.password.trim().is_empty() {
+        return Err(crate::error::AppError::Validation("Email and password are required".to_string()));
+    }
+
+    let tenant_id = uuid::Uuid::new_v4();
+    let plan = req.plan_tier.as_deref().unwrap_or("developer");
+
+    sqlx::query(
+        "INSERT INTO tenants (id, tenant_name, tenant_slug, status, plan_tier) VALUES ($1, $2, $3, 'ACTIVE', $4)"
+    )
+    .bind(tenant_id)
+    .bind(&req.tenant_name)
+    .bind(&req.tenant_slug)
+    .bind(plan)
+    .execute(&state.db_pool)
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("duplicate key") {
+            crate::error::AppError::Validation(format!("Tenant slug '{}' is already taken", req.tenant_slug))
+        } else {
+            crate::error::AppError::Internal(format!("Failed to create tenant: {}", e))
+        }
+    })?;
+
+    let user_id = uuid::Uuid::new_v4();
+    use sha2::{Digest, Sha256};
+    let pass_hash = format!("{:x}", Sha256::digest(req.password.as_bytes()));
+
+    sqlx::query(
+        "INSERT INTO users (id, tenant_id, email, display_name, password_hash, role, status) VALUES ($1, $2, $3, $4, $5, 'Administrator', 'ACTIVE')"
+    )
+    .bind(user_id)
+    .bind(tenant_id)
+    .bind(&req.email)
+    .bind(&req.tenant_name)
+    .bind(pass_hash)
+    .execute(&state.db_pool)
+    .await
+    .map_err(|e| crate::error::AppError::Internal(format!("Failed to create user: {}", e)))?;
+
+    let token = orbitlogs_models::auth::create_jwt(
+        &state.jwt_secret,
+        &req.email,
+        tenant_id,
+        &req.tenant_slug,
+        orbitlogs_models::auth::Role::TenantAdmin,
+        state.jwt_expiration_hours,
+    )
+    .map_err(|e| crate::error::AppError::Internal(e))?;
+
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(RegisterResponse {
+            tenant_id: tenant_id.to_string(),
+            tenant_slug: req.tenant_slug,
+            token,
+        }),
+    ))
+}
+
 pub async fn login_handler(
     State(state): State<Arc<AppState>>,
     connect_info: Option<axum::extract::ConnectInfo<SocketAddr>>,
@@ -141,35 +239,84 @@ pub async fn login_handler(
         return Err(crate::error::AppError::TooManyRequests);
     }
 
-    if !orbitlogs_models::auth::secure_compare(&req.api_key, &state.api_key) {
-        return Err(crate::error::AppError::Auth("Invalid API key".to_string()));
+    // Check if legacy API Key login
+    if !req.api_key.is_empty() {
+        if !orbitlogs_models::auth::secure_compare(&req.api_key, &state.api_key) {
+            return Err(crate::error::AppError::Auth("Invalid API key".to_string()));
+        }
+
+        let role_str = if req.role.is_empty() { "Operator" } else { &req.role };
+        let Some(role) = Role::from_str(role_str) else {
+            return Err(crate::error::AppError::Validation(
+                "Invalid role specified".to_string(),
+            ));
+        };
+
+        let default_tenant = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+
+        let token = orbitlogs_models::auth::create_jwt(
+            &state.jwt_secret,
+            "orbitlogs-operator",
+            default_tenant,
+            "system",
+            orbitlogs_models::auth::Role::from_str_opt(role_str).unwrap_or(orbitlogs_models::auth::Role::Operator),
+            state.jwt_expiration_hours,
+        )
+        .map_err(|e| crate::error::AppError::Internal(format!("Token generation failed: {}", e)))?;
+
+        return Ok(Json(LoginResponse {
+            token,
+            tenant_id: default_tenant.to_string(),
+            tenant_slug: "system".to_string(),
+        }));
     }
 
-    let Some(role) = Role::from_str(&req.role) else {
-        return Err(crate::error::AppError::Validation(
-            "Invalid role specified".to_string(),
-        ));
-    };
+    // Email/password login flow
+    if !req.email.is_empty() && !req.password.is_empty() {
+        use sha2::{Digest, Sha256};
+        let pass_hash = format!("{:x}", Sha256::digest(req.password.as_bytes()));
 
-    let exp = chrono::Utc::now()
-        .checked_add_signed(chrono::Duration::hours(state.jwt_expiration_hours))
-        .expect("valid timestamp")
-        .timestamp() as usize;
+        let row = sqlx::query(
+            "SELECT u.tenant_id, u.role, t.tenant_slug \
+             FROM users u JOIN tenants t ON u.tenant_id = t.id \
+             WHERE u.email = $1 AND u.password_hash = $2 AND u.status = 'ACTIVE'"
+        )
+        .bind(&req.email)
+        .bind(pass_hash)
+        .fetch_optional(&state.db_pool)
+        .await
+        .map_err(|e| crate::error::AppError::Internal(format!("Database query error: {}", e)))?;
 
-    let claims = Claims {
-        sub: "orbitlogs-operator".to_string(),
-        role: format!("{:?}", role),
-        exp,
-    };
+        if let Some(row) = row {
+            use sqlx::Row;
+            let tenant_id: uuid::Uuid = row.get("tenant_id");
+            let role_str: String = row.get("role");
+            let tenant_slug: String = row.get("tenant_slug");
 
-    let token = jsonwebtoken::encode(
-        &jsonwebtoken::Header::default(),
-        &claims,
-        &jsonwebtoken::EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-    )
-    .map_err(|e| crate::error::AppError::Internal(format!("Token generation failed: {}", e)))?;
+            let role_enum = orbitlogs_models::auth::Role::from_str_opt(&role_str)
+                .unwrap_or(orbitlogs_models::auth::Role::Operator);
 
-    Ok(Json(LoginResponse { token }))
+            let token = orbitlogs_models::auth::create_jwt(
+                &state.jwt_secret,
+                &req.email,
+                tenant_id,
+                &tenant_slug,
+                role_enum,
+                state.jwt_expiration_hours,
+            )
+            .map_err(|e| crate::error::AppError::Internal(e))?;
+
+            return Ok(Json(LoginResponse {
+                token,
+                tenant_id: tenant_id.to_string(),
+                tenant_slug,
+            }));
+        } else {
+            return Err(crate::error::AppError::Auth("Invalid email or password".to_string()));
+        }
+    }
+
+    Err(crate::error::AppError::Validation("Either api_key or email+password must be provided".to_string()))
 }
 
 #[cfg(test)]

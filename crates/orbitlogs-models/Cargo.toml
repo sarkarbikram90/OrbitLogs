@@ -24,4 +24,5 @@ sha2 = { workspace = true }
 rand = { workspace = true }
 prometheus = { workspace = true }
 thiserror = { workspace = true }
+jsonwebtoken = { workspace = true }
 

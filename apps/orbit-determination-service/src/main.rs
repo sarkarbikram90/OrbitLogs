@@ -107,6 +107,19 @@ fn calculate_observation_jacobian(_state: &Vector6<f64>) -> Matrix3x6<f64> {
     h_jac
 }
 
+async fn fetch_active_satellites(pool: &PgPool) -> Vec<String> {
+    let rows = sqlx::query("SELECT satellite_id FROM registered_satellites WHERE status = 'ACTIVE'")
+        .fetch_all(pool)
+        .await;
+
+    if let Ok(rows) = rows {
+        if !rows.is_empty() {
+            return rows.into_iter().map(|r| r.get("satellite_id")).collect();
+        }
+    }
+    (1..=10).map(|i| format!("SAT-{:04}", i)).collect()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let _ = dotenvy::dotenv();
@@ -131,7 +144,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     loop {
         info!("Running EKF filter updates on satellite orbit states...");
-        let active_sats: Vec<String> = (1..=10).map(|i| format!("SAT-{:04}", i)).collect();
+        let active_sats = fetch_active_satellites(&db_pool).await;
 
         for sat_id in &active_sats {
             // Fetch recent orbit positions

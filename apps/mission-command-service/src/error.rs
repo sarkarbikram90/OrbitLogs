@@ -32,8 +32,8 @@ pub enum AppError {
     #[error("Forbidden: {0}")]
     Forbidden(String),
 
-    #[error("Command {0} not found")]
-    NotFound(uuid::Uuid),
+    #[error("Resource not found: {0}")]
+    NotFound(String),
 
     #[error("Invalid state transition: {from} -> {to}")]
     InvalidTransition {

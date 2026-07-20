@@ -29,6 +29,8 @@ pub mod audit;
 pub mod auth;
 pub mod commands;
 pub mod error;
+pub mod fleet;
+pub mod stations;
 
 pub use auth::{Claims, Role};
 
@@ -148,6 +150,8 @@ async fn main() -> Result<(), anyhow::Error> {
             .allow_methods([
                 axum::http::Method::GET,
                 axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::DELETE,
                 axum::http::Method::OPTIONS,
             ])
             .allow_headers([
@@ -164,6 +168,27 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let app = Router::new()
         .route("/api/auth/login", post(auth::login_handler))
+        .route("/api/auth/register", post(auth::register_handler))
+        .route(
+            "/api/fleet/satellites",
+            get(fleet::list_satellites).post(fleet::create_satellite),
+        )
+        .route(
+            "/api/fleet/satellites/:id",
+            get(fleet::get_satellite).delete(fleet::delete_satellite),
+        )
+        .route(
+            "/api/fleet/satellites/:id/tle",
+            post(fleet::update_satellite_tle),
+        )
+        .route(
+            "/api/fleet/ground-stations",
+            get(stations::list_ground_stations).post(stations::create_ground_station),
+        )
+        .route(
+            "/api/fleet/ground-stations/:id",
+            delete(stations::delete_ground_station),
+        )
         .route(
             "/api/commands",
             get(commands::list_commands).post(commands::create_command),

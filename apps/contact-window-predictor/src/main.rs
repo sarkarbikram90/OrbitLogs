@@ -35,7 +35,7 @@ struct GroundStation {
     altitude_m: f64,
 }
 
-fn get_stations() -> Vec<GroundStation> {
+fn get_default_stations() -> Vec<GroundStation> {
     vec![
         GroundStation {
             id: "GS-0001".to_string(),
@@ -88,6 +88,37 @@ fn get_stations() -> Vec<GroundStation> {
     ]
 }
 
+async fn fetch_ground_stations(pool: &PgPool) -> Vec<GroundStation> {
+    let rows = sqlx::query("SELECT station_id, latitude, longitude, altitude_m FROM registered_ground_stations WHERE status = 'ONLINE'")
+        .fetch_all(pool)
+        .await;
+
+    if let Ok(rows) = rows {
+        if !rows.is_empty() {
+            return rows.into_iter().map(|r| GroundStation {
+                id: r.get("station_id"),
+                latitude: r.get("latitude"),
+                longitude: r.get("longitude"),
+                altitude_m: r.get("altitude_m"),
+            }).collect();
+        }
+    }
+    get_default_stations()
+}
+
+async fn fetch_active_satellites(pool: &PgPool) -> Vec<String> {
+    let rows = sqlx::query("SELECT satellite_id FROM registered_satellites WHERE status = 'ACTIVE'")
+        .fetch_all(pool)
+        .await;
+
+    if let Ok(rows) = rows {
+        if !rows.is_empty() {
+            return rows.into_iter().map(|r| r.get("satellite_id")).collect();
+        }
+    }
+    (1..=10).map(|i| format!("SAT-{:04}", i)).collect()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let _ = dotenvy::dotenv();
@@ -109,11 +140,11 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 3).await?;
-    let stations = get_stations();
 
     loop {
         info!("Calculating upcoming contact windows...");
-        let active_sats: Vec<String> = (1..=10).map(|i| format!("SAT-{:04}", i)).collect();
+        let stations = fetch_ground_stations(&db_pool).await;
+        let active_sats = fetch_active_satellites(&db_pool).await;
         let now = Utc::now();
         let end_time = now + chrono::Duration::hours(24);
 
