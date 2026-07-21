@@ -55,7 +55,7 @@ Operating satellites in orbit presents unique engineering and operational challe
 
 ---
 
-## 3. What OrbitLogs IS vs. What OrbitLogs IS NOT
+## 3. What OrbitLogs IS NOT
 
 To prevent misunderstandings about platform boundaries, the table below outlines what OrbitLogs is engineered to do and what falls outside its scope:
 
