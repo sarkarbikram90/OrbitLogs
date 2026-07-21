@@ -54,7 +54,7 @@ mod tests {
             assert_eq!(hk.temp_c, 25.0);
             assert_eq!(hk.fuel_pct, 95.0);
         } else {
-            panic!("Expected Housekeeping payload");
+            panic!("Expected payload");
         }
     }
 }
