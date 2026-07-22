@@ -25,4 +25,5 @@ rand = { workspace = true }
 prometheus = { workspace = true }
 thiserror = { workspace = true }
 jsonwebtoken = { workspace = true }
+dashmap = { workspace = true }
 

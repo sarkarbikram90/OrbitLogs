@@ -11,56 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#![allow(
-    clippy::upper_case_acronyms,
-    clippy::wrong_self_convention,
-    clippy::inherent_to_string
-)]
-use chrono::{DateTime, Utc};
+
 use orbitlogs_models::TelemetryRecord;
-use serde::{Deserialize, Serialize};
+use super::types::*;
 
-pub use orbitlogs_models::GroundStationHealth as GroundStationState;
-pub use orbitlogs_models::HealthState;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SubsystemHealth {
-    pub state: HealthState,
-    pub score: i32,
-    pub explanation: String,
-}
-
-fn lerp(val: f64, in_min: f64, in_max: f64, out_min: f64, out_max: f64) -> f64 {
-    if in_max == in_min {
-        return out_min;
-    }
-    let t = (val - in_min) / (in_max - in_min);
-    let t = t.clamp(0.0, 1.0);
-    out_min + t * (out_max - out_min)
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SatelliteHealthAssessment {
-    pub timestamp: DateTime<Utc>,
-    pub satellite_id: orbitlogs_models::SatelliteId,
-    pub mission_id: orbitlogs_models::MissionId,
-    pub overall_state: HealthState,
-    pub overall_score: i32, // Average of subsystem scores
-    pub power: SubsystemHealth,
-    pub thermal: SubsystemHealth,
-    pub communications: SubsystemHealth,
-    pub propulsion: SubsystemHealth,
-    pub adcs: SubsystemHealth,
-    pub payload: SubsystemHealth,
-    pub flight_computer: SubsystemHealth,
-    pub explanation: String,
-}
-
-// =========================================================================
-// Subsystem Assessors
-// =========================================================================
-
-fn assess_power(record: &TelemetryRecord) -> SubsystemHealth {
+pub fn assess_power(record: &TelemetryRecord) -> SubsystemHealth {
     let v = record.battery_voltage.unwrap_or(13.8);
     if !(10.0..=16.0).contains(&v) {
         let score = if v < 10.0 {
@@ -94,7 +49,7 @@ fn assess_power(record: &TelemetryRecord) -> SubsystemHealth {
     }
 }
 
-fn assess_thermal(record: &TelemetryRecord) -> SubsystemHealth {
+pub fn assess_thermal(record: &TelemetryRecord) -> SubsystemHealth {
     let t = record.temperature.unwrap_or(25.0);
     if !(-20.0..=85.0).contains(&t) {
         let score = if t < -20.0 {
@@ -132,7 +87,7 @@ fn assess_thermal(record: &TelemetryRecord) -> SubsystemHealth {
     }
 }
 
-fn assess_communications(
+pub fn assess_communications(
     record: &TelemetryRecord,
     gs_states: &std::collections::HashMap<String, GroundStationState>,
 ) -> SubsystemHealth {
@@ -230,7 +185,7 @@ fn assess_communications(
     }
 }
 
-fn assess_propulsion(record: &TelemetryRecord) -> SubsystemHealth {
+pub fn assess_propulsion(record: &TelemetryRecord) -> SubsystemHealth {
     let fuel = record.fuel_remaining.unwrap_or(95.0);
     let alt = record.altitude.unwrap_or(520.0);
 
@@ -285,7 +240,7 @@ fn assess_propulsion(record: &TelemetryRecord) -> SubsystemHealth {
     }
 }
 
-fn assess_adcs(record: &TelemetryRecord) -> SubsystemHealth {
+pub fn assess_adcs(record: &TelemetryRecord) -> SubsystemHealth {
     let p = record.orientation_pitch.unwrap_or(0.0).abs();
     let r = record.orientation_roll.unwrap_or(0.0).abs();
     let y = record.orientation_yaw.unwrap_or(0.0).abs();
@@ -321,7 +276,7 @@ fn assess_adcs(record: &TelemetryRecord) -> SubsystemHealth {
     }
 }
 
-fn assess_payload(record: &TelemetryRecord) -> SubsystemHealth {
+pub fn assess_payload(record: &TelemetryRecord) -> SubsystemHealth {
     let active = record.payload_active.unwrap_or(true);
     let draw = record.payload_power_draw.unwrap_or(15.0);
     let v = record.battery_voltage.unwrap_or(13.8);
@@ -363,7 +318,7 @@ fn assess_payload(record: &TelemetryRecord) -> SubsystemHealth {
     }
 }
 
-fn assess_flight_computer(record: &TelemetryRecord) -> SubsystemHealth {
+pub fn assess_flight_computer(record: &TelemetryRecord) -> SubsystemHealth {
     let cpu = record.cpu_usage.unwrap_or(25.0);
     let mem = record.memory_usage.unwrap_or(45.0);
     let max_load = cpu.max(mem);
@@ -483,267 +438,5 @@ impl SubsystemAssessor for FlightComputerAssessor {
         _gs_states: &std::collections::HashMap<String, GroundStationState>,
     ) -> SubsystemHealth {
         assess_flight_computer(record)
-    }
-}
-
-pub fn assess_satellite_health(
-    record: &TelemetryRecord,
-    gs_states: &std::collections::HashMap<String, GroundStationState>,
-) -> SatelliteHealthAssessment {
-    let power = PowerAssessor.assess(record, gs_states);
-    let thermal = ThermalAssessor.assess(record, gs_states);
-    let communications = CommunicationsAssessor.assess(record, gs_states);
-    let propulsion = PropulsionAssessor.assess(record, gs_states);
-    let adcs = AdcsAssessor.assess(record, gs_states);
-    let payload = PayloadAssessor.assess(record, gs_states);
-    let flight_computer = FlightComputerAssessor.assess(record, gs_states);
-
-    // Calculate overall satellite state (worst-case subsystem state)
-    let overall_state = {
-        if power.state == HealthState::Red
-            || thermal.state == HealthState::Red
-            || communications.state == HealthState::Red
-            || propulsion.state == HealthState::Red
-            || adcs.state == HealthState::Red
-            || payload.state == HealthState::Red
-            || flight_computer.state == HealthState::Red
-        {
-            HealthState::Red
-        } else if power.state == HealthState::Yellow
-            || thermal.state == HealthState::Yellow
-            || communications.state == HealthState::Yellow
-            || propulsion.state == HealthState::Yellow
-            || adcs.state == HealthState::Yellow
-            || payload.state == HealthState::Yellow
-            || flight_computer.state == HealthState::Yellow
-        {
-            HealthState::Yellow
-        } else {
-            HealthState::Green
-        }
-    };
-
-    // Calculate overall score (average of subsystem scores)
-    let overall_score = (power.score
-        + thermal.score
-        + communications.score
-        + propulsion.score
-        + adcs.score
-        + payload.score
-        + flight_computer.score)
-        / 7;
-
-    // Build explainable unified status string
-    let explanation = {
-        let mut issues = Vec::new();
-        if power.state != HealthState::Green {
-            issues.push(format!("Power: {}", power.explanation));
-        }
-        if thermal.state != HealthState::Green {
-            issues.push(format!("Thermal: {}", thermal.explanation));
-        }
-        if communications.state != HealthState::Green {
-            issues.push(format!("Comms: {}", communications.explanation));
-        }
-        if propulsion.state != HealthState::Green {
-            issues.push(format!("Propulsion: {}", propulsion.explanation));
-        }
-        if adcs.state != HealthState::Green {
-            issues.push(format!("ADCS: {}", adcs.explanation));
-        }
-        if payload.state != HealthState::Green {
-            issues.push(format!("Payload: {}", payload.explanation));
-        }
-        if flight_computer.state != HealthState::Green {
-            issues.push(format!("FlightComp: {}", flight_computer.explanation));
-        }
-
-        if issues.is_empty() {
-            "All subsystems operating within normal parameters.".to_string()
-        } else {
-            issues.join("; ")
-        }
-    };
-
-    SatelliteHealthAssessment {
-        timestamp: record.timestamp,
-        satellite_id: record.satellite_id.clone(),
-        mission_id: record.mission_id.clone(),
-        overall_state,
-        overall_score,
-        power,
-        thermal,
-        communications,
-        propulsion,
-        adcs,
-        payload,
-        flight_computer,
-        explanation,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use uuid::Uuid;
-
-    fn mock_nominal_record() -> TelemetryRecord {
-        TelemetryRecord {
-            satellite_id: orbitlogs_models::SatelliteId::new("SAT-0001"),
-            subsystem_id: orbitlogs_models::Subsystem::Unified,
-            mission_id: orbitlogs_models::MissionId::new("MISSION-ALPHA"),
-            timestamp: Utc::now(),
-            battery_voltage: Some(13.8),
-            battery_current: Some(2.1),
-            solar_panel_output: Some(110.0),
-            cpu_usage: Some(25.4),
-            memory_usage: Some(45.1),
-            temperature: Some(28.5),
-            orientation_pitch: Some(1.2),
-            orientation_roll: Some(-2.3),
-            orientation_yaw: Some(0.5),
-            velocity: Some(7.67),
-            altitude: Some(520.4),
-            fuel_remaining: Some(92.5),
-            communication_latency: Some(35.1),
-            packet_loss: Some(0.1),
-            signal_strength: Some(-68.0),
-            payload_power_draw: Some(15.0),
-            payload_active: Some(true),
-            event_id: Uuid::new_v4(),
-        }
-    }
-
-    #[test]
-    fn test_nominal_health_assessment() {
-        let rec = mock_nominal_record();
-        let gs_states = std::collections::HashMap::new();
-        let health = assess_satellite_health(&rec, &gs_states);
-
-        assert_eq!(health.overall_state, HealthState::Green);
-        assert_eq!(health.overall_score, 100);
-        assert_eq!(
-            health.explanation,
-            "All subsystems operating within normal parameters."
-        );
-    }
-
-    #[test]
-    fn test_thermal_yellow_health() {
-        let mut rec = mock_nominal_record();
-        rec.temperature = Some(65.0); // Yellow range (>60)
-        let gs_states = std::collections::HashMap::new();
-        let health = assess_satellite_health(&rec, &gs_states);
-
-        assert_eq!(health.overall_state, HealthState::Yellow);
-        assert_eq!(health.thermal.state, HealthState::Yellow);
-        assert_eq!(health.overall_score, 94); // (6*100 + 64) / 7 = 94
-        assert!(health.explanation.contains("Thermal: Elevated temperature"));
-    }
-
-    #[test]
-    fn test_power_critical_red_health() {
-        let mut rec = mock_nominal_record();
-        rec.battery_voltage = Some(9.5); // Red range (<10)
-        let gs_states = std::collections::HashMap::new();
-        let health = assess_satellite_health(&rec, &gs_states);
-
-        assert_eq!(health.overall_state, HealthState::Red);
-        assert_eq!(health.power.state, HealthState::Red);
-        assert_eq!(health.overall_score, 88); // (6*100 + 18) / 7 = 88
-        assert!(health
-            .explanation
-            .contains("Power: Critical battery voltage"));
-    }
-
-    #[test]
-    fn test_payload_degraded_battery_dependency() {
-        let mut rec = mock_nominal_record();
-        rec.battery_voltage = Some(11.2); // Low battery, payload shutdown active
-        rec.payload_active = Some(false);
-        rec.payload_power_draw = Some(0.0);
-        let gs_states = std::collections::HashMap::new();
-        let health = assess_satellite_health(&rec, &gs_states);
-
-        assert_eq!(health.overall_state, HealthState::Yellow);
-        assert_eq!(health.payload.state, HealthState::Yellow);
-        assert_eq!(health.overall_score, 89);
-        assert!(health
-            .explanation
-            .contains("Payload: Payload auto-shutdown to protect battery"));
-    }
-
-    #[test]
-    fn test_comms_degraded_due_to_ground_station_outage() {
-        let mut rec = mock_nominal_record();
-        rec.packet_loss = Some(20.0);
-        rec.communication_latency = Some(2500.0);
-        rec.signal_strength = Some(-115.0);
-
-        let mut gs_states = std::collections::HashMap::new();
-        gs_states.insert(
-            "GS-0001".to_string(),
-            GroundStationState {
-                timestamp: Utc::now(),
-                station_id: orbitlogs_models::StationId::new("GS-0001"),
-                station_name: "Svalbard".to_string(),
-                status: orbitlogs_models::StationStatus::Outage,
-                antenna_health: 12.5,
-                weather_state: orbitlogs_models::WeatherState::Clear,
-                congestion: 0.0,
-                latency: 2500.0,
-                bandwidth: 0.0,
-                explanation: "Antenna alignment failure".to_string(),
-                backhaul_health: None,
-                packet_loss: None,
-                signal_quality: None,
-                maintenance: None,
-            },
-        );
-
-        let health = assess_satellite_health(&rec, &gs_states);
-        assert_eq!(health.overall_state, HealthState::Red);
-        assert_eq!(health.communications.state, HealthState::Red);
-        assert!(health.explanation.contains("Critical communications degradation due to ground station GS-0001 outage (Weather: Clear)"), "Explanation was: {}", health.explanation);
-    }
-
-    #[test]
-    fn test_comms_degraded_onboard_transponder_anomaly() {
-        let mut rec = mock_nominal_record();
-        rec.packet_loss = Some(20.0);
-        rec.communication_latency = Some(2500.0);
-        rec.signal_strength = Some(-115.0);
-
-        let mut gs_states = std::collections::HashMap::new();
-        gs_states.insert(
-            "GS-0001".to_string(),
-            GroundStationState {
-                timestamp: Utc::now(),
-                station_id: orbitlogs_models::StationId::new("GS-0001"),
-                station_name: "Svalbard".to_string(),
-                status: orbitlogs_models::StationStatus::Online,
-                antenna_health: 100.0,
-                weather_state: orbitlogs_models::WeatherState::Clear,
-                congestion: 0.0,
-                latency: 42.0,
-                bandwidth: 1000.0,
-                explanation: "All operational".to_string(),
-                backhaul_health: None,
-                packet_loss: None,
-                signal_quality: None,
-                maintenance: None,
-            },
-        );
-
-        let health = assess_satellite_health(&rec, &gs_states);
-        assert_eq!(health.overall_state, HealthState::Red);
-        assert_eq!(health.communications.state, HealthState::Red);
-        assert!(
-            health
-                .explanation
-                .contains("Critical comm degradation due to onboard transponder anomaly"),
-            "Explanation was: {}",
-            health.explanation
-        );
     }
 }
