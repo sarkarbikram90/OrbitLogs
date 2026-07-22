@@ -112,21 +112,34 @@ fn register_metrics() {
 async fn start_metrics_server(port: u16) {
     use axum::{routing::get, Router};
 
-    let app = Router::new().route(
-        "/metrics",
-        get(|| async {
-            let encoder = TextEncoder::new();
-            let metric_families = REGISTRY.gather();
-            let mut buffer = Vec::new();
-            encoder.encode(&metric_families, &mut buffer).unwrap();
+    let app = Router::new()
+        .route(
+            "/metrics",
+            get(|| async {
+                let encoder = TextEncoder::new();
+                let metric_families = REGISTRY.gather();
+                let mut buffer = Vec::new();
+                encoder.encode(&metric_families, &mut buffer).unwrap();
 
-            axum::response::Response::builder()
-                .status(axum::http::StatusCode::OK)
-                .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
-                .body(axum::body::Body::from(buffer))
-                .unwrap()
-        }),
-    );
+                axum::response::Response::builder()
+                    .status(axum::http::StatusCode::OK)
+                    .header(axum::http::header::CONTENT_TYPE, encoder.format_type())
+                    .body(axum::body::Body::from(buffer))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/healthz",
+            get(|| async {
+                (axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "UP" })))
+            }),
+        )
+        .route(
+            "/readyz",
+            get(|| async {
+                (axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "READY" })))
+            }),
+        );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = match tokio::net::TcpListener::bind(addr).await {

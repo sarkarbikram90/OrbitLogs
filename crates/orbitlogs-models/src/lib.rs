@@ -23,6 +23,7 @@ pub mod domain_error;
 pub mod enums;
 pub mod ground_station;
 pub mod health_broadcast;
+pub mod health_server;
 pub mod ids;
 pub mod kafka;
 pub mod rate_limit;
@@ -42,6 +43,7 @@ pub use enums::{
     SecondaryObjectType, StationStatus, Subsystem, SubsystemStatus, WeatherState,
 };
 pub use ground_station::GroundStationHealth;
+pub use health_server::{HealthServer, HealthStateHandle};
 pub use ids::{MissionId, SatelliteId, StationId};
 pub use rate_limit::{PlanTier, TenantRateLimiter};
 pub use telemetry_record::TelemetryRecord;

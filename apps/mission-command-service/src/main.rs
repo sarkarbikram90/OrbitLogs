@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use clap::Parser;

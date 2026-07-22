@@ -62,6 +62,14 @@ async fn main() -> Result<(), anyhow::Error> {
         args.fleet_size, args.raw_topic
     );
 
+    // Spawn Kubernetes HealthProbe Server
+    tokio::spawn(async {
+        let health_server = orbitlogs_models::HealthServer::new();
+        if let Err(e) = health_server.run(8085).await {
+            tracing::error!("Health server error: {}", e);
+        }
+    });
+
     // Initialize Kafka producer
     let producer_config = KafkaConfigBuilder::from_env(args.kafka_brokers.clone()).build();
     let producer: FutureProducer = producer_config.create()?;

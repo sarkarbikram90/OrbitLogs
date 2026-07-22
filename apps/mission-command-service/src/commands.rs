@@ -291,7 +291,7 @@ pub async fn fetch_command_by_id(
         .bind(id)
         .fetch_optional(&state.db_pool)
         .await?
-        .ok_or_else(|| crate::error::AppError::NotFound(id))?;
+        .ok_or_else(|| crate::error::AppError::NotFound(id.to_string()))?;
 
     Ok(Command {
         id: row.get("id"),
