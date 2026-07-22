@@ -25,6 +25,8 @@ pub enum PacketError {
     SubsystemMismatch(String),
     ParserError(String),
     Alignment(String),
+    /// Invalid raw bit pattern (e.g., zero-length telemetry for OCF frames).
+    InvalidPattern(String),
 }
 
 impl std::fmt::Display for PacketError {
@@ -43,6 +45,7 @@ impl std::fmt::Display for PacketError {
             PacketError::SubsystemMismatch(s) => write!(f, "Subsystem mismatch: {}", s),
             PacketError::ParserError(s) => write!(f, "Failed to parse field: {}", s),
             PacketError::Alignment(s) => write!(f, "Alignment error: {}", s),
+            PacketError::InvalidPattern(s) => write!(f, "Invalid pattern error: {}", s),
         }
     }
 }
