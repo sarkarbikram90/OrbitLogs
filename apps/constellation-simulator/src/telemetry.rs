@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use orbitlogs_models::TelemetryRecord;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::sync::Arc;
@@ -30,7 +31,10 @@ pub fn send_telemetry(
                 .key(&key)
                 .payload(&json_payload);
             if let Err((e, _)) = producer.send(record, Duration::from_secs(5)).await {
-                error!("Failed to produce to topic {}: {}", topic_owned, e);
+                error!("Failed to produce to topic {}: {}", 
+                topic_owned, 
+                e
+            );
             }
         });
     }
