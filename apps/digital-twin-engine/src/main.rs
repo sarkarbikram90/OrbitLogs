@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use axum::{
     routing::{get, post},
     Router,
@@ -74,7 +75,8 @@ struct Cli {
 
 pub struct AppState {
     pub twins: DashMap<String, TelemetryRecord>,
-    pub simulated_failures: DashMap<String, Vec<String>>, // satellite_id -> list of failed subsystems
+    // satellite_id -> list of failed subsystems
+    pub simulated_failures: DashMap<String, Vec<String>>, 
     pub db_pool: PgPool,
     pub kafka_producer: FutureProducer,
     pub timeline_topic: String,
@@ -114,7 +116,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Init tracing
     orbitlogs_models::telemetry::init_telemetry("digital-twin-engine", &cli.otel_endpoint)?;
 
-    info!("Starting Digital Twin Engine...");
+    info!("Starting the Digital Twin Engine...");
 
     let api_key = cli.api_key.clone()
         .or_else(|| orbitlogs_models::load_secret("API_KEY"))
@@ -124,6 +126,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
 
     let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
+    
     let kafka_producer: FutureProducer = producer_config.create()?;
 
     let state = Arc::new(AppState {
