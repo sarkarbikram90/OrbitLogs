@@ -54,7 +54,8 @@ pub fn project_twin_health(satellite: String, rec: &TelemetryRecord) -> TwinHeal
 
     // Formulate a dynamic projection based on twin metrics
     let mut recommendations = Vec::new();
-    let mut life_expectancy: f64 = 1800.0; // nominal 5 years
+    // nominal 5 years
+    let mut life_expectancy: f64 = 1800.0; 
 
     // Power Subsystem Assessment
     let mut power_status = SubsystemStatus::Nominal;
@@ -364,7 +365,8 @@ mod tests {
     #[test]
     fn test_degraded_propulsion_fuel() {
         let mut rec = mock_nominal_telemetry();
-        rec.fuel_remaining = Some(15.0); // < 20.0
+        // < 20.0
+        rec.fuel_remaining = Some(15.0); 
 
         let proj = project_twin_health("ORBITLOGS-9999".to_string(), &rec);
         assert_eq!(proj.subsystems.propulsion.status, SubsystemStatus::Degraded);
