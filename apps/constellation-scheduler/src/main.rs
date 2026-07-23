@@ -44,7 +44,8 @@ impl GroundStationAntenna {
         rain_rate_mm_h: f64,
     ) -> f64 {
         let free_space_loss = 20.0 * distance_km.log10() + 20.0 * frequency_ghz.log10() + 92.44;
-        let rain_loss = 0.05 * rain_rate_mm_h.powf(1.15) * distance_km; // Simplified rain fade model
+        // Simplified rain fade model
+        let rain_loss = 0.05 * rain_rate_mm_h.powf(1.15) * distance_km;
         free_space_loss + rain_loss
     }
 }
