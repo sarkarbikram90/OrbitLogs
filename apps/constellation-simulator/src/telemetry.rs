@@ -12,30 +12,45 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::{sync::Arc, time::Duration};
 use orbitlogs_models::TelemetryRecord;
 use rdkafka::producer::{FutureProducer, FutureRecord};
-use std::sync::Arc;
-use std::time::Duration;
-use tracing::error;
+use tracing::{debug, error, instrument};
 
-pub fn send_telemetry(
+const PRODUCE_TIMEOUT: Duration = Duration::from_secs(5);
+
+#[instrument(
+    skip(producer, rec),
+    fields(
+        topic = %topic,
+        key = %key
+    )
+)]
+pub async fn send_telemetry(
     producer: Arc<FutureProducer>,
     topic: &str,
-    key: String,
-    rec: TelemetryRecord,
+    key: &str,
+    rec: &TelemetryRecord,
 ) {
-    if let Ok(json_payload) = serde_json::to_string(&rec) {
-        let topic_owned = topic.to_string();
-        tokio::spawn(async move {
-            let record = FutureRecord::to(&topic_owned)
-                .key(&key)
-                .payload(&json_payload);
-            if let Err((e, _)) = producer.send(record, Duration::from_secs(5)).await {
-                error!("Failed to produce to topic {}: {}", 
-                topic_owned, 
-                e
-            );
-            }
-        });
+    let payload = match serde_json::to_string(rec) {
+        Ok(payload) => payload,
+        Err(err) => {
+            error!("Failed to serialize telemetry: {}", err);
+            return;
+        }
+    };
+
+    let record = FutureRecord::to(topic)
+        .key(key)
+        .payload(&payload);
+
+    match producer.send(record, PRODUCE_TIMEOUT).await {
+        Ok(delivery) => {
+            debug!("Telemetry delivered: {:?}", delivery);
+        }
+
+        Err((err, _)) => {
+            error!("Kafka send failed: {}", err);
+        }
     }
 }
