@@ -126,7 +126,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
 
     let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
-    
+
     let kafka_producer: FutureProducer = producer_config.create()?;
 
     let state = Arc::new(AppState {
@@ -196,10 +196,12 @@ async fn main() -> Result<(), anyhow::Error> {
         )))
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 
+        cli.port
+    ));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!(
-        "Digital Twin Engine listening on http://localhost:{}",
+        "The Digital Twin Engine is listening on http://localhost:{}",
         cli.port
     );
 
@@ -207,7 +209,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    info!("Digital Twin Engine shut down gracefully.");
+    info!("The Digital Twin Engine is shutting down gracefully.");
     orbitlogs_models::telemetry::shutdown_telemetry();
     Ok(())
 }
@@ -230,12 +232,12 @@ async fn run_telemetry_consumer(
     let consumer: StreamConsumer = config.create()?;
     consumer.subscribe(&[&topic])?;
 
-    info!("Digital twin background consumer subscribed to {}", topic);
+    info!("The Digital twin background consumer subscribed to {}", topic);
 
     loop {
         tokio::select! {
             _ = cancel_token.cancelled() => {
-                info!("Digital twin background consumer stopping...");
+                info!("The Digital twin background consumer stopping...");
                 break;
             }
             msg_res = consumer.recv() => {
@@ -276,7 +278,7 @@ async fn run_telemetry_consumer(
                         let _ = consumer.commit_message(&msg, CommitMode::Async);
                     }
                     Err(e) => {
-                        error!("Error consuming telemetry for digital twin: {}", e);
+                        error!("Error consuming telemetry for the digital twin: {}", e);
                         tokio::time::sleep(Duration::from_millis(500)).await;
                     }
                 }
