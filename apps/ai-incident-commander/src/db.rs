@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use sqlx::{PgPool, Row};
 use tracing::error;
 
@@ -37,7 +38,7 @@ pub async fn get_latest_telemetry(
     .await
     .map_err(|e| {
         error!(
-            "Failed to fetch latest satellite telemetry {}: {}",
+            "Failed to fetch satellite telemetry {}: {}",
             sat_id, e
         );
         e
