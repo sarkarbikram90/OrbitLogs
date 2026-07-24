@@ -174,8 +174,10 @@ pub async fn simulate_failure(
     }
 
     info!(
-        "Injected failure simulation on satellite {} for subsystem: {}",
-        satellite, sub
+        satellite = %satellite,
+        sub = %sub,
+        message = "Digital twin simulated failure injected on subsystem: {}",
+        sub.to_uppercase()
     );
 
     let timeline_payload = serde_json::json!({
@@ -183,7 +185,7 @@ pub async fn simulate_failure(
         "satellite_id": satellite,
         "event_type": "SIMULATED_FAILURE_INJECTED",
         "severity": "CRITICAL",
-        "message": format!("Digital twin simulated failure injected on subsystem: {}", sub.to_uppercase()),
+        "message": format!("The Digital twin simulated failure injected on subsystem: {}", sub.to_uppercase()),
         "details": {
             "subsystem": sub
         }
