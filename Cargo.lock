@@ -797,7 +797,7 @@ dependencies = [
 
 [[package]]
 name = "digital-twin-engine"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "axum 0.7.9",
@@ -809,6 +809,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "orbitlogs-models",
+ "prometheus",
  "rdkafka",
  "serde",
  "serde_json",

@@ -1,6 +1,6 @@
 [package]
 name = "digital-twin-engine"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 description = "Digital Twin Engine - Virtual representation of spacecraft status, health, and simulation"
 
@@ -27,4 +27,4 @@ dashmap = { workspace = true }
 tower-http = { version = "0.5", features = ["cors", "timeout"] }
 subtle = { workspace = true }
 tokio-util = { workspace = true }
-
+prometheus = { workspace = true }

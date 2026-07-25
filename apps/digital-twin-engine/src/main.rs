@@ -12,78 +12,98 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use axum::{
-    routing::{get, post},
-    Router,
-};
+//! # Digital Twin Engine
+//!
+//! Maintains synchronized in-memory virtual states (digital twins) for all
+//! active spacecraft in the OrbitLogs constellation. Consumes processed
+//! telemetry from Kafka, applies recursive degradation model estimation,
+//! and serves health projections and failure simulation via an HTTP API.
+//!
+//! ## Architecture
+//!
+//! ```text
+//! ┌─────────────────┐      ┌──────────────────┐
+//! │ Kafka: telemetry │─────▶│   consumer.rs    │──┐
+//! │   .processed     │      │ (background task)│  │
+//! └─────────────────┘      └──────────────────┘  │
+//!                                                 ▼
+//!                                          ┌────────────┐
+//!                                          │  AppState   │
+//!                                          │ (DashMaps)  │
+//!                                          └────────────┘
+//!                                                 ▲
+//! ┌─────────────────┐      ┌──────────────────┐  │
+//! │   HTTP Clients   │─────▶│   handlers.rs    │──┘
+//! │  (Mission Ctrl)  │      │ (Axum routes)    │
+//! └─────────────────┘      └──────────────────┘
+//! ```
+
+use axum::routing::{delete, get, post};
+use axum::Router;
 use clap::Parser;
 use dashmap::DashMap;
 use orbitlogs_models::kafka::KafkaConfigBuilder;
 use orbitlogs_models::TelemetryRecord;
-use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
-use rdkafka::message::Message;
+use prometheus::{Encoder, TextEncoder};
 use rdkafka::producer::FutureProducer;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
+use tower_http::cors::CorsLayer;
 use tracing::{error, info};
 
+mod config;
+mod consumer;
 mod db;
+mod error;
 mod handlers;
+mod metrics;
 mod simulation;
 
-#[derive(Parser, Debug)]
-#[command(name = "Digital Twin Engine")]
-struct Cli {
-    #[arg(long, env = "PORT", default_value = "8086")]
-    port: u16,
+use config::Config;
+use simulation::DigitalTwinState;
 
-    #[arg(long, env = "KAFKA_BROKERS", default_value = "localhost:9092")]
-    kafka_brokers: String,
+// =========================================================================
+// Application State
+// =========================================================================
 
-    #[arg(long, env = "DATABASE_URL", default_value = "")]
-    database_url: String,
-
-    #[arg(
-        long,
-        env = "OTEL_EXPORTER_OTLP_ENDPOINT",
-        default_value = "http://localhost:4317"
-    )]
-    otel_endpoint: String,
-
-    #[arg(long, env = "PROCESSED_TOPIC", default_value = "telemetry.processed")]
-    processed_topic: String,
-
-    #[arg(long, env = "TIMELINE_EVENTS_TOPIC", default_value = "timeline.events")]
-    timeline_topic: String,
-
-    #[arg(long, env = "GROUP_ID", default_value = "digital-twin-group")]
-    group_id: String,
-
-    #[arg(long, env = "API_KEY")]
-    api_key: Option<String>,
-
-    #[arg(
-        long,
-        env = "CORS_ALLOWED_ORIGIN",
-        default_value = "http://localhost:3000"
-    )]
-    cors_allowed_origin: String,
-}
-
+/// Shared state accessible by all handlers and the background consumer.
+///
+/// All mutable collections use `DashMap` for lock-free concurrent access
+/// from the Kafka consumer task and HTTP handler tasks simultaneously.
 pub struct AppState {
+    /// Latest telemetry snapshot per satellite (satellite_id → record).
     pub twins: DashMap<String, TelemetryRecord>,
-    // satellite_id -> list of failed subsystems
-    pub simulated_failures: DashMap<String, Vec<String>>, 
+
+    /// Recursive degradation model state per satellite.
+    pub twin_states: DashMap<String, DigitalTwinState>,
+
+    /// Active simulated failure injections (satellite_id → [subsystem]).
+    pub simulated_failures: DashMap<String, Vec<String>>,
+
+    /// Database connection pool for timeline event queries.
     pub db_pool: PgPool,
+
+    /// Kafka producer for emitting timeline events.
     pub kafka_producer: FutureProducer,
+
+    /// Target Kafka topic for timeline event notifications.
     pub timeline_topic: String,
+
+    /// Resolved API key for bearer token authentication.
     pub api_key: String,
-    pub cors_allowed_origin: String,
 }
 
+// =========================================================================
+// Signal Handling
+// =========================================================================
+
+/// Waits for a SIGTERM (Unix) or Ctrl+C shutdown signal.
+///
+/// Used as the single shutdown signal source. A `CancellationToken` is
+/// triggered on receipt, propagating cancellation to all background tasks.
 async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
@@ -108,53 +128,59 @@ async fn shutdown_signal() {
     }
 }
 
+// =========================================================================
+// Entry Point
+// =========================================================================
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let _ = dotenvy::dotenv();
-    let cli = Cli::parse();
+    let config = Config::parse();
 
-    // Init tracing
-    orbitlogs_models::telemetry::init_telemetry("digital-twin-engine", &cli.otel_endpoint)?;
+    // ---- Telemetry & Observability ----
+    orbitlogs_models::telemetry::init_telemetry("digital-twin-engine", &config.otel_endpoint)?;
+    metrics::init_metrics();
 
     info!("Starting the Digital Twin Engine...");
 
-    let api_key = cli.api_key.clone()
-        .or_else(|| orbitlogs_models::load_secret("API_KEY"))
-        .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| anyhow::anyhow!("API key is required. Set env var API_KEY, pass --api-key, or use Docker secrets API_KEY."))?;
+    // ---- Resolve secrets ----
+    let api_key = config.resolve_api_key()?;
 
-    let db_pool = orbitlogs_models::db::establish_db_connection(&cli.database_url, 5).await?;
+    // ---- Database ----
+    let db_pool = orbitlogs_models::db::establish_db_connection(&config.database_url, 5).await?;
 
-    let producer_config = KafkaConfigBuilder::from_env(cli.kafka_brokers.clone()).build();
-
+    // ---- Kafka Producer ----
+    let producer_config = KafkaConfigBuilder::from_env(config.kafka_brokers.clone()).build();
     let kafka_producer: FutureProducer = producer_config.create()?;
 
+    // ---- Shared State ----
     let state = Arc::new(AppState {
         twins: DashMap::new(),
+        twin_states: DashMap::new(),
         simulated_failures: DashMap::new(),
         db_pool,
         kafka_producer,
-        timeline_topic: cli.timeline_topic,
+        timeline_topic: config.timeline_topic.clone(),
         api_key,
-        cors_allowed_origin: cli.cors_allowed_origin.clone(),
     });
 
+    // ---- Cancellation Token ----
+    // Single token drives all background task shutdown.
     let cancel_token = CancellationToken::new();
-    let cancel_token_trigger = cancel_token.clone();
 
-    // Start background Kafka consumer
-    let state_clone = Arc::clone(&state);
-    let brokers = cli.kafka_brokers.clone();
-    let processed_topic = cli.processed_topic.clone();
-    let group_id = cli.group_id.clone();
-    let cancel_token_clone = cancel_token.clone();
+    // ---- Background: Kafka Consumer ----
+    let consumer_state = Arc::clone(&state);
+    let consumer_brokers = config.kafka_brokers.clone();
+    let consumer_topic = config.processed_topic.clone();
+    let consumer_group = config.group_id.clone();
+    let consumer_cancel = cancel_token.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_telemetry_consumer(
-            state_clone,
-            brokers,
-            processed_topic,
-            group_id,
-            cancel_token_clone,
+        if let Err(e) = consumer::run_telemetry_consumer(
+            consumer_state,
+            consumer_brokers,
+            consumer_topic,
+            consumer_group,
+            consumer_cancel,
         )
         .await
         {
@@ -162,18 +188,78 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     });
 
+    // ---- Background: Kubernetes Health Probes ----
+    let health_port = config.health_port;
+    tokio::spawn(async move {
+        let health_server = orbitlogs_models::HealthServer::new();
+        if let Err(e) = health_server.run(health_port).await {
+            error!("Health probe server failed: {}", e);
+        }
+    });
+
+    // ---- Background: Shutdown Signal Listener ----
+    let cancel_trigger = cancel_token.clone();
     tokio::spawn(async move {
         shutdown_signal().await;
         info!("Shutdown signal received. Cancelling background digital twin tasks...");
-        cancel_token_trigger.cancel();
+        cancel_trigger.cancel();
     });
 
-    let state_routes = Router::new().route(
-        "/:satellite/simulate-failure",
-        post(handlers::simulate_failure).layer(axum::middleware::from_fn_with_state(
+    // ---- CORS Configuration ----
+    let cors = CorsLayer::new()
+        .allow_origin(
+            config
+                .cors_allowed_origin
+                .parse::<axum::http::HeaderValue>()
+                .map(tower_http::cors::AllowOrigin::exact)
+                .unwrap_or_else(|_| tower_http::cors::AllowOrigin::any()),
+        )
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::HeaderName::from_static("x-request-id"),
+        ]);
+
+    // ---- Routes ----
+    // Authenticated routes (require bearer token)
+    let authenticated_routes = Router::new()
+        .route(
+            "/:satellite/simulate-failure",
+            post(handlers::simulate_failure),
+        )
+        .route(
+            "/:satellite/simulated-failures",
+            delete(handlers::clear_simulated_failures),
+        )
+        .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             handlers::auth_middleware,
-        )),
+        ));
+
+    // Metrics endpoint
+    let metrics_route = Router::new().route(
+        "/metrics",
+        get(|| async {
+            let encoder = TextEncoder::new();
+            let metric_families = prometheus::gather();
+            let mut buffer = Vec::new();
+            if encoder.encode(&metric_families, &mut buffer).is_err() {
+                return (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to encode metrics".to_string(),
+                );
+            }
+            (
+                axum::http::StatusCode::OK,
+                String::from_utf8(buffer).unwrap_or_default(),
+            )
+        }),
     );
 
     let app = Router::new()
@@ -186,104 +272,33 @@ async fn main() -> Result<(), anyhow::Error> {
             "/api/twin/:satellite/timeline",
             get(handlers::get_twin_timeline),
         )
-        .nest("/api/twin", state_routes)
-        .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            handlers::cors_middleware,
-        ))
+        .route(
+            "/api/twin/:satellite/simulated-failures",
+            get(handlers::list_simulated_failures),
+        )
+        .nest("/api/twin", authenticated_routes)
+        .merge(metrics_route)
+        .layer(cors)
         .layer(tower_http::timeout::TimeoutLayer::new(Duration::from_secs(
             30,
         )))
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 
-        cli.port
-    ));
+    // ---- Start Server ----
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!(
-        "The Digital Twin Engine is listening on http://localhost:{}",
-        cli.port
+        port = config.port,
+        health_port = config.health_port,
+        "Digital Twin Engine listening on http://{}",
+        addr
     );
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(async move { cancel_token.cancelled().await })
         .await?;
 
-    info!("The Digital Twin Engine is shutting down gracefully.");
+    info!("Digital Twin Engine shutting down gracefully.");
     orbitlogs_models::telemetry::shutdown_telemetry();
-    Ok(())
-}
-
-async fn run_telemetry_consumer(
-    state: Arc<AppState>,
-    brokers: String,
-    topic: String,
-    group_id: String,
-    cancel_token: CancellationToken,
-) -> Result<(), anyhow::Error> {
-    let mut config = KafkaConfigBuilder::from_env(brokers).build();
-    config
-        .set("group.id", &group_id)
-        .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "6000")
-        .set("enable.auto.commit", "false")
-        .set("auto.offset.reset", "latest");
-
-    let consumer: StreamConsumer = config.create()?;
-    consumer.subscribe(&[&topic])?;
-
-    info!("The Digital twin background consumer subscribed to {}", topic);
-
-    loop {
-        tokio::select! {
-            _ = cancel_token.cancelled() => {
-                info!("The Digital twin background consumer stopping...");
-                break;
-            }
-            msg_res = consumer.recv() => {
-                match msg_res {
-                    Ok(msg) => {
-                        if let Some(Ok(payload)) = msg.payload_view::<str>() {
-                            if let Ok(mut rec) = serde_json::from_str::<TelemetryRecord>(payload) {
-                                // Apply active simulated failures
-                                if let Some(failures) = state.simulated_failures.get(rec.satellite_id.as_str()) {
-                                    for sub in failures.value() {
-                                        match sub.as_str() {
-                                            "power" => {
-                                                rec.battery_voltage = Some(rec.battery_voltage.unwrap_or(12.0) * 0.75);
-                                                rec.solar_panel_output = Some(0.0);
-                                            }
-                                            "thermal" => {
-                                                rec.temperature = Some(rec.temperature.unwrap_or(25.0) + 65.0);
-                                            }
-                                            "adcs" => {
-                                                rec.orientation_pitch = Some(rec.orientation_pitch.unwrap_or(0.0) + 15.0);
-                                            }
-                                            "communications" => {
-                                                rec.packet_loss = Some(95.0);
-                                                rec.communication_latency = Some(5000.0);
-                                            }
-                                            "propulsion" => {
-                                                rec.fuel_remaining = Some(rec.fuel_remaining.unwrap_or(10.0) * 0.1);
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-                                }
-
-                                // Store twin state
-                                state.twins.insert(rec.satellite_id.to_string(), rec);
-                            }
-                        }
-                        let _ = consumer.commit_message(&msg, CommitMode::Async);
-                    }
-                    Err(e) => {
-                        error!("Error consuming telemetry for the digital twin: {}", e);
-                        tokio::time::sleep(Duration::from_millis(500)).await;
-                    }
-                }
-            }
-        }
-    }
     Ok(())
 }
