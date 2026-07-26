@@ -42,6 +42,7 @@ mod handlers;
 mod health;
 mod kafka_guard;
 mod orbit;
+mod orbit_service;
 mod planner;
 mod postmortem;
 mod processor;
