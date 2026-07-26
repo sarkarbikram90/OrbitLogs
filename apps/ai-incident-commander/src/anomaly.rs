@@ -24,7 +24,7 @@ impl AnomalyDetector {
         // Since we are running in multiple environments, let's gracefully load the ONNX model
         // and fall back to a mathematical/heuristic reconstruction loss model if the file does not exist.
         info!(
-            "Initializing ML Anomaly Detector with model path: {}",
+            "Initializing ML Anomaly Detector: {}",
             model_path
         );
 
