@@ -27,7 +27,7 @@ use clap::Parser;
 /// missing and cannot be resolved from Docker secrets either.
 #[derive(Parser, Debug, Clone)]
 #[command(
-    name = "Digital Twin Engine",
+    name = "The Digital Twin Engine",
     about = "Virtual representation of spacecraft status, health, and simulation",
     long_about = None
 )]
