@@ -24,7 +24,6 @@ chrono = { workspace = true }
 clap = { workspace = true }
 orbitlogs-models = { workspace = true }
 tower-http = { version = "0.5", features = ["cors", "timeout"] }
-jsonwebtoken = { workspace = true }
 subtle = { workspace = true }
 dashmap = { workspace = true }
 thiserror = { workspace = true }

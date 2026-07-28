@@ -24,7 +24,7 @@ sha2 = { workspace = true }
 rand = { workspace = true }
 prometheus = { workspace = true }
 thiserror = { workspace = true }
-jsonwebtoken = { workspace = true }
+hmac = { workspace = true }
 dashmap = { workspace = true }
 axum = { workspace = true }
 

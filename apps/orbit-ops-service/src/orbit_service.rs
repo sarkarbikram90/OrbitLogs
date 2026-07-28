@@ -21,7 +21,7 @@ use sqlx::{PgPool, Row};
 use std::f64::consts::PI;
 use std::time::Duration;
 
-use super::{generate_default_tle, predict_passes, PassPrediction, GM_KM3_S2};
+use crate::orbit::{generate_default_tle, predict_passes, PassPrediction, GM_KM3_S2};
 
 pub async fn get_latest_tle_or_default(db_pool: &PgPool, sat_id: &str) -> (String, String) {
     let row = sqlx::query(

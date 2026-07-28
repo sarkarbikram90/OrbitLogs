@@ -30,6 +30,7 @@ const TABS = [
   ['AI_DIRECTOR', 'DIRECTOR'],
   ['TIMELINE', 'TIMELINE'],
   ['AI', 'COPILOT'],
+  ['BILLING', 'SAAS BILLING'],
 ] as const;
 
 export function Header() {

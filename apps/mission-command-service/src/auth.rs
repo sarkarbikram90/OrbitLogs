@@ -109,21 +109,14 @@ pub fn check_role(
             crate::error::AppError::Auth("Missing Authorization Bearer token".to_string())
         })?;
 
-    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
-    validation.validate_exp = true;
+    let claims: Claims = orbitlogs_models::auth::decode_hs256_token(token, &state.jwt_secret)
+        .map_err(|e| crate::error::AppError::Auth(format!("Invalid token: {}", e)))?;
 
-    let token_data = jsonwebtoken::decode::<Claims>(
-        token,
-        &jsonwebtoken::DecodingKey::from_secret(state.jwt_secret.as_bytes()),
-        &validation,
-    )
-    .map_err(|e| crate::error::AppError::Auth(format!("Invalid token: {}", e)))?;
-
-    let role = Role::from_str(&token_data.claims.role)
+    let role = Role::from_str(&claims.role)
         .ok_or_else(|| crate::error::AppError::Auth("Invalid role in token claims".to_string()))?;
 
     if role >= required {
-        Ok(token_data.claims.role)
+        Ok(claims.role)
     } else {
         Err(crate::error::AppError::Forbidden(format!(
             "Insufficient permissions: required {:?}, got {:?}",
@@ -350,12 +343,7 @@ mod tests {
             role: role_str.to_string(),
             exp,
         };
-        jsonwebtoken::encode(
-            &jsonwebtoken::Header::default(),
-            &claims,
-            &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .unwrap()
+        orbitlogs_models::auth::create_hs256_token(&claims, secret).unwrap()
     }
 
     #[tokio::test]

@@ -141,26 +141,113 @@ impl TenantContext {
     }
 }
 
+use hmac::{Hmac, Mac};
+
+type HmacSha256 = Hmac<Sha256>;
+
+fn base64_url_encode(data: &[u8]) -> String {
+    const CHARSET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    let mut i = 0;
+    while i < data.len() {
+        let b0 = data[i] as u32;
+        let b1 = if i + 1 < data.len() { data[i + 1] as u32 } else { 0 };
+        let b2 = if i + 2 < data.len() { data[i + 2] as u32 } else { 0 };
+        let triplet = (b0 << 16) | (b1 << 8) | b2;
+
+        out.push(CHARSET[((triplet >> 18) & 0x3F) as usize] as char);
+        out.push(CHARSET[((triplet >> 12) & 0x3F) as usize] as char);
+        if i + 1 < data.len() {
+            out.push(CHARSET[((triplet >> 6) & 0x3F) as usize] as char);
+        }
+        if i + 2 < data.len() {
+            out.push(CHARSET[(triplet & 0x3F) as usize] as char);
+        }
+        i += 3;
+    }
+    out
+}
+
+fn base64_url_decode(input: &str) -> Result<Vec<u8>, String> {
+    let mut vals = Vec::with_capacity(input.len());
+    for c in input.chars() {
+        let v = match c {
+            'A'..='Z' => c as u32 - 'A' as u32,
+            'a'..='z' => c as u32 - 'a' as u32 + 26,
+            '0'..='9' => c as u32 - '0' as u32 + 52,
+            '-' | '+' => 62,
+            '_' | '/' => 63,
+            '=' | '\r' | '\n' => continue,
+            _ => return Err(format!("Invalid base64 char: {}", c)),
+        };
+        vals.push(v);
+    }
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < vals.len() {
+        let v0 = vals[i];
+        let v1 = if i + 1 < vals.len() { vals[i + 1] } else { 0 };
+        let v2 = if i + 2 < vals.len() { vals[i + 2] } else { 0 };
+        let v3 = if i + 3 < vals.len() { vals[i + 3] } else { 0 };
+        let triple = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3;
+
+        out.push(((triple >> 16) & 0xFF) as u8);
+        if i + 1 < vals.len() && i + 2 < vals.len() {
+            out.push(((triple >> 8) & 0xFF) as u8);
+        }
+        if i + 2 < vals.len() && i + 3 < vals.len() {
+            out.push((triple & 0xFF) as u8);
+        }
+        i += 4;
+    }
+    Ok(out)
+}
+
+pub fn create_hs256_token<T: Serialize>(claims: &T, secret: &str) -> Result<String, String> {
+    let header = serde_json::json!({"alg": "HS256", "typ": "JWT"});
+    let header_json = serde_json::to_vec(&header).map_err(|e| e.to_string())?;
+    let claims_json = serde_json::to_vec(claims).map_err(|e| e.to_string())?;
+
+    let header_b64 = base64_url_encode(&header_json);
+    let claims_b64 = base64_url_encode(&claims_json);
+
+    let message = format!("{}.{}", header_b64, claims_b64);
+
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|e| e.to_string())?;
+    mac.update(message.as_bytes());
+    let sig = mac.finalize().into_bytes();
+    let sig_b64 = base64_url_encode(&sig);
+
+    Ok(format!("{}.{}", message, sig_b64))
+}
+
+pub fn decode_hs256_token<T: serde::de::DeserializeOwned>(token: &str, secret: &str) -> Result<T, String> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return Err("Invalid token format".to_string());
+    }
+    let message = format!("{}.{}", parts[0], parts[1]);
+    let sig_bytes = base64_url_decode(parts[2])?;
+
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|e| e.to_string())?;
+    mac.update(message.as_bytes());
+    mac.verify_slice(&sig_bytes).map_err(|_| "Invalid token signature".to_string())?;
+
+    let claims_bytes = base64_url_decode(parts[1])?;
+    let claims: T = serde_json::from_slice(&claims_bytes).map_err(|e| format!("Invalid claims JSON: {}", e))?;
+    Ok(claims)
+}
+
 /// Validates a JWT token string and extracts the TenantContext.
-///
-/// # Arguments
-/// * `token` - The raw JWT token string (without "Bearer " prefix)
-/// * `secret` - The JWT signing secret
-///
-/// # Returns
-/// `Ok(TenantContext)` on success, `Err(String)` on validation failure.
 pub fn validate_jwt(token: &str, secret: &str) -> Result<TenantContext, String> {
-    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
-    validation.validate_exp = true;
+    let claims: Claims = decode_hs256_token(token, secret)?;
 
-    let token_data = jsonwebtoken::decode::<Claims>(
-        token,
-        &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
-        &validation,
-    )
-    .map_err(|e| format!("Invalid token: {}", e))?;
-
-    let claims = token_data.claims;
+    let now = Utc::now().timestamp() as usize;
+    if claims.exp > 0 && now > claims.exp {
+        return Err("Token has expired".to_string());
+    }
 
     let tenant_id = Uuid::parse_str(&claims.tenant_id)
         .map_err(|e| format!("Invalid tenant_id in token: {}", e))?;
@@ -200,12 +287,7 @@ pub fn create_jwt(
         iat: now.timestamp() as usize,
     };
 
-    jsonwebtoken::encode(
-        &jsonwebtoken::Header::default(),
-        &claims,
-        &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
-    )
-    .map_err(|e| format!("Token generation failed: {}", e))
+    create_hs256_token(&claims, secret)
 }
 
 // =========================================================================

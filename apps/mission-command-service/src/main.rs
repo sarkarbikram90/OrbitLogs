@@ -300,24 +300,11 @@ mod tests {
             exp: (chrono::Utc::now() + chrono::Duration::hours(1)).timestamp() as usize,
         };
 
-        let token = jsonwebtoken::encode(
-            &jsonwebtoken::Header::default(),
-            &claims,
-            &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .unwrap();
+        let token = orbitlogs_models::auth::create_hs256_token(&claims, secret).unwrap();
 
-        let mut validation = jsonwebtoken::Validation::default();
-        validation.validate_exp = true;
+        let decoded_claims: Claims = orbitlogs_models::auth::decode_hs256_token(&token, secret).unwrap();
 
-        let token_data = jsonwebtoken::decode::<Claims>(
-            &token,
-            &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
-            &validation,
-        )
-        .unwrap();
-
-        assert_eq!(token_data.claims.sub, "test-user");
-        assert_eq!(token_data.claims.role, "OPERATOR");
+        assert_eq!(decoded_claims.sub, "test-user");
+        assert_eq!(decoded_claims.role, "OPERATOR");
     }
 }

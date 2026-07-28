@@ -35,6 +35,7 @@ import { TrainingSimulator } from './components/TrainingSimulator';
 import { AiMissionDirector } from './components/AiMissionDirector';
 import { MissionTimelineView } from './components/MissionTimelineView';
 import { AiCopilot } from './components/AiCopilot';
+import { EnterpriseSaasBilling } from './components/EnterpriseSaasBilling';
 import type { SatelliteHealth, GroundStation, EventLog, ReplaySession } from './types';
 
 export default function App() {
@@ -165,6 +166,7 @@ export default function App() {
         {activeTab === 'AI_DIRECTOR' && <AiMissionDirector selectedSatId={selectedSatId} />}
         {activeTab === 'TIMELINE' && <MissionTimelineView selectedSatId={selectedSatId} />}
         {activeTab === 'AI' && <AiCopilot selectedSatId={selectedSatId} apiKey={apiKey} />}
+        {activeTab === 'BILLING' && <EnterpriseSaasBilling />}
       </main>
     </div>
   );
