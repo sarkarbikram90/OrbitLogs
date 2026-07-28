@@ -50,6 +50,53 @@ impl ManeuverPlan {
             fuel_consumed_kg: fuel_mass,
         }
     }
+
+    /// Synthesizes an optimal 3D Collision Avoidance Maneuver (CAM) thrust burn vector
+    /// in ECI frame to achieve a target safety miss distance at Time of Closest Approach (TCA).
+    pub fn calculate_cam_burn_vector(
+        sat_id: &str,
+        sat_mass: f32,
+        isp_seconds: f32,
+        pos_eci: [f64; 3],
+        vel_eci: [f64; 3],
+        target_miss_distance_m: f64,
+        time_to_ca_secs: f64,
+        burn_epoch: DateTime<Utc>,
+    ) -> Self {
+        // Construct RIC (Radial, In-track, Cross-track) frame unit vectors
+        let r_mag = (pos_eci[0].powi(2) + pos_eci[1].powi(2) + pos_eci[2].powi(2)).sqrt();
+        let r_hat = [pos_eci[0] / r_mag, pos_eci[1] / r_mag, pos_eci[2] / r_mag];
+
+        // Cross-track: h = r x v
+        let h_x = pos_eci[1] * vel_eci[2] - pos_eci[2] * vel_eci[1];
+        let h_y = pos_eci[2] * vel_eci[0] - pos_eci[0] * vel_eci[2];
+        let h_z = pos_eci[0] * vel_eci[1] - pos_eci[1] * vel_eci[0];
+        let h_mag = (h_x.powi(2) + h_y.powi(2) + h_z.powi(2)).sqrt();
+        let c_hat = [h_x / h_mag, h_y / h_mag, h_z / h_mag];
+
+        // In-track: t = c x r
+        let t_hat = [
+            c_hat[1] * r_hat[2] - c_hat[2] * r_hat[1],
+            c_hat[2] * r_hat[0] - c_hat[0] * r_hat[2],
+            c_hat[0] * r_hat[1] - c_hat[1] * r_hat[0],
+        ];
+
+        // Transverse burn magnitude required for secular along-track drift: d = 1.5 * delta_v * t_ca
+        let dv_in_track = if time_to_ca_secs > 0.0 {
+            target_miss_distance_m / (1.5 * time_to_ca_secs)
+        } else {
+            0.1 // Default minimal nudge
+        };
+
+        // Convert RIC delta-v to ECI frame vector
+        let dv_eci = [
+            dv_in_track * t_hat[0],
+            dv_in_track * t_hat[1],
+            dv_in_track * t_hat[2],
+        ];
+
+        Self::calculate_maneuver(sat_id, sat_mass, isp_seconds, dv_eci, burn_epoch)
+    }
 }
 
 #[cfg(test)]
@@ -74,4 +121,31 @@ mod tests {
         // Fuel mass: 250 * (1 - 0.996606) = 250 * 0.003394 = ~0.848 kg
         assert!((plan.fuel_consumed_kg - 0.848).abs() < 1e-2);
     }
+
+    #[test]
+    fn test_calculate_cam_burn_vector() {
+        let sat_id = "SAT-STARLINK-101";
+        let sat_mass = 260.0;
+        let isp = 230.0; // Krypton Hall-effect thruster
+        let pos_eci = [6878.0, 0.0, 0.0]; // 500 km LEO orbit altitude
+        let vel_eci = [0.0, 7.61, 0.0]; // Circular orbit velocity in km/s
+        let target_miss_m = 500.0; // 500m safety clearance
+        let time_to_ca = 3600.0; // 1 hour to TCA
+        let epoch = Utc::now();
+
+        let cam_plan = ManeuverPlan::calculate_cam_burn_vector(
+            sat_id, sat_mass, isp, pos_eci, vel_eci, target_miss_m, time_to_ca, epoch,
+        );
+
+        assert_eq!(cam_plan.sat_id, sat_id);
+        let dv_mag = (cam_plan.delta_v_vector[0].powi(2)
+            + cam_plan.delta_v_vector[1].powi(2)
+            + cam_plan.delta_v_vector[2].powi(2))
+        .sqrt();
+
+        // Required delta-v = 500 / (1.5 * 3600) = 0.09259 m/s
+        assert!((dv_mag - 0.09259).abs() < 1e-3);
+        assert!(cam_plan.fuel_consumed_kg > 0.0);
+    }
 }
+

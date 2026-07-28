@@ -169,7 +169,7 @@ impl TelemetryPacket {
 }
 
 /// Fixed-size packet primary header for zero-copy access.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
 pub struct PacketHeader {
     pub word1: u16,
@@ -178,49 +178,47 @@ pub struct PacketHeader {
 }
 
 impl PacketHeader {
+    /// Deserializes a `PacketHeader` from an unaligned or aligned byte slice without panicking or requiring alignment.
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, PacketError> {
+        let header_size = std::mem::size_of::<PacketHeader>();
+        if bytes.len() < header_size {
+            return Err(PacketError::InvalidLength(format!(
+                "Buffer too short for PacketHeader: need {} bytes, got {}",
+                header_size,
+                bytes.len()
+            )));
+        }
+
+        let word1 = u16::from_be_bytes([bytes[0], bytes[1]]);
+        let word2 = u16::from_be_bytes([bytes[2], bytes[3]]);
+        let packet_length = u16::from_be_bytes([bytes[4], bytes[5]]);
+
+        Ok(Self {
+            word1,
+            word2,
+            packet_length,
+        })
+    }
+
     pub fn apid(&self) -> u16 {
-        u16::from_be(self.word1) & 0x07FF
+        self.word1 & 0x07FF
     }
 
     pub fn version(&self) -> u8 {
-        ((u16::from_be(self.word1) >> 13) & 0x07) as u8
+        ((self.word1 >> 13) & 0x07) as u8
     }
 
     pub fn sequence_count(&self) -> u16 {
-        u16::from_be(self.word2) & 0x3FFF
+        self.word2 & 0x3FFF
     }
 
     pub fn data_length(&self) -> u16 {
-        u16::from_be(self.packet_length)
+        self.packet_length
     }
 }
 
-unsafe fn read_header_unchecked(bytes: &[u8]) -> &PacketHeader {
-    &*(bytes.as_ptr() as *const PacketHeader)
-}
-
-pub fn parse_header(bytes: &[u8]) -> Result<&PacketHeader, PacketError> {
-    let header_size = std::mem::size_of::<PacketHeader>();
-
-    if bytes.len() < header_size {
-        return Err(PacketError::InvalidLength(format!(
-            "Buffer too short for PacketHeader: need {} bytes, got {}",
-            header_size,
-            bytes.len()
-        )));
-    }
-
-    if bytes
-        .as_ptr()
-        .align_offset(std::mem::align_of::<PacketHeader>())
-        != 0
-    {
-        return Err(PacketError::Alignment(
-            "Buffer is not properly aligned for PacketHeader (requires 2-byte alignment)".into(),
-        ));
-    }
-
-    Ok(unsafe { read_header_unchecked(bytes) })
+pub fn parse_header(bytes: &[u8]) -> Result<PacketHeader, PacketError> {
+    PacketHeader::from_slice(bytes)
 }
 
 #[cfg(test)]
@@ -237,6 +235,17 @@ mod header_tests {
     }
 
     #[test]
+    fn parse_header_unaligned_slice() {
+        // Create an unaligned buffer by offsetting a vector by 1 byte
+        let padded: Vec<u8> = vec![0xFF, 0x08, 0x01, 0xC0, 0x05, 0x00, 0x0F];
+        let unaligned_slice = &padded[1..];
+        let header = parse_header(unaligned_slice).unwrap();
+        assert_eq!(header.apid(), 1);
+        assert_eq!(header.sequence_count(), 5);
+        assert_eq!(header.data_length(), 15);
+    }
+
+    #[test]
     fn parse_header_too_short() {
         let bytes = [0x08, 0x01];
         assert!(parse_header(&bytes).is_err());
@@ -247,3 +256,4 @@ mod header_tests {
         assert!(parse_header(&[]).is_err());
     }
 }
+

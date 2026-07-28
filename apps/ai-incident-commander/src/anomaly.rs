@@ -63,32 +63,36 @@ impl AnomalyDetector {
 
             Ok(loss > 0.05) // Threshold tuned to capture anomalous variance
         } else {
-            // Heuristic Fallback Model: Reconstruction loss approximated by multi-sensor deviations
-            // If any sensor value drifts beyond normal operational bounds (z-score), classify as anomaly.
-            // Features index representation:
-            // 0: battery_voltage, 1: battery_current, 2: temperature, 3: orientation_pitch,
-            // 4: orientation_roll, 5: orientation_yaw, 6: cpu_usage, 7: memory_usage,
-            // 8: packet_loss, 9: signal_strength
-            let mut loss = 0.0;
+            // Multi-variate Statistical Model: Mahalanobis Distance & Z-Score Normalized Sensor Deviations
+            // Features vector indices:
+            // 0: battery_voltage (mean 13.8V, std 0.5V)
+            // 1: battery_current (mean 1.5A, std 0.3A)
+            // 2: temperature (mean 35.0C, std 5.0C)
+            // 3: pitch (mean 0.0, std 2.0)
+            // 4: roll (mean 0.0, std 2.0)
+            // 5: yaw (mean 0.0, std 2.0)
+            // 6: cpu_usage (mean 30.0%, std 10.0%)
+            // 7: memory_usage (mean 45.0%, std 10.0%)
+            // 8: packet_loss (mean 0.1%, std 0.5%)
+            // 9: signal_strength (mean -70.0 dBm, std 5.0 dBm)
+            let nominal_means: [f32; 10] = [13.8, 1.5, 35.0, 0.0, 0.0, 0.0, 30.0, 45.0, 0.1, -70.0];
+            let nominal_stds: [f32; 10] = [0.5, 0.3, 5.0, 2.0, 2.0, 2.0, 10.0, 10.0, 0.5, 5.0];
 
-            // Temp anomaly (> 65C)
-            if features[2] > 65.0 {
-                loss += 0.03;
-            }
-            // Battery low (< 11.5V)
-            if features[0] < 11.5 {
-                loss += 0.04;
-            }
-            // CPU usage high (> 90%)
-            if features[6] > 90.0 {
-                loss += 0.02;
-            }
-            // High packet loss (> 15%)
-            if features[8] > 15.0 {
-                loss += 0.03;
+            let mut squared_z_sum = 0.0;
+            let mut max_z = 0.0f32;
+
+            for i in 0..10 {
+                let z = ((features[i] - nominal_means[i]) / nominal_stds[i]).abs();
+                squared_z_sum += z.powi(2);
+                if z > max_z {
+                    max_z = z;
+                }
             }
 
-            Ok(loss > 0.05)
+            let mahalanobis_distance = (squared_z_sum / 10.0).sqrt();
+
+            // Flag as anomaly if overall normalized distance > 1.8 OR any single sensor exceeds 3.5 sigma
+            Ok(mahalanobis_distance > 1.8 || max_z > 3.5)
         }
     }
 }

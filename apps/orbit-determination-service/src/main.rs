@@ -69,33 +69,86 @@ impl ExtendedKalmanFilter {
     }
 }
 
-fn numerical_orbital_dynamics(state: &Vector6<f64>, dt: f64) -> Vector6<f64> {
-    let mut next_state = *state;
-    // Simple Euler integration for demonstration:
-    // x = x + vx * dt
-    // v = v + a * dt
-    next_state[0] += state[3] * dt;
-    next_state[1] += state[4] * dt;
-    next_state[2] += state[5] * dt;
+fn state_derivative(state: &Vector6<f64>) -> Vector6<f64> {
+    let mut deriv = Vector6::<f64>::zeros();
+    // d/dt position = velocity
+    deriv[0] = state[3];
+    deriv[1] = state[4];
+    deriv[2] = state[5];
 
-    // Gravity acceleration: a = -mu * r / |r|^3
     let r_mag = (state[0].powi(2) + state[1].powi(2) + state[2].powi(2)).sqrt();
-    let mu = 398600.4418; // Earth gravitational parameter
+    let mu = 398600.4418; // Earth gravitational parameter km^3 / s^2
+    let j2 = 1.08263e-3; // J2 zonal harmonic
+    let r_e = 6378.137; // Earth equatorial radius km
+
     if r_mag > 1.0 {
-        let acc_factor = -mu / r_mag.powi(3);
-        next_state[3] += state[0] * acc_factor * dt;
-        next_state[4] += state[1] * acc_factor * dt;
-        next_state[5] += state[2] * acc_factor * dt;
+        // Two-body central gravity acceleration
+        let acc_two_body = -mu / r_mag.powi(3);
+        let mut ax = state[0] * acc_two_body;
+        let mut ay = state[1] * acc_two_body;
+        let mut az = state[2] * acc_two_body;
+
+        // J2 oblateness perturbation
+        let z2_over_r2 = (state[2] / r_mag).powi(2);
+        let j2_factor = 1.5 * j2 * mu * (r_e / r_mag).powi(2) / r_mag.powi(3);
+
+        ax -= j2_factor * state[0] * (1.0 - 5.0 * z2_over_r2);
+        ay -= j2_factor * state[1] * (1.0 - 5.0 * z2_over_r2);
+        az -= j2_factor * state[2] * (3.0 - 5.0 * z2_over_r2);
+
+        deriv[3] = ax;
+        deriv[4] = ay;
+        deriv[5] = az;
     }
-    next_state
+
+    deriv
 }
 
-fn calculate_transition_matrix(_state: &Vector6<f64>, _dt: f64) -> Matrix6<f64> {
-    Matrix6::<f64>::identity()
+/// Propagates orbital state using 4th-Order Runge-Kutta (RK4) numerical integration.
+fn numerical_orbital_dynamics(state: &Vector6<f64>, dt: f64) -> Vector6<f64> {
+    let k1 = state_derivative(state);
+    let k2 = state_derivative(&(state + k1 * (dt / 2.0)));
+    let k3 = state_derivative(&(state + k2 * (dt / 2.0)));
+    let k4 = state_derivative(&(state + k3 * dt));
+
+    state + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * (dt / 6.0)
+}
+
+/// Calculates continuous-time state Jacobian matrix A = df/dx and discrete State Transition Matrix F = I + A*dt + 0.5*(A*dt)^2.
+fn calculate_transition_matrix(state: &Vector6<f64>, dt: f64) -> Matrix6<f64> {
+    let mut a = Matrix6::<f64>::zeros();
+
+    // Top-right 3x3 block: d(pos_dot)/d(vel) = Identity
+    a[(0, 3)] = 1.0;
+    a[(1, 4)] = 1.0;
+    a[(2, 5)] = 1.0;
+
+    // Bottom-left 3x3 block: Gravity Gradient Tensor G = d(acc)/d(pos)
+    let r_mag = (state[0].powi(2) + state[1].powi(2) + state[2].powi(2)).sqrt();
+    let mu = 398600.4418;
+
+    if r_mag > 1.0 {
+        let r3 = r_mag.powi(3);
+        let r5 = r_mag.powi(5);
+        let mu_over_r3 = mu / r3;
+        let three_mu_over_r5 = 3.0 * mu / r5;
+
+        for i in 0..3 {
+            for j in 0..3 {
+                let kronecker = if i == j { 1.0 } else { 0.0 };
+                a[(3 + i, j)] = three_mu_over_r5 * state[i] * state[j] - mu_over_r3 * kronecker;
+            }
+        }
+    }
+
+    // Discrete state transition matrix approximation: F = I + A*dt + 0.5*(A*dt)^2
+    let identity = Matrix6::<f64>::identity();
+    let a_dt = a * dt;
+    identity + &a_dt + (&a_dt * &a_dt) * 0.5
 }
 
 fn observation_model(state: &Vector6<f64>) -> Vector3<f64> {
-    // We observe position x, y, z directly from GPS
+    // Direct GPS observation vector [x, y, z]
     Vector3::new(state[0], state[1], state[2])
 }
 
