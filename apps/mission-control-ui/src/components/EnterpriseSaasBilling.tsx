@@ -16,70 +16,104 @@ import { useState } from 'react';
 
 interface TierConfig {
   name: string;
-  monthlyBasePrice: number;
-  includedFrames: number; // Millions
-  extraFrameRate: number; // $ per 1M frames
+  monthlyBasePriceInr: number;
+  includedFramesM: number; // Millions
+  extraFrameRateInr: number; // ₹ per 1K frames
   includedStorageGb: number;
   slaTarget: string;
 }
 
 const SAAS_TIERS: Record<string, TierConfig> = {
   STARTER: {
-    name: 'Starter Constellation',
-    monthlyBasePrice: 4999,
-    includedFrames: 50,
-    extraFrameRate: 0.15,
+    name: 'ISRO Startup / SmallSat Tier',
+    monthlyBasePriceInr: 4999,
+    includedFramesM: 50,
+    extraFrameRateInr: 0.50,
     includedStorageGb: 500,
     slaTarget: '99.9%',
   },
   ENTERPRISE: {
     name: 'Enterprise Fleet (Kuiper Class)',
-    monthlyBasePrice: 24999,
-    includedFrames: 500,
-    extraFrameRate: 0.08,
+    monthlyBasePriceInr: 24999,
+    includedFramesM: 500,
+    extraFrameRateInr: 0.35,
     includedStorageGb: 5000,
     slaTarget: '99.99%',
   },
   MEGACONSTELLATION: {
     name: 'Starlink Megaconstellation',
-    monthlyBasePrice: 99999,
-    includedFrames: 5000,
-    extraFrameRate: 0.03,
+    monthlyBasePriceInr: 99999,
+    includedFramesM: 5000,
+    extraFrameRateInr: 0.20,
     includedStorageGb: 100000,
     slaTarget: '99.999%',
   },
 };
 
 export function EnterpriseSaasBilling() {
-  const [selectedTier, setSelectedTier] = useState<'STARTER' | 'ENTERPRISE' | 'MEGACONSTELLATION'>('ENTERPRISE');
-  const [satCount, setSatCount] = useState<number>(250);
-  const [monthlyFramesM, setMonthlyFramesM] = useState<number>(650); // Millions of frames
-  const [storageGb, setStorageGb] = useState<number>(3200);
+  const [selectedTier, setSelectedTier] = useState<'STARTER' | 'ENTERPRISE' | 'MEGACONSTELLATION'>('STARTER');
+  const [satCount, setSatCount] = useState<number>(25);
+  const [monthlyFramesM, setMonthlyFramesM] = useState<number>(120); // Millions of frames
+  const [storageGb, setStorageGb] = useState<number>(850);
+  const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
 
   const tier = SAAS_TIERS[selectedTier];
-  const overageFrames = Math.max(0, monthlyFramesM - tier.includedFrames);
-  const overageCost = overageFrames * tier.extraFrameRate;
+  const overageFramesM = Math.max(0, monthlyFramesM - tier.includedFramesM);
+  const overageCostInr = overageFramesM * 1000 * tier.extraFrameRateInr;
   const storageOverageGb = Math.max(0, storageGb - tier.includedStorageGb);
-  const storageOverageCost = storageOverageGb * 0.05; // $0.05 per GB overage
-  const totalEstimatedCost = tier.monthlyBasePrice + overageCost + storageOverageCost;
-  const costPerSat = satCount > 0 ? (totalEstimatedCost / satCount).toFixed(2) : '0.00';
+  const storageOverageCostInr = storageOverageGb * 15.0; // ₹15/GB overage
+  const subtotalInr = tier.monthlyBasePriceInr + overageCostInr + storageOverageCostInr;
+  const gstTaxInr = subtotalInr * 0.18; // 18% GST SAC 998314
+  const totalInr = subtotalInr + gstTaxInr;
+
+  const inrToUsdRate = 0.012;
+  const formatAmount = (valInr: number) => {
+    if (currency === 'USD') {
+      return `$${(valInr * inrToUsdRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    return `₹${valInr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   return (
-    <div style={{ padding: '24px', color: '#f8fafc', fontFamily: 'var(--font-sans)', height: '100%', overflowY: 'auto' }}>
+    <div style={{ padding: '24px', color: '#f8fafc', fontFamily: 'var(--font-sans)', height: '100%', overflowY: 'auto' }} className="glass-panel tech-corner-panel">
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 700, margin: 0, color: '#38bdf8' }}>
-            💳 SaaS Subscription & Metered Billing Operations
+          <h1 style={{ fontSize: '20px', fontFamily: 'var(--font-display)', fontWeight: 900, margin: 0, color: 'var(--cyber-cyan)', letterSpacing: '1px' }}>
+            💳 SAAS SUBSCRIPTION & METERED BILLING
           </h1>
-          <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0 0' }}>
-            Enterprise multi-tenant telemetry ingestion consumption, tier quota enforcement, and SLA audit metrics.
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0', fontFamily: 'var(--font-mono)' }}>
+            ISRO / IN-SPACe Compliant Multi-Tenant Telemetry Ingestion Consumption & 18% GST Invoicing (SAC 998314).
           </p>
         </div>
-        <div style={{ backgroundColor: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '8px 16px', borderRadius: '6px' }}>
-          <span style={{ fontSize: '11px', color: '#94a3b8' }}>Est. Monthly Recurring Revenue (MRR): </span>
-          <strong style={{ fontSize: '16px', color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
-            ${totalEstimatedCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </strong>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ backgroundColor: 'rgba(3, 7, 16, 0.8)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px' }}>
+            {(['INR', 'USD'] as const).map((curr) => (
+              <button
+                key={curr}
+                onClick={() => setCurrency(curr)}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 700,
+                  backgroundColor: currency === curr ? 'var(--cyber-cyan)' : 'transparent',
+                  color: currency === curr ? '#020409' : 'var(--text-muted)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                {curr === 'INR' ? '🇮🇳 INR (₹)' : '🇺🇸 USD ($)'}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ backgroundColor: 'rgba(0, 240, 255, 0.1)', border: '1px solid var(--cyber-cyan)', padding: '8px 16px', borderRadius: '6px' }}>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>EST. MONTHLY RECURRING REVENUE (MRR): </span>
+            <strong style={{ fontSize: '18px', color: 'var(--cyber-cyan)', fontFamily: 'var(--font-mono)' }}>
+              {formatAmount(totalInr)}
+            </strong>
+          </div>
         </div>
       </div>
 
@@ -91,146 +125,98 @@ export function EnterpriseSaasBilling() {
           return (
             <div
               key={key}
-              onClick={() => setSelectedTier(key)}
+              onClick={() => setSelectedTier(key as any)}
               style={{
-                backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.12)' : '#0f172a',
-                border: isSelected ? '2px solid #38bdf8' : '1px solid #1e293b',
+                backgroundColor: isSelected ? 'rgba(0, 240, 255, 0.12)' : 'rgba(6, 12, 24, 0.7)',
+                border: isSelected ? '2px solid var(--cyber-cyan)' : '1px solid var(--border-color)',
                 borderRadius: '8px',
-                padding: '16px',
+                padding: '20px',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
+                boxShadow: isSelected ? '0 0 20px rgba(0, 240, 255, 0.2)' : 'none',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ fontWeight: 700, fontSize: '14px', color: isSelected ? '#38bdf8' : '#e2e8f0' }}>{t.name}</span>
-                {isSelected && <span style={{ fontSize: '10px', backgroundColor: '#38bdf8', color: '#090d16', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>ACTIVE TIER</span>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 800, color: isSelected ? 'var(--cyber-cyan)' : '#fff' }}>
+                  {t.name}
+                </span>
+                <span style={{ fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'var(--status-green)', backgroundColor: 'rgba(0, 255, 157, 0.1)', padding: '2px 6px', borderRadius: '3px' }}>
+                  SLA: {t.slaTarget}
+                </span>
               </div>
-              <div style={{ fontSize: '20px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc', marginBottom: '8px' }}>
-                ${t.monthlyBasePrice.toLocaleString()}<span style={{ fontSize: '12px', color: '#64748b' }}>/mo</span>
+              <div style={{ fontSize: '24px', fontWeight: 900, fontFamily: 'var(--font-mono)', color: '#fff', marginBottom: '16px' }}>
+                {formatAmount(t.monthlyBasePriceInr)}
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>/mo</span>
               </div>
-              <ul style={{ fontSize: '11px', color: '#94a3b8', paddingLeft: '16px', margin: 0, lineHeight: 1.6 }}>
-                <li>Included Telemetry: <strong>{t.includedFrames}M frames/mo</strong></li>
-                <li>Overage Rate: <strong>${t.extraFrameRate}/1M frames</strong></li>
-                <li>Hypertable Storage: <strong>{t.includedStorageGb.toLocaleString()} GB</strong></li>
-                <li>Guaranteed SLA: <strong style={{ color: '#4ade80' }}>{t.slaTarget} Uptime</strong></li>
+              <ul style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', paddingLeft: '16px', margin: 0, lineHeight: 1.8 }}>
+                <li>Included Telemetry: {t.includedFramesM}M frames/mo</li>
+                <li>Overage Rate: ₹{t.extraFrameRateInr}/1K frames</li>
+                <li>TimescaleDB Storage: {t.includedStorageGb} GB</li>
+                <li>24/7 Ground Control Support</li>
               </ul>
             </div>
           );
         })}
       </div>
 
-      {/* Consumption Calculators & Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '24px' }}>
-        {/* Interactive Metering Configurator */}
-        <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '20px' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f0', marginTop: 0, marginBottom: '16px' }}>
-            ⚙️ Interactive Consumption & Unit Economics Simulator
-          </h3>
-
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-              <span>Active Satellite Fleet Count:</span>
-              <strong style={{ fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>{satCount} Satellites</strong>
-            </div>
-            <input
-              type="range"
-              min="10"
-              max="5000"
-              step="10"
-              value={satCount}
-              onChange={(e) => setSatCount(Number(e.target.value))}
-              style={{ width: '100%', accentColor: '#38bdf8' }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-              <span>Monthly Ingested Frame Volume (CCSDS Packets):</span>
-              <strong style={{ fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>{monthlyFramesM} Million Frames</strong>
-            </div>
-            <input
-              type="range"
-              min="10"
-              max="10000"
-              step="50"
-              value={monthlyFramesM}
-              onChange={(e) => setMonthlyFramesM(Number(e.target.value))}
-              style={{ width: '100%', accentColor: '#38bdf8' }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-              <span>Compressed TimescaleDB Storage Footprint:</span>
-              <strong style={{ fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>{storageGb.toLocaleString()} GB</strong>
-            </div>
-            <input
-              type="range"
-              min="100"
-              max="200000"
-              step="500"
-              value={storageGb}
-              onChange={(e) => setStorageGb(Number(e.target.value))}
-              style={{ width: '100%', accentColor: '#38bdf8' }}
-            />
-          </div>
+      {/* Metered Calculator Controls */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', backgroundColor: 'rgba(6, 12, 24, 0.8)', border: '1px solid var(--border-color)', padding: '20px', borderRadius: '8px', marginBottom: '24px' }}>
+        <div>
+          <label style={{ fontSize: '10px', fontFamily: 'var(--font-display)', color: 'var(--text-secondary)', fontWeight: 700 }}>ACTIVE SATELLITE COUNT ({satCount})</label>
+          <input
+            type="range"
+            min={1}
+            max={500}
+            value={satCount}
+            onChange={(e) => setSatCount(Number(e.target.value))}
+            style={{ width: '100%', marginTop: '10px', accentColor: 'var(--cyber-cyan)' }}
+          />
         </div>
-
-        {/* Cost Breakdown Summary Card */}
-        <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '20px' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f0', marginTop: 0, marginBottom: '16px' }}>
-            📊 Invoice Breakdown & Unit ROI
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #334155', pb: '6px' }}>
-              <span style={{ color: '#94a3b8' }}>Base Subscription Fee:</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>${tier.monthlyBasePrice.toLocaleString()}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #334155', pb: '6px' }}>
-              <span style={{ color: '#94a3b8' }}>Telemetry Frame Overage ({overageFrames}M):</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>${overageCost.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #334155', pb: '6px' }}>
-              <span style={{ color: '#94a3b8' }}>Storage Overage ({storageOverageGb} GB):</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>${storageOverageCost.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', pt: '8px', fontSize: '14px', fontWeight: 700 }}>
-              <span style={{ color: '#f8fafc' }}>Total Estimated Invoice:</span>
-              <span style={{ color: '#4ade80', fontFamily: 'var(--font-mono)' }}>${totalEstimatedCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div style={{ marginTop: '12px', padding: '10px', backgroundColor: 'rgba(74, 222, 128, 0.08)', border: '1px solid rgba(74, 222, 128, 0.3)', borderRadius: '6px' }}>
-              <span style={{ fontSize: '11px', color: '#94a3b8' }}>Cost per Satellite / Month: </span>
-              <strong style={{ fontSize: '14px', color: '#4ade80', fontFamily: 'var(--font-mono)' }}>${costPerSat} / sat</strong>
-            </div>
-          </div>
+        <div>
+          <label style={{ fontSize: '10px', fontFamily: 'var(--font-display)', color: 'var(--text-secondary)', fontWeight: 700 }}>MONTHLY TELEMETRY FRAMES ({monthlyFramesM} Million)</label>
+          <input
+            type="range"
+            min={10}
+            max={2000}
+            value={monthlyFramesM}
+            onChange={(e) => setMonthlyFramesM(Number(e.target.value))}
+            style={{ width: '100%', marginTop: '10px', accentColor: 'var(--cyber-cyan)' }}
+          />
+        </div>
+        <div>
+          <label style={{ fontSize: '10px', fontFamily: 'var(--font-display)', color: 'var(--text-secondary)', fontWeight: 700 }}>TIMESCALEDB STORAGE ({storageGb} GB)</label>
+          <input
+            type="range"
+            min={100}
+            max={10000}
+            value={storageGb}
+            onChange={(e) => setStorageGb(Number(e.target.value))}
+            style={{ width: '100%', marginTop: '10px', accentColor: 'var(--cyber-cyan)' }}
+          />
         </div>
       </div>
 
-      {/* Real-Time Telemetry & SLA Audit Metrics */}
-      <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '20px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f0', marginTop: 0, marginBottom: '16px' }}>
-          🛡️ Enterprise Telemetry SLA Compliance & Real-Time Performance Audit
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-          <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '6px' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Ingestion Availability SLA</span>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#4ade80', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>99.998%</div>
-            <span style={{ fontSize: '10px', color: '#64748b' }}>Target: {tier.slaTarget}</span>
+      {/* Tax & Invoicing Summary Card */}
+      <div style={{ backgroundColor: 'rgba(3, 7, 16, 0.9)', border: '1px solid var(--border-color)', padding: '20px', borderRadius: '8px' }}>
+        <div style={{ fontSize: '12px', fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--cyber-cyan)', marginBottom: '12px' }}>
+          📄 GST INVOICE BREAKDOWN (SAC CODE: 998314 - SAAS TELEMETRY OBSERVABILITY)
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Base Subscription Fee:</span>
+            <div style={{ color: '#fff', fontWeight: 'bold', marginTop: '4px' }}>{formatAmount(tier.monthlyBasePriceInr)}</div>
           </div>
-          <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '6px' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Mean Packet Ingestion Latency</span>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>4.2 ms</div>
-            <span style={{ fontSize: '10px', color: '#64748b' }}>99th percentile: 11.5 ms</span>
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Volume Overage Charges:</span>
+            <div style={{ color: '#fff', fontWeight: 'bold', marginTop: '4px' }}>{formatAmount(overageCostInr + storageOverageCostInr)}</div>
           </div>
-          <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '6px' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Zero Packet Drop Rate</span>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#4ade80', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>0.0000%</div>
-            <span style={{ fontSize: '10px', color: '#64748b' }}>Unaligned Byte Safety Active</span>
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>GST (18% SAC 998314):</span>
+            <div style={{ color: 'var(--status-yellow)', fontWeight: 'bold', marginTop: '4px' }}>{formatAmount(gstTaxInr)}</div>
           </div>
-          <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '6px' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>TimescaleDB Compression Ratio</span>
-            <div style={{ fontSize: '18px', fontWeight 700, color: '#a855f7', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>12.4x</div>
-            <span style={{ fontSize: '10px', color: '#64748b' }}>Chunk Duration: 1 Day</span>
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Total Amount Payable:</span>
+            <div style={{ color: 'var(--status-green)', fontWeight: 'bold', marginTop: '4px', fontSize: '14px' }}>{formatAmount(totalInr)}</div>
           </div>
         </div>
       </div>

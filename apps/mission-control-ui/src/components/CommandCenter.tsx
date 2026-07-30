@@ -314,19 +314,23 @@ const containerStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   height: '100%',
-  backgroundColor: '#020617',
-  border: '1px solid #1e293b',
-  borderRadius: '8px',
+  backgroundColor: 'rgba(6, 12, 24, 0.85)',
+  backdropFilter: 'blur(20px)',
+  border: '1px solid var(--cyber-cyan)',
+  borderRadius: '10px',
+  boxShadow: '0 0 30px rgba(0, 240, 255, 0.15)',
   overflow: 'hidden',
 };
 
 const headerStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  backgroundColor: '#0b0f19',
-  borderBottom: '1px solid #1e293b',
-  fontSize: '14px',
-  fontWeight: 'bold',
-  letterSpacing: '1px',
+  padding: '12px 18px',
+  backgroundColor: 'rgba(0, 240, 255, 0.08)',
+  borderBottom: '1px solid var(--border-color)',
+  fontSize: '13px',
+  fontFamily: 'var(--font-display)',
+  fontWeight: 900,
+  letterSpacing: '1.5px',
+  color: 'var(--cyber-cyan)',
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
@@ -339,18 +343,23 @@ const roleContainerStyle: React.CSSProperties = {
 };
 
 const roleLabelStyle: React.CSSProperties = {
-  fontSize: '11px',
-  color: '#94a3b8',
+  fontSize: '10px',
+  fontFamily: 'var(--font-display)',
+  color: 'var(--text-secondary)',
+  fontWeight: 700,
 };
 
 const selectStyle: React.CSSProperties = {
-  backgroundColor: '#0f172a',
-  color: '#f8fafc',
-  border: '1px solid #3b82f6',
+  backgroundColor: 'rgba(3, 7, 16, 0.9)',
+  color: 'var(--cyber-cyan)',
+  border: '1px solid var(--cyber-cyan)',
   borderRadius: '4px',
-  padding: '4px 8px',
+  padding: '4px 10px',
   fontSize: '11px',
+  fontFamily: 'var(--font-display)',
+  fontWeight: 700,
   outline: 'none',
+  cursor: 'pointer',
 };
 
 const contentGridStyle: React.CSSProperties = {
@@ -362,21 +371,22 @@ const contentGridStyle: React.CSSProperties = {
 };
 
 const cardStyle: React.CSSProperties = {
-  backgroundColor: '#0b0f19',
-  border: '1px solid #1e293b',
-  borderRadius: '6px',
+  backgroundColor: 'rgba(10, 18, 34, 0.7)',
+  border: '1px solid var(--border-color)',
+  borderRadius: '8px',
   padding: '16px',
   display: 'flex',
   flexDirection: 'column',
 };
 
 const cardTitleStyle: React.CSSProperties = {
-  fontSize: '12px',
-  fontWeight: 'bold',
+  fontSize: '11px',
+  fontFamily: 'var(--font-display)',
+  fontWeight: 800,
   letterSpacing: '1px',
-  color: '#94a3b8',
+  color: 'var(--cyber-cyan)',
   marginBottom: '16px',
-  borderBottom: '1px solid #1e293b',
+  borderBottom: '1px solid var(--border-color)',
   paddingBottom: '8px',
 };
 

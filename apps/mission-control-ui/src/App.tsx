@@ -22,6 +22,8 @@ import { useSSE } from './hooks/useSSE';
 import { API_CONFIG } from './config';
 
 import { Header } from './components/layout/Header';
+import { SpaceBackdrop } from './components/SpaceBackdrop';
+import { TelemetryHud } from './components/TelemetryHud';
 import { DashboardPage } from './pages/DashboardPage';
 import { FleetManagementPage } from './pages/FleetManagementPage';
 import { CommandCenter } from './components/CommandCenter';
@@ -147,8 +149,10 @@ export default function App() {
 
   return (
     <div className="app-container">
+      <SpaceBackdrop />
       <Header />
-      <main className="main-content" style={{ display: 'block', height: '100%' }}>
+      <main className="main-content" style={{ display: 'block', height: '100%', position: 'relative' }}>
+        <TelemetryHud />
         {activeTab === 'DASHBOARD' && (
           <DashboardPage onToggleMode={handleToggleMode} onCreateSession={handleCreateSession} onControl={handleControl} />
         )}
