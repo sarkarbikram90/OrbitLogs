@@ -12,10 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use subtle::ConstantTimeEq;
-use uuid::Uuid;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
+
+/// Hashes a plaintext password using Argon2id with a secure random salt.
+pub fn hash_password(password: &str) -> Result<String, String> {
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .map_err(|e| format!("Password hashing failed: {}", e))
+}
+
+/// Verifies a password candidate against an Argon2id (or fallback SHA-256 legacy) hash.
+pub fn verify_password(password: &str, hash: &str) -> bool {
+    if hash.starts_with("$argon2id$") || hash.starts_with("$argon2i$") || hash.starts_with("$argon2d$") {
+        if let Ok(parsed_hash) = PasswordHash::new(hash) {
+            return Argon2::default()
+                .verify_password(password.as_bytes(), &parsed_hash)
+                .is_ok();
+        }
+        false
+    } else {
+        // Fallback for legacy SHA-256 hashes during migration
+        let legacy_hash = format!("{:x}", Sha256::digest(password.as_bytes()));
+        secure_compare(&legacy_hash, hash)
+    }
+}
 
 // =========================================================================
 // Constant-Time Comparison
@@ -31,6 +57,7 @@ pub fn secure_compare(provided: &str, expected: &str) -> bool {
 
     bool::from(provided_hash.ct_eq(&expected_hash))
 }
+
 
 // =========================================================================
 // RBAC Roles

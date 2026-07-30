@@ -43,11 +43,15 @@ struct Cli {
         default_value = "http://localhost:4317"
     )]
     otel_endpoint: String,
+
+    #[arg(long, env = "JWT_SECRET")]
+    jwt_secret: Option<String>,
 }
 
 pub struct AppState {
     pub db_pool: PgPool,
     pub http_client: Client,
+    pub jwt_secret: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -63,11 +67,37 @@ pub struct CreateRuleRequest {
     pub secret_token: Option<String>,
 }
 
+fn extract_tenant_context(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+) -> Result<orbitlogs_models::auth::TenantContext, (StatusCode, String)> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization Bearer token".to_string()))?;
+
+    orbitlogs_models::auth::validate_jwt(token, &state.jwt_secret)
+        .map_err(|e| (StatusCode::UNAUTHORIZED, e))
+}
+
+async fn health_check_handler() -> impl axum::response::IntoResponse {
+    (StatusCode::OK, Json(serde_json::json!({ "status": "UP", "service": "alert-notification-service" })))
+}
+
 async fn create_rule_handler(
     State(state): State<Arc<AppState>>,
     Path(tenant_id): Path<Uuid>,
+    headers: axum::http::HeaderMap,
     Json(req): Json<CreateRuleRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, String)> {
+    let ctx = extract_tenant_context(&state, &headers)?;
+    if ctx.tenant_id != tenant_id && ctx.role < orbitlogs_models::auth::Role::SuperAdmin {
+        return Err((StatusCode::FORBIDDEN, "Access denied: tenant ID mismatch".to_string()));
+    }
+    ctx.require_role(orbitlogs_models::auth::Role::Operator)
+        .map_err(|e| (StatusCode::FORBIDDEN, e))?;
+
     let id = Uuid::new_v4();
     let severity = req.severity.as_deref().unwrap_or("WARNING");
     let channel = req.action_channel.as_deref().unwrap_or("WEBHOOK");
@@ -98,7 +128,13 @@ async fn create_rule_handler(
 async fn list_rules_handler(
     State(state): State<Arc<AppState>>,
     Path(tenant_id): Path<Uuid>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Vec<webhooks::AlertRule>>, (StatusCode, String)> {
+    let ctx = extract_tenant_context(&state, &headers)?;
+    if ctx.tenant_id != tenant_id && ctx.role < orbitlogs_models::auth::Role::SuperAdmin {
+        return Err((StatusCode::FORBIDDEN, "Access denied: tenant ID mismatch".to_string()));
+    }
+
     let rows = sqlx::query(
         "SELECT id, tenant_id, rule_name, satellite_id, metric_name, condition, threshold, severity, action_channel, webhook_url, secret_token, is_active \
          FROM tenant_alert_rules WHERE tenant_id = $1 ORDER BY created_at DESC",
@@ -138,6 +174,13 @@ async fn main() -> Result<(), anyhow::Error> {
     orbitlogs_models::telemetry::init_telemetry("alert-notification-service", &cli.otel_endpoint)?;
     info!("Starting Alert Notification & Webhook Service...");
 
+    let jwt_secret = cli
+        .jwt_secret
+        .clone()
+        .or_else(|| orbitlogs_models::load_secret("JWT_SECRET"))
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "default-dev-jwt-secret".to_string());
+
     let db_url = if !cli.database_url.trim().is_empty() {
         cli.database_url.clone()
     } else if let Some(val) =
@@ -150,10 +193,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 3).await?;
     let http_client = Client::new();
-    let state = Arc::new(AppState { db_pool, http_client });
+    let state = Arc::new(AppState { db_pool, http_client, jwt_secret });
 
     let app = Router::new()
         .route("/api/alerts/tenants/:tenant_id/rules", get(list_rules_handler).post(create_rule_handler))
+        .route("/health", get(health_check_handler))
+        .route("/readiness", get(health_check_handler))
+        .route("/liveness", get(health_check_handler))
+        .layer(axum::extract::DefaultBodyLimit::max(1_048_576))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));

@@ -67,3 +67,17 @@
 | `orbitlogs-packets` | Unaligned slice test cases | **PASSED** |
 | `ai-incident-commander` | Multi-variate statistical test suite | **PASSED** |
 | `autonomous-mission-planning` | Degraded battery constraint test | **PASSED** |
+
+---
+
+## 🔒 Phase 2: Production SaaS Security & India Market Deployment Remediation
+
+### Critical Fixes Implemented:
+1. **Cryptographic Password Hashing (Argon2id)**: Replaced insecure un-salted SHA-256 password hashing in `apps/mission-command-service/src/auth.rs` with OWASP-recommended **Argon2id** (`orbitlogs_models::auth::hash_password` and `verify_password`).
+2. **API Endpoint Authorization**: Enforced mandatory JWT TenantContext validation and tenant ID isolation across `telemetry-metering-service` and `alert-notification-service` to eliminate IDOR vulnerability.
+3. **Health & Liveness Probes**: Added missing `/health`, `/readiness`, and `/liveness` endpoints to `telemetry-metering-service` and `alert-notification-service` for Kubernetes pod lifecycle management.
+4. **Google Secret Manager Integration**: Built `deployments/kubernetes/gcp-external-secrets.yaml` ExternalSecret manifest configured for GCP `asia-south1` (Mumbai) region via External Secrets Operator (ESO).
+5. **India GST Compliance**: Created database migration `20260730000000_india_gst_billing.sql` and updated `generate_monthly_invoice` in `apps/telemetry-metering-service/src/metering.rs` to compute 18% GST (9% CGST + 9% SGST for intra-state Maharashtra, 18% IGST for inter-state) with sequential SAC 998314 invoice numbers (`OL-INV-YYYYMM-XXXXXXXX`).
+6. **Rate Limiter Hardening**: Implemented stale entry eviction in `telemetry-collector` rate limiter to prevent unbounded memory growth.
+7. **Load Testing with Auth**: Updated `benchmarks/load_test.js` k6 scenario to pass `Authorization: Bearer <API_KEY>` headers.
+

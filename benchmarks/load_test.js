@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import http from 'k6/http';
-import { check, sleep } from 'k6';
+import { check } from 'k6';
 import { uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
 // Get target rate from environment or default to 1000 events/sec
 const TARGET_RATE = __ENV.TARGET_RATE ? parseInt(__ENV.TARGET_RATE) : 1000;
 const DURATION = __ENV.DURATION ? __ENV.DURATION : '30s';
+const API_KEY = __ENV.API_KEY || 'default-dev-key-12345';
 
 export const options = {
   scenarios: {
@@ -63,6 +64,7 @@ export default function () {
   const params = {
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
     },
   };
 

@@ -42,16 +42,25 @@ struct Cli {
         default_value = "http://localhost:4317"
     )]
     otel_endpoint: String,
+    #[arg(long, env = "JWT_SECRET")]
+    jwt_secret: Option<String>,
 }
 
 pub struct AppState {
     pub db_pool: PgPool,
+    pub jwt_secret: String,
 }
 
 async fn get_usage_handler(
     State(state): State<Arc<AppState>>,
     Path(tenant_id): Path<Uuid>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Vec<metering::TenantUsageSummary>>, (StatusCode, String)> {
+    let ctx = extract_tenant_context(&state, &headers)?;
+    if ctx.tenant_id != tenant_id && ctx.role < orbitlogs_models::auth::Role::SuperAdmin {
+        return Err((StatusCode::FORBIDDEN, "Access denied: tenant ID mismatch".to_string()));
+    }
+
     metering::get_tenant_usage(&state.db_pool, tenant_id)
         .await
         .map(Json)
@@ -61,13 +70,37 @@ async fn get_usage_handler(
 async fn record_usage_handler(
     State(state): State<Arc<AppState>>,
     Path(tenant_id): Path<Uuid>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let ctx = extract_tenant_context(&state, &headers)?;
+    if ctx.tenant_id != tenant_id && ctx.role < orbitlogs_models::auth::Role::SuperAdmin {
+        return Err((StatusCode::FORBIDDEN, "Access denied: tenant ID mismatch".to_string()));
+    }
+
     let count = payload["count"].as_i64().unwrap_or(1);
     metering::record_telemetry_event(&state.db_pool, tenant_id, count)
         .await
         .map(|_| StatusCode::ACCEPTED)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+}
+
+fn extract_tenant_context(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+) -> Result<orbitlogs_models::auth::TenantContext, (StatusCode, String)> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization Bearer token".to_string()))?;
+
+    orbitlogs_models::auth::validate_jwt(token, &state.jwt_secret)
+        .map_err(|e| (StatusCode::UNAUTHORIZED, e))
+}
+
+async fn health_check_handler() -> impl axum::response::IntoResponse {
+    (StatusCode::OK, Json(serde_json::json!({ "status": "UP", "service": "telemetry-metering-service" })))
 }
 
 #[tokio::main]
@@ -77,6 +110,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     orbitlogs_models::telemetry::init_telemetry("telemetry-metering-service", &cli.otel_endpoint)?;
     info!("Starting Telemetry Metering & Billing Service...");
+
+    let jwt_secret = cli
+        .jwt_secret
+        .clone()
+        .or_else(|| orbitlogs_models::load_secret("JWT_SECRET"))
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "default-dev-jwt-secret".to_string());
 
     let db_url = if !cli.database_url.trim().is_empty() {
         cli.database_url.clone()
@@ -89,11 +129,15 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 3).await?;
-    let state = Arc::new(AppState { db_pool });
+    let state = Arc::new(AppState { db_pool, jwt_secret });
 
     let app = Router::new()
         .route("/api/metering/tenants/:tenant_id/usage", get(get_usage_handler))
         .route("/api/metering/tenants/:tenant_id/record", post(record_usage_handler))
+        .route("/health", get(health_check_handler))
+        .route("/readiness", get(health_check_handler))
+        .route("/liveness", get(health_check_handler))
+        .layer(axum::extract::DefaultBodyLimit::max(1_048_576))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
@@ -103,3 +147,4 @@ async fn main() -> Result<(), anyhow::Error> {
     axum::serve(listener, app).await?;
     Ok(())
 }
+

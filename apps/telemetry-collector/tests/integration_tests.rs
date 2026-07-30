@@ -61,6 +61,8 @@ fn create_test_app() -> Router {
         api_key: "secret-orbitlogs-key-2026".to_string(),
         cors_allowed_origin: "http://localhost:3000".to_string(),
         rate_limiter: std::sync::Arc::new(dashmap::DashMap::new()),
+        dedup_cache: std::sync::Arc::new(dashmap::DashMap::new()),
+        cache_capacity: 10000,
     });
 
     Router::new()

@@ -98,6 +98,25 @@ pub async fn rate_limit_middleware(
         });
 
     let now = Instant::now();
+    
+    // Evict stale rate limiter entries if map gets too large
+    if state.rate_limiter.len() > state.cache_capacity {
+        let mut stale_keys = Vec::new();
+        for item in state.rate_limiter.iter() {
+            if let Ok(b) = item.value().try_lock() {
+                if now.duration_since(b.last_refill) > std::time::Duration::from_secs(600) {
+                    stale_keys.push(item.key().clone());
+                }
+            }
+            if stale_keys.len() > 100 {
+                break;
+            }
+        }
+        for k in stale_keys {
+            state.rate_limiter.remove(&k);
+        }
+    }
+
     let limit_exceeded = {
         let entry = state.rate_limiter.entry(client_id).or_insert_with(|| {
             std::sync::Mutex::new(crate::server::handlers::TokenBucket {

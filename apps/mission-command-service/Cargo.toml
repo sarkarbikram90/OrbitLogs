@@ -28,4 +28,5 @@ subtle = { workspace = true }
 dashmap = { workspace = true }
 thiserror = { workspace = true }
 sha2 = { workspace = true }
+argon2 = { workspace = true }
 

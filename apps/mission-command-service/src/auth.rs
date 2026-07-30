@@ -157,8 +157,8 @@ pub async fn register_handler(
     })?;
 
     let user_id = uuid::Uuid::new_v4();
-    use sha2::{Digest, Sha256};
-    let pass_hash = format!("{:x}", Sha256::digest(req.password.as_bytes()));
+    let pass_hash = orbitlogs_models::auth::hash_password(&req.password)
+        .map_err(|e| crate::error::AppError::Internal(e))?;
 
     sqlx::query(
         "INSERT INTO users (id, tenant_id, email, display_name, password_hash, role, status) VALUES ($1, $2, $3, $4, $5, 'Administrator', 'ACTIVE')"
@@ -266,22 +266,24 @@ pub async fn login_handler(
 
     // Email/password login flow
     if !req.email.is_empty() && !req.password.is_empty() {
-        use sha2::{Digest, Sha256};
-        let pass_hash = format!("{:x}", Sha256::digest(req.password.as_bytes()));
-
         let row = sqlx::query(
-            "SELECT u.tenant_id, u.role, t.tenant_slug \
+            "SELECT u.tenant_id, u.role, u.password_hash, t.tenant_slug \
              FROM users u JOIN tenants t ON u.tenant_id = t.id \
-             WHERE u.email = $1 AND u.password_hash = $2 AND u.status = 'ACTIVE'"
+             WHERE u.email = $1 AND u.status = 'ACTIVE'"
         )
         .bind(&req.email)
-        .bind(pass_hash)
         .fetch_optional(&state.db_pool)
         .await
         .map_err(|e| crate::error::AppError::Internal(format!("Database query error: {}", e)))?;
 
         if let Some(row) = row {
             use sqlx::Row;
+            let stored_hash: String = row.get("password_hash");
+
+            if !orbitlogs_models::auth::verify_password(&req.password, &stored_hash) {
+                return Err(crate::error::AppError::Auth("Invalid email or password".to_string()));
+            }
+
             let tenant_id: uuid::Uuid = row.get("tenant_id");
             let role_str: String = row.get("role");
             let tenant_slug: String = row.get("tenant_slug");

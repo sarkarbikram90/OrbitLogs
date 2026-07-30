@@ -41,6 +41,7 @@ reqwest = { version = "0.11", features = ["json"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid", "migrate"] }
 sha2 = "0.10"
+argon2 = "0.5"
 hmac = "0.12"
 hex = "0.4"
 rdkafka = { version = "0.36", features = ["cmake-build"] }
