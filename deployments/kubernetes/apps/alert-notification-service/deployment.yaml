@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbitlogs-alert-notification
+  namespace: orbitlogs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orbitlogs-alert-notification
+  template:
+    metadata:
+      labels:
+        app: orbitlogs-alert-notification
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: orbitlogs-alert-notification
+        image: orbitlogs/alert-notification-service:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        - containerPort: 8097
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8097
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8097
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        env:
+        - name: RUST_LOG
+          value: "info,alert_notification_service=debug"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: orbitlogs-secrets
+              key: database_url
+        - name: KAFKA_BROKERS
+          value: "orbitlogs-kafka-headless:9092"
+        - name: PORT
+          value: "8097"
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: orbitlogs-secrets
+              key: api_key
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orbitlogs-alert-notification
+  namespace: orbitlogs
+spec:
+  ports:
+  - port: 8097
+    targetPort: 8097
+  selector:
+    app: orbitlogs-alert-notification

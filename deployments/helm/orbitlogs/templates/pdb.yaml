@@ -1,0 +1,17 @@
+{{- range $name, $service := .Values.services }}
+{{- if and $service.enabled (gt (int ($service.replicas | default 1)) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orbitlogs-{{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: orbitlogs-{{ $name }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: orbitlogs-{{ $name }}
+---
+{{- end }}
+{{- end }}

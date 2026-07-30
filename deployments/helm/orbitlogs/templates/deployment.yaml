@@ -7,8 +7,12 @@ metadata:
   namespace: {{ $.Values.global.namespace }}
   labels:
     app: orbitlogs-{{ $name }}
+    app.kubernetes.io/component: {{ $name }}
+    {{- include "orbitlogs.labels" $ | nindent 4 }}
 spec:
+  {{- if not (and $service.autoscaling $service.autoscaling.enabled) }}
   replicas: {{ $service.replicas | default 1 }}
+  {{- end }}
   selector:
     matchLabels:
       app: orbitlogs-{{ $name }}
@@ -16,15 +20,30 @@ spec:
     metadata:
       labels:
         app: orbitlogs-{{ $name }}
+        app.kubernetes.io/component: {{ $name }}
     spec:
+      {{- if $.Values.serviceAccount.create }}
+      serviceAccountName: {{ $.Values.serviceAccount.name | default "orbitlogs" }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: orbitlogs-{{ $name }}
       containers:
       - name: orbitlogs-{{ $name }}
-        image: {{ $service.image }}
+        {{- if $.Values.global.imageRegistry }}
+        image: {{ $.Values.global.imageRegistry }}/{{ $service.image }}:{{ $.Values.global.imageTag | default "latest" }}
+        {{- else }}
+        image: {{ $service.image }}:{{ $.Values.global.imageTag | default "latest" }}
+        {{- end }}
         imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
         securityContext:
           allowPrivilegeEscalation: false
@@ -43,6 +62,8 @@ spec:
             port: {{ $service.port }}
           initialDelaySeconds: 15
           periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
         {{- end }}
         {{- if and $service.port $service.readinessPath }}
         readinessProbe:
@@ -51,8 +72,12 @@ spec:
             port: {{ $service.port }}
           initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
         {{- end }}
         env:
+        - name: RUST_LOG
+          value: {{ $.Values.global.rustLog | default "info" | quote }}
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -65,6 +90,8 @@ spec:
               key: api_key
         - name: KAFKA_BROKERS
           value: {{ $.Values.global.kafkaBrokers | quote }}
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: {{ $.Values.global.otelEndpoint | quote }}
         {{- if $service.port }}
         - name: PORT
           value: {{ $service.port | quote }}
@@ -84,10 +111,14 @@ kind: Service
 metadata:
   name: orbitlogs-{{ $name }}
   namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: orbitlogs-{{ $name }}
+    {{- include "orbitlogs.labels" $ | nindent 4 }}
 spec:
   ports:
   - port: {{ $service.port }}
     targetPort: {{ $service.port }}
+    protocol: TCP
   selector:
     app: orbitlogs-{{ $name }}
 ---

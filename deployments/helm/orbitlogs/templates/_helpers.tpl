@@ -14,7 +14,7 @@ If release name contains chart name it will be used as a full name.
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- let $name := default .Chart.Name .Values.nameOverride }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
 {{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -48,4 +48,15 @@ Selector labels
 {{- define "orbitlogs.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "orbitlogs.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Build full image reference from registry + image name + tag
+*/}}
+{{- define "orbitlogs.image" -}}
+{{- if $.Values.global.imageRegistry -}}
+{{- printf "%s/%s:%s" $.Values.global.imageRegistry .image ($.Values.global.imageTag | default "latest") -}}
+{{- else -}}
+{{- printf "%s:%s" .image ($.Values.global.imageTag | default "latest") -}}
+{{- end -}}
 {{- end }}

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orbitlogs-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "orbitlogs.labels" . | nindent 4 }}
+data:
+  KAFKA_BROKERS: {{ .Values.global.kafkaBrokers | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.global.otelEndpoint | quote }}
+  RUST_LOG: {{ .Values.global.rustLog | default "info" | quote }}

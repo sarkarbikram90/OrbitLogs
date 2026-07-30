@@ -1,0 +1,176 @@
+name: Docker Build, Push & Deploy
+
+# Triggers on main branch pushes and version tags
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'Deploy target (gke or eks)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write  # Required for GKE/EKS workload identity federation
+
+env:
+  # Set your container registry here:
+  #   GKE: gcr.io/<PROJECT_ID>  or  <REGION>-docker.pkg.dev/<PROJECT_ID>/<REPO>
+  #   EKS: <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  # -------------------------------------------------------------------
+  # Build and push Docker images for all services
+  # -------------------------------------------------------------------
+  build-and-push:
+    name: Build & Push — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - telemetry-collector
+          - telemetry-simulator
+          - mission-health-engine
+          - ground-station-simulator
+          - mission-replay-engine
+          - mission-command-service
+          - digital-twin-engine
+          - mission-timeline
+          - ai-incident-commander
+          - constellation-simulator
+          - orbit-ops-service
+          - space-otel-collector
+          - contact-window-predictor
+          - constellation-scheduler
+          - orbit-determination-service
+          - autonomous-mission-planning
+          - telemetry-metering-service
+          - alert-notification-service
+          - mission-control-ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata (tags & labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/orbitlogs-${{ matrix.service }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/orbitlogs-${{ matrix.service }}:sha-${{ github.sha }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  # -------------------------------------------------------------------
+  # Deploy to GKE (triggered manually or on tag push)
+  # -------------------------------------------------------------------
+  deploy-gke:
+    name: Deploy to GKE
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'gke') ||
+      (startsWith(github.ref, 'refs/tags/v'))
+    environment: production-gke
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GKE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GKE_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure kubectl for GKE
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER_NAME }}
+          location: ${{ secrets.GKE_CLUSTER_LOCATION }}
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install orbitlogs deployments/helm/orbitlogs \
+            --namespace orbitlogs \
+            --create-namespace \
+            --set global.imageRegistry=${{ env.REGISTRY }} \
+            --set global.imageTag=sha-${{ github.sha }} \
+            --wait \
+            --timeout 10m
+
+  # -------------------------------------------------------------------
+  # Deploy to EKS (triggered manually or on tag push)
+  # -------------------------------------------------------------------
+  deploy-eks:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'eks')
+    environment: production-eks
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.EKS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Configure kubectl for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ secrets.EKS_CLUSTER_NAME }} \
+            --region ${{ secrets.AWS_REGION }}
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install orbitlogs deployments/helm/orbitlogs \
+            --namespace orbitlogs \
+            --create-namespace \
+            --set global.imageRegistry=${{ env.REGISTRY }} \
+            --set global.imageTag=sha-${{ github.sha }} \
+            --wait \
+            --timeout 10m

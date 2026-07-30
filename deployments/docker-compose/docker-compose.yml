@@ -652,6 +652,70 @@ services:
           cpus: '0.10'
           memory: 128M
     restart: unless-stopped
+  telemetry-metering-service:
+    build:
+      context: ../../
+      dockerfile: apps/telemetry-metering-service/Dockerfile
+    container_name: orbitlogs-metering
+    ports:
+    - 8096:8096
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
+    environment:
+    - RUST_LOG=info,telemetry_metering_service=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - PORT=8096
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    restart: unless-stopped
+  alert-notification-service:
+    build:
+      context: ../../
+      dockerfile: apps/alert-notification-service/Dockerfile
+    container_name: orbitlogs-alert-notifier
+    ports:
+    - 8097:8097
+    volumes:
+    - ./secrets/certs:/etc/kafka/secrets
+    environment:
+    - RUST_LOG=info,alert_notification_service=debug
+    - DATABASE_URL_FILE=/run/secrets/database_url
+    - KAFKA_BROKERS=kafka-1:29092,kafka-2:29094,kafka-3:29096
+    - PORT=8097
+    - API_KEY_FILE=/run/secrets/api_key
+    - KAFKA_SECURITY_PROTOCOL=ssl
+    - KAFKA_SSL_CA_LOCATION=/etc/kafka/secrets/ca-cert
+    - KAFKA_SSL_CERTIFICATE_LOCATION=/etc/kafka/secrets/client-cert.pem
+    - KAFKA_SSL_KEY_LOCATION=/etc/kafka/secrets/client-key.pem
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    secrets:
+    - database_url
+    - api_key
+    restart: unless-stopped
   kafka-1:
     image: confluentinc/cp-kafka:7.4.0
     container_name: orbitlogs-kafka-1

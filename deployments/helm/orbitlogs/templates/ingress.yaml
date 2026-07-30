@@ -1,0 +1,72 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orbitlogs-ingress
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "orbitlogs.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+  - {{- if .Values.ingress.host }}
+    host: {{ .Values.ingress.host }}
+    {{- end }}
+    http:
+      paths:
+      {{- if (index .Values.services "mission-control-ui").enabled }}
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: orbitlogs-mission-control-ui
+            port:
+              number: 3000
+      {{- end }}
+      {{- if (index .Values.services "telemetry-collector").enabled }}
+      - path: /telemetry
+        pathType: Prefix
+        backend:
+          service:
+            name: orbitlogs-telemetry-collector
+            port:
+              number: 8080
+      {{- end }}
+      {{- if (index .Values.services "mission-replay-engine").enabled }}
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: orbitlogs-mission-replay-engine
+            port:
+              number: 8084
+      {{- end }}
+      {{- if (index .Values.services "mission-command-service").enabled }}
+      - path: /commands
+        pathType: Prefix
+        backend:
+          service:
+            name: orbitlogs-mission-command-service
+            port:
+              number: 8085
+      {{- end }}
+      {{- if (index .Values.services "orbit-ops-service").enabled }}
+      - path: /ops
+        pathType: Prefix
+        backend:
+          service:
+            name: orbitlogs-orbit-ops-service
+            port:
+              number: 8095
+      {{- end }}
+{{- end }}

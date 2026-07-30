@@ -1,0 +1,52 @@
+# Build artifacts
+/target/
+**/target/
+
+# Version control
+.git/
+.github/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Node.js (mission-control-ui)
+**/node_modules/
+**/dist/
+**/.next/
+
+# Test artifacts
+coverage/
+benchmarks/reports/
+
+# macOS
+.DS_Store
+Thumbs.db
+
+# Cargo caches
+advisory-db/
+.cargo/include/
+
+# Docker compose secrets (local dev only)
+deployments/docker-compose/secrets/
+
+# Deployment configs (not needed in container builds)
+deployments/kubernetes/
+deployments/helm/
+deployments/grafana/
+deployments/prometheus/
+deployments/alertmanager/
+deployments/otel/
+deployments/postgres/

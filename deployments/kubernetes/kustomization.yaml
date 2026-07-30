@@ -26,3 +26,5 @@ resources:
   - apps/constellation-scheduler/deployment.yaml
   - apps/orbit-determination-service/deployment.yaml
   - apps/autonomous-mission-planning/deployment.yaml
+  - apps/telemetry-metering-service/deployment.yaml
+  - apps/alert-notification-service/deployment.yaml

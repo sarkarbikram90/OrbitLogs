@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbitlogs-telemetry-metering
+  namespace: orbitlogs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orbitlogs-telemetry-metering
+  template:
+    metadata:
+      labels:
+        app: orbitlogs-telemetry-metering
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: orbitlogs-telemetry-metering
+        image: orbitlogs/telemetry-metering-service:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        - containerPort: 8096
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8096
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8096
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        env:
+        - name: RUST_LOG
+          value: "info,telemetry_metering_service=debug"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: orbitlogs-secrets
+              key: database_url
+        - name: KAFKA_BROKERS
+          value: "orbitlogs-kafka-headless:9092"
+        - name: PORT
+          value: "8096"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orbitlogs-telemetry-metering
+  namespace: orbitlogs
+spec:
+  ports:
+  - port: 8096
+    targetPort: 8096
+  selector:
+    app: orbitlogs-telemetry-metering

@@ -1,13 +1,12 @@
 # Builder Stage
-FROM rust:alpine as builder
+FROM rust:alpine AS builder
 
-# Install building system requirements
 RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev cmake g++
 
 WORKDIR /usr/src/orbitlogs
 
-# Copy workspace configuration and profiles
 COPY Cargo.toml Cargo.lock ./
+
 COPY apps/telemetry-simulator/Cargo.toml apps/telemetry-simulator/Cargo.toml
 COPY apps/telemetry-collector/Cargo.toml apps/telemetry-collector/Cargo.toml
 COPY apps/mission-health-engine/Cargo.toml apps/mission-health-engine/Cargo.toml
@@ -18,58 +17,62 @@ COPY apps/digital-twin-engine/Cargo.toml apps/digital-twin-engine/Cargo.toml
 COPY apps/mission-timeline/Cargo.toml apps/mission-timeline/Cargo.toml
 COPY apps/ai-incident-commander/Cargo.toml apps/ai-incident-commander/Cargo.toml
 COPY apps/constellation-simulator/Cargo.toml apps/constellation-simulator/Cargo.toml
+COPY apps/orbit-ops-service/Cargo.toml apps/orbit-ops-service/Cargo.toml
+COPY apps/space-otel-collector/Cargo.toml apps/space-otel-collector/Cargo.toml
+COPY apps/contact-window-predictor/Cargo.toml apps/contact-window-predictor/Cargo.toml
+COPY apps/constellation-scheduler/Cargo.toml apps/constellation-scheduler/Cargo.toml
+COPY apps/orbit-determination-service/Cargo.toml apps/orbit-determination-service/Cargo.toml
+COPY apps/autonomous-mission-planning/Cargo.toml apps/autonomous-mission-planning/Cargo.toml
+COPY apps/telemetry-metering-service/Cargo.toml apps/telemetry-metering-service/Cargo.toml
+COPY apps/alert-notification-service/Cargo.toml apps/alert-notification-service/Cargo.toml
 COPY crates/orbitlogs-models/Cargo.toml crates/orbitlogs-models/Cargo.toml
 COPY crates/orbitlogs-packets/Cargo.toml crates/orbitlogs-packets/Cargo.toml
 COPY crates/space-schema-registry/Cargo.toml crates/space-schema-registry/Cargo.toml
 COPY crates/fleet-health/Cargo.toml crates/fleet-health/Cargo.toml
-COPY apps/space-otel-collector/Cargo.toml apps/space-otel-collector/Cargo.toml
+COPY crates/orbitlogs-astrodynamics/Cargo.toml crates/orbitlogs-astrodynamics/Cargo.toml
+COPY crates/orbitlogs-propulsion/Cargo.toml crates/orbitlogs-propulsion/Cargo.toml
+COPY crates/orbitlogs-test-utils/Cargo.toml crates/orbitlogs-test-utils/Cargo.toml
+COPY crates/orbitlogs-pus/Cargo.toml crates/orbitlogs-pus/Cargo.toml
 
-# Pre-compile fake sources to cache cargo dependencies
-RUN mkdir -p apps/telemetry-simulator/src && echo "fn main() {}" > apps/telemetry-simulator/src/main.rs
-RUN mkdir -p apps/telemetry-collector/src && echo "fn main() {}" > apps/telemetry-collector/src/main.rs
-RUN mkdir -p apps/mission-health-engine/src && echo "fn main() {}" > apps/mission-health-engine/src/main.rs
-RUN mkdir -p apps/ground-station-simulator/src && echo "fn main() {}" > apps/ground-station-simulator/src/main.rs
-RUN mkdir -p apps/mission-replay-engine/src && echo "fn main() {}" > apps/mission-replay-engine/src/main.rs
-RUN mkdir -p apps/mission-command-service/src && echo "fn main() {}" > apps/mission-command-service/src/main.rs
-RUN mkdir -p apps/digital-twin-engine/src && echo "fn main() {}" > apps/digital-twin-engine/src/main.rs
-RUN mkdir -p apps/mission-timeline/src && echo "fn main() {}" > apps/mission-timeline/src/main.rs
-RUN mkdir -p apps/ai-incident-commander/src && echo "fn main() {}" > apps/ai-incident-commander/src/main.rs
-RUN mkdir -p apps/constellation-simulator/src && echo "fn main() {}" > apps/constellation-simulator/src/main.rs
-RUN mkdir -p crates/orbitlogs-models/src && touch crates/orbitlogs-models/src/lib.rs
-RUN mkdir -p crates/orbitlogs-packets/src && touch crates/orbitlogs-packets/src/lib.rs
-RUN mkdir -p crates/space-schema-registry/src && touch crates/space-schema-registry/src/lib.rs
-RUN mkdir -p crates/fleet-health/src && touch crates/fleet-health/src/lib.rs
-RUN mkdir -p apps/space-otel-collector/src && touch apps/space-otel-collector/src/lib.rs
+RUN set -e; \
+    for app in telemetry-simulator telemetry-collector mission-health-engine \
+               ground-station-simulator mission-replay-engine mission-command-service \
+               digital-twin-engine mission-timeline ai-incident-commander \
+               constellation-simulator orbit-ops-service space-otel-collector \
+               contact-window-predictor constellation-scheduler orbit-determination-service \
+               autonomous-mission-planning telemetry-metering-service alert-notification-service; do \
+        mkdir -p "apps/${app}/src" && echo 'fn main() {}' > "apps/${app}/src/main.rs"; \
+    done; \
+    for crt in orbitlogs-models orbitlogs-packets space-schema-registry fleet-health \
+               orbitlogs-astrodynamics orbitlogs-propulsion orbitlogs-test-utils orbitlogs-pus; do \
+        mkdir -p "crates/${crt}/src" && touch "crates/${crt}/src/lib.rs"; \
+    done
 
-# Build dependencies only
 RUN cargo build --release -p ai-incident-commander
 
-# Copy actual source files
 COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
 COPY crates/orbitlogs-packets/src crates/orbitlogs-packets/src
 COPY crates/space-schema-registry/src crates/space-schema-registry/src
 COPY crates/fleet-health/src crates/fleet-health/src
-COPY apps/space-otel-collector/src apps/space-otel-collector/src
 COPY apps/ai-incident-commander/src apps/ai-incident-commander/src
 
-# Rebuild actual application
-RUN touch crates/orbitlogs-models/src/lib.rs
-RUN touch crates/orbitlogs-packets/src/lib.rs
-RUN touch crates/space-schema-registry/src/lib.rs
-RUN touch crates/fleet-health/src/lib.rs
-RUN touch apps/space-otel-collector/src/lib.rs
-RUN touch apps/ai-incident-commander/src/main.rs
-RUN cargo build --release -p ai-incident-commander
+RUN touch crates/orbitlogs-models/src/lib.rs \
+    && touch crates/orbitlogs-packets/src/lib.rs \
+    && touch crates/space-schema-registry/src/lib.rs \
+    && touch crates/fleet-health/src/lib.rs \
+    && touch apps/ai-incident-commander/src/main.rs \
+    && cargo build --release -p ai-incident-commander
 
-# Runner Stage
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates libgcc libstdc++ openssl
-
-# Create non-root user for security hardening (UID/GID 10001)
 RUN addgroup -g 10001 -S orbitlogs && adduser -u 10001 -S orbitlogs -G orbitlogs
 
 COPY --from=builder /usr/src/orbitlogs/target/release/ai-incident-commander /usr/local/bin/ai-incident-commander
 
 USER orbitlogs
+EXPOSE 8088
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8088/health || exit 1
 
 ENTRYPOINT ["ai-incident-commander"]

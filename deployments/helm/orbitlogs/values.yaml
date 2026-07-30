@@ -1,12 +1,49 @@
 global:
   namespace: orbitlogs
   imagePullPolicy: IfNotPresent
+  # Set to your container registry for GKE or EKS:
+  #   GKE: gcr.io/<PROJECT_ID>  or  <REGION>-docker.pkg.dev/<PROJECT_ID>/<REPO>
+  #   EKS: <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com
+  imageRegistry: ""
+  imageTag: "latest"
   kafkaBrokers: "orbitlogs-kafka-headless:9092"
   databaseSecretName: "orbitlogs-secrets"
   apiKeySecretName: "orbitlogs-secrets"
+  otelEndpoint: "http://otel-collector:4317"
+  rustLog: "info"
+
+serviceAccount:
+  create: true
+  name: "orbitlogs"
+  annotations: {}
+  # GKE Workload Identity:
+  #   iam.gke.io/gcp-service-account: orbitlogs@<PROJECT_ID>.iam.gserviceaccount.com
+  # EKS IRSA:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/orbitlogs-role
+
+ingress:
+  enabled: false
+  className: ""
+  # GKE: set className to "gce" or use annotation kubernetes.io/ingress.class: gce
+  # EKS: set className to "alb" or use annotation kubernetes.io/ingress.class: alb
+  annotations: {}
+    # GKE annotations:
+    #   kubernetes.io/ingress.global-static-ip-name: orbitlogs-ip
+    #   networking.gke.io/managed-certificates: orbitlogs-cert
+    # EKS ALB annotations:
+    #   alb.ingress.kubernetes.io/scheme: internet-facing
+    #   alb.ingress.kubernetes.io/target-type: ip
+    #   alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:...
+  host: ""
+  tls: []
+
+networkPolicy:
+  enabled: false
 
 secrets:
   databaseUrl: "postgres://postgres:postgrespassword@orbitlogs-timescaledb:5432/orbitlogs"
+  postgresPassword: "postgrespassword"
+  kafkaSaslPassword: "kafkasaslpassword"
   apiKey: "secret-api-key"
   jwtSecret: "secret-jwt-key"
   geminiApiKey: "secret-gemini-key"
@@ -15,7 +52,7 @@ services:
   telemetry-collector:
     enabled: true
     replicas: 2
-    image: orbitlogs/telemetry-collector:latest
+    image: orbitlogs/telemetry-collector
     port: 8080
     livenessPath: /liveness
     readinessPath: /readiness
@@ -50,7 +87,10 @@ services:
   telemetry-simulator:
     enabled: true
     replicas: 1
-    image: orbitlogs/telemetry-simulator:latest
+    image: orbitlogs/telemetry-simulator
+    port: 8081
+    livenessPath: /health
+    readinessPath: /health
     env:
       - name: FLEET_SIZE
         value: "10"
@@ -67,7 +107,10 @@ services:
   mission-health-engine:
     enabled: true
     replicas: 1
-    image: orbitlogs/mission-health-engine:latest
+    image: orbitlogs/mission-health-engine
+    port: 8082
+    livenessPath: /health
+    readinessPath: /health
     env:
       - name: HEALTH_TOPIC
         value: "mission.health"
@@ -82,8 +125,8 @@ services:
   ground-station-simulator:
     enabled: true
     replicas: 1
-    image: orbitlogs/ground-station-simulator:latest
-    port: 8084
+    image: orbitlogs/ground-station-simulator
+    port: 8083
     livenessPath: /health
     readinessPath: /health
     resources:
@@ -97,8 +140,8 @@ services:
   mission-replay-engine:
     enabled: true
     replicas: 1
-    image: orbitlogs/mission-replay-engine:latest
-    port: 8081
+    image: orbitlogs/mission-replay-engine
+    port: 8084
     livenessPath: /health
     readinessPath: /health
     resources:
@@ -112,7 +155,7 @@ services:
   mission-command-service:
     enabled: true
     replicas: 1
-    image: orbitlogs/mission-command-service:latest
+    image: orbitlogs/mission-command-service
     port: 8085
     livenessPath: /health
     readinessPath: /health
@@ -132,7 +175,7 @@ services:
   digital-twin-engine:
     enabled: true
     replicas: 1
-    image: orbitlogs/digital-twin-engine:latest
+    image: orbitlogs/digital-twin-engine
     port: 8086
     livenessPath: /health
     readinessPath: /health
@@ -154,7 +197,7 @@ services:
   mission-timeline:
     enabled: true
     replicas: 1
-    image: orbitlogs/mission-timeline:latest
+    image: orbitlogs/mission-timeline
     port: 8087
     livenessPath: /health
     readinessPath: /health
@@ -178,7 +221,7 @@ services:
   ai-incident-commander:
     enabled: true
     replicas: 1
-    image: orbitlogs/ai-incident-commander:latest
+    image: orbitlogs/ai-incident-commander
     port: 8088
     livenessPath: /health
     readinessPath: /health
@@ -193,7 +236,7 @@ services:
   constellation-simulator:
     enabled: true
     replicas: 1
-    image: orbitlogs/constellation-simulator:latest
+    image: orbitlogs/constellation-simulator
     port: 8089
     livenessPath: /health
     readinessPath: /health
@@ -208,7 +251,7 @@ services:
   orbit-ops-service:
     enabled: true
     replicas: 1
-    image: orbitlogs/orbit-ops-service:latest
+    image: orbitlogs/orbit-ops-service
     port: 8095
     livenessPath: /health
     readinessPath: /health
@@ -241,7 +284,10 @@ services:
   space-otel-collector:
     enabled: true
     replicas: 1
-    image: orbitlogs/space-otel-collector:latest
+    image: orbitlogs/space-otel-collector
+    port: 8091
+    livenessPath: /health
+    readinessPath: /health
     env:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: "http://otel-collector:4317"
@@ -256,7 +302,7 @@ services:
   contact-window-predictor:
     enabled: true
     replicas: 1
-    image: orbitlogs/contact-window-predictor:latest
+    image: orbitlogs/contact-window-predictor
     env:
       - name: PREDICTION_INTERVAL_SECS
         value: "60"
@@ -271,7 +317,7 @@ services:
   constellation-scheduler:
     enabled: true
     replicas: 1
-    image: orbitlogs/constellation-scheduler:latest
+    image: orbitlogs/constellation-scheduler
     env:
       - name: SCHEDULER_INTERVAL_SECS
         value: "60"
@@ -286,7 +332,7 @@ services:
   orbit-determination-service:
     enabled: true
     replicas: 1
-    image: orbitlogs/orbit-determination-service:latest
+    image: orbitlogs/orbit-determination-service
     env:
       - name: OD_INTERVAL_SECS
         value: "60"
@@ -301,7 +347,7 @@ services:
   autonomous-mission-planning:
     enabled: true
     replicas: 1
-    image: orbitlogs/autonomous-mission-planning:latest
+    image: orbitlogs/autonomous-mission-planning
     env:
       - name: PLANNER_INTERVAL_SECS
         value: "60"
@@ -313,11 +359,13 @@ services:
         cpu: 200m
         memory: 128Mi
 
-  mission-control-ui:
+  telemetry-metering-service:
     enabled: true
     replicas: 1
-    image: orbitlogs/mission-control-ui:latest
-    port: 3000
+    image: orbitlogs/telemetry-metering-service
+    port: 8096
+    livenessPath: /health
+    readinessPath: /health
     resources:
       requests:
         cpu: 100m
@@ -326,3 +374,30 @@ services:
         cpu: 500m
         memory: 512Mi
 
+  alert-notification-service:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/alert-notification-service
+    port: 8097
+    livenessPath: /health
+    readinessPath: /health
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  mission-control-ui:
+    enabled: true
+    replicas: 1
+    image: orbitlogs/mission-control-ui
+    port: 3000
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

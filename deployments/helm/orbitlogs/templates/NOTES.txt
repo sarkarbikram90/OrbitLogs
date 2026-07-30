@@ -1,0 +1,38 @@
+OrbitLogs has been deployed!
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Values.global.namespace }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress is enabled. Access the application at:
+{{- if .Values.ingress.host }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  Run: kubectl get ingress -n {{ .Values.global.namespace }} orbitlogs-ingress
+{{- end }}
+{{- else }}
+
+Ingress is NOT enabled. To access services, use port-forwarding:
+
+  # Mission Control UI
+  kubectl port-forward -n {{ .Values.global.namespace }} svc/orbitlogs-mission-control-ui 3000:3000
+
+  # Telemetry Collector API
+  kubectl port-forward -n {{ .Values.global.namespace }} svc/orbitlogs-telemetry-collector 8080:8080
+
+  # Mission Replay Engine API
+  kubectl port-forward -n {{ .Values.global.namespace }} svc/orbitlogs-mission-replay-engine 8084:8084
+
+To enable Ingress, set ingress.enabled=true in your values file and configure
+your cloud provider:
+  GKE: set ingress.className="gce"
+  EKS: set ingress.className="alb" with ALB annotations
+{{- end }}
+
+Run database migrations:
+  kubectl apply -f deployments/kubernetes/infrastructure/timescaledb/migrations-job.yaml
+
+Check deployment status:
+  kubectl get pods -n {{ .Values.global.namespace }}
+  kubectl get svc -n {{ .Values.global.namespace }}
