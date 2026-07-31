@@ -269,6 +269,11 @@ async fn main() -> Result<(), anyhow::Error> {
             get(handlers::get_twin_health),
         )
         .route(
+            "/api/twin/:satellite/monte-carlo",
+            post(handlers::post_monte_carlo),
+        )
+
+        .route(
             "/api/twin/:satellite/timeline",
             get(handlers::get_twin_timeline),
         )

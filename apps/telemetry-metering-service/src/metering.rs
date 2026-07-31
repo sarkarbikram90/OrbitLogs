@@ -55,6 +55,60 @@ pub const BASE_DEVELOPER_PLAN_INR: f64 = 4999.00;  // ₹4,999 / month base plat
 pub const GST_RATE: f64 = 0.18;                      // 18% GST for SaaS in India (SAC 998314)
 pub const OPERATING_STATE_CODE: &str = "27";         // 27 = Maharashtra (OrbitLogs HQ)
 
+/// Indian Space Ecosystem Subscription Tiers
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PricingTier {
+    /// ₹0 / mo — IITs, ISRO Student Satellites, Academic CubeSats (up to 3 sats, 10M frames)
+    Academic,
+    /// ₹4,999 / mo — Agnikul, Skyroot, Pixxel, Early-stage startups (up to 5 sats, 50M frames)
+    StartupLaunchpad,
+    /// ₹24,999 / mo — Commercial Megaconstellations (up to 50 sats, 500M frames)
+    EnterpriseFleet,
+}
+
+impl PricingTier {
+    pub fn base_price_inr(&self) -> f64 {
+        match self {
+            PricingTier::Academic => 0.0,
+            PricingTier::StartupLaunchpad => 4999.0,
+            PricingTier::EnterpriseFleet => 24999.0,
+        }
+    }
+
+    pub fn included_frames(&self) -> i64 {
+        match self {
+            PricingTier::Academic => 10_000_000,
+            PricingTier::StartupLaunchpad => 50_000_000,
+            PricingTier::EnterpriseFleet => 500_000_000,
+        }
+    }
+}
+
+/// Validates an 15-character Indian Goods and Services Tax Identification Number (GSTIN).
+///
+/// Structure: 2-digit state code + 10-char PAN + 1 entity digit + 'Z' + 1 check digit.
+pub fn validate_gstin(gstin: &str) -> bool {
+    let clean = gstin.trim().to_uppercase();
+    if clean.len() != 15 {
+        return false;
+    }
+
+    let state_code: Result<u8, _> = clean[0..2].parse();
+    if state_code.is_err() || state_code.unwrap() < 1 || state_code.unwrap() > 37 {
+        return false;
+    }
+
+    // Check PAN pattern in characters 2..12
+    let pan_letters = &clean[2..7];
+    let pan_digits = &clean[7..11];
+    let pan_last = &clean[11..12];
+
+    pan_letters.chars().all(|c| c.is_ascii_uppercase())
+        && pan_digits.chars().all(|c| c.is_ascii_digit())
+        && pan_last.chars().all(|c| c.is_ascii_uppercase())
+}
+
+
 
 pub async fn record_telemetry_event(
     pool: &PgPool,

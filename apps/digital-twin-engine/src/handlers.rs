@@ -161,6 +161,29 @@ pub async fn get_twin_health(
     Ok(Json(projection))
 }
 
+/// `POST /api/twin/:satellite/monte-carlo`
+///
+/// Executes a 48-hour Monte Carlo predictive projection for the satellite's digital twin
+/// under simulated solar flare or thruster burn scenarios.
+pub async fn post_monte_carlo(
+    State(state): State<Arc<AppState>>,
+    Path(satellite): Path<String>,
+    Json(payload): Json<crate::simulation::MonteCarloRequest>,
+) -> Result<Json<crate::simulation::MonteCarloResult>, AppError> {
+    let rec = state
+        .twins
+        .get(&satellite)
+        .ok_or_else(|| AppError::NotFound {
+            entity: "digital twin",
+            id: satellite.clone(),
+        })?
+        .clone();
+
+    let result = crate::simulation::run_monte_carlo_projection(satellite, &rec, payload);
+    Ok(Json(result))
+}
+
+
 /// `GET /api/twin/:satellite/timeline`
 ///
 /// Fetches the most recent events for a satellite from the database.

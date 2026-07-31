@@ -23,11 +23,14 @@ use uuid::Uuid;
 /// Supported ISRO ISTRAC Ground Network Stations
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IstracStation {
-    Bengaluru, // ISTRAC-BLR (Byalalu 32m DSN & TTC)
-    Lucknow,   // ISTRAC-LKW
-    PortBlair, // ISTRAC-PB
-    Sriharikota,// ISTRAC-SHAR
-    Mauritius, // ISTRAC-MAU
+    Bengaluru,    // ISTRAC-BLR (Byalalu 32m DSN & TTC)
+    Lucknow,      // ISTRAC-LKW
+    PortBlair,    // ISTRAC-PB
+    Sriharikota,  // ISTRAC-SHAR
+    Mauritius,    // ISTRAC-MAU
+    Bhopal,       // ISTRAC-BPL (Central India relay)
+    Brunei,       // ISTRAC-BRN (Southeast Asia coverage)
+    Indonesia,    // ISTRAC-IDN (Biak ground station)
     Unknown,
 }
 
@@ -39,6 +42,9 @@ impl IstracStation {
             3 => IstracStation::PortBlair,
             4 => IstracStation::Sriharikota,
             5 => IstracStation::Mauritius,
+            6 => IstracStation::Bhopal,
+            7 => IstracStation::Brunei,
+            8 => IstracStation::Indonesia,
             _ => IstracStation::Unknown,
         }
     }
@@ -50,10 +56,122 @@ impl IstracStation {
             IstracStation::PortBlair => "ISTRAC-PB",
             IstracStation::Sriharikota => "ISTRAC-SHAR",
             IstracStation::Mauritius => "ISTRAC-MAU",
+            IstracStation::Bhopal => "ISTRAC-BPL",
+            IstracStation::Brunei => "ISTRAC-BRN",
+            IstracStation::Indonesia => "ISTRAC-IDN",
             IstracStation::Unknown => "ISTRAC-UNK",
         }
     }
 }
+
+/// Pre-configured ground station profile with antenna characteristics,
+/// frequency bands, and geographic coordinates (WGS-84).
+///
+/// Used by contact window predictor and link budget calculator.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IstracStationProfile {
+    pub station: IstracStation,
+    pub name: &'static str,
+    /// Antenna diameter in meters
+    pub antenna_diameter_m: f64,
+    /// Supported uplink/downlink frequency bands
+    pub frequency_bands: &'static [&'static str],
+    /// WGS-84 latitude in degrees
+    pub latitude_deg: f64,
+    /// WGS-84 longitude in degrees
+    pub longitude_deg: f64,
+    /// Altitude above mean sea level in meters
+    pub altitude_m: f64,
+    /// Minimum elevation mask in degrees
+    pub min_elevation_deg: f64,
+}
+
+/// Returns the pre-configured profile for all known ISTRAC stations.
+pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
+    vec![
+        IstracStationProfile {
+            station: IstracStation::Bengaluru,
+            name: "ISTRAC Bengaluru (Byalalu DSN)",
+            antenna_diameter_m: 32.0,
+            frequency_bands: &["S-band", "X-band", "Ka-band"],
+            latitude_deg: 13.0340,
+            longitude_deg: 77.5855,
+            altitude_m: 900.0,
+            min_elevation_deg: 5.0,
+        },
+        IstracStationProfile {
+            station: IstracStation::Sriharikota,
+            name: "SHAR Centre Sriharikota",
+            antenna_diameter_m: 11.0,
+            frequency_bands: &["S-band", "UHF"],
+            latitude_deg: 13.7199,
+            longitude_deg: 80.2304,
+            altitude_m: 5.0,
+            min_elevation_deg: 10.0,
+        },
+        IstracStationProfile {
+            station: IstracStation::Lucknow,
+            name: "ISTRAC Lucknow",
+            antenna_diameter_m: 7.5,
+            frequency_bands: &["S-band"],
+            latitude_deg: 26.8467,
+            longitude_deg: 80.9462,
+            altitude_m: 123.0,
+            min_elevation_deg: 10.0,
+        },
+        IstracStationProfile {
+            station: IstracStation::PortBlair,
+            name: "ISTRAC Port Blair",
+            antenna_diameter_m: 7.5,
+            frequency_bands: &["S-band"],
+            latitude_deg: 11.6234,
+            longitude_deg: 92.7265,
+            altitude_m: 14.0,
+            min_elevation_deg: 10.0,
+        },
+        IstracStationProfile {
+            station: IstracStation::Mauritius,
+            name: "ISTRAC Mauritius",
+            antenna_diameter_m: 7.5,
+            frequency_bands: &["S-band"],
+            latitude_deg: -20.2485,
+            longitude_deg: 57.5001,
+            altitude_m: 430.0,
+            min_elevation_deg: 10.0,
+        },
+        IstracStationProfile {
+            station: IstracStation::Bhopal,
+            name: "ISTRAC Bhopal",
+            antenna_diameter_m: 7.5,
+            frequency_bands: &["S-band"],
+            latitude_deg: 23.2599,
+            longitude_deg: 77.4126,
+            altitude_m: 527.0,
+            min_elevation_deg: 10.0,
+        },
+        IstracStationProfile {
+            station: IstracStation::Brunei,
+            name: "ISTRAC Brunei (SE Asia)",
+            antenna_diameter_m: 7.5,
+            frequency_bands: &["S-band"],
+            latitude_deg: 4.9031,
+            longitude_deg: 114.9398,
+            altitude_m: 15.0,
+            min_elevation_deg: 10.0,
+        },
+        IstracStationProfile {
+            station: IstracStation::Indonesia,
+            name: "ISTRAC Biak (Indonesia)",
+            antenna_diameter_m: 11.0,
+            frequency_bands: &["S-band", "X-band"],
+            latitude_deg: -1.1756,
+            longitude_deg: 136.1082,
+            altitude_m: 42.0,
+            min_elevation_deg: 10.0,
+        },
+    ]
+}
+
 
 /// Parsed ISTRAC CCSDS Transfer Frame
 #[derive(Debug, Clone, Serialize, Deserialize)]

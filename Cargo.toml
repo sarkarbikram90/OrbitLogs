@@ -27,6 +27,7 @@ members = [
     "crates/orbitlogs-pus",
     "apps/telemetry-metering-service",
     "apps/alert-notification-service",
+    "crates/orbitlogs-edge",
 ]
 
 [workspace.dependencies]

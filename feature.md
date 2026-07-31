@@ -1,14 +1,14 @@
 # 🚀 OrbitLogs: Strategic Product Vision & Feature Enhancement Roadmap
 
-**Target Market**: Indian Space Ecosystem (ISRO, IN-SPACe, Pixxel, Agnikul Cosmos, Skyroot Aerospace, Digantara, Dhruva Space, Bellatrix Aerospace) & Global Megaconstellations  
-**Author**: Staff Engineer (SpaceX Starlink / Amazon Kuiper Ground Systems)  
+**Target Market**: Indian Space Ecosystem (ISRO, IN-SPACe, Pixxel, Agnikul Cosmos, Skyroot Aerospace, Digantara, Dhruva Space, Bellatrix Aerospace) & Global Megaconstellations
+**Author**: Staff Engineer (SpaceX Starlink / Amazon Kuiper Ground Systems)
 **Version**: 2026.1
 
 ---
 
 ## 🌟 Executive Summary
 
-OrbitLogs is designed to be the **Datadog & Grafana for Spacecraft Operations & Digital Twins**. 
+OrbitLogs is designed to be the **Datadog & Grafana for Spacecraft Operations & Digital Twins**.
 
 While the underlying architecture (Rust microservices, Tokio, TimescaleDB, Kafka, Argon2id auth, GCP asia-south1 deployment) and the visual mission control UI (cybernetic dark void, 3D starfield canvas, telemetry HUD, `Ctrl+K` command palette) provide an **8.2/10 technical foundation and 9.9/10 UI/UX experience**, this document outlines the **key feature enhancements** required to turn OrbitLogs into a market-dominating, jaw-dropping SaaS product for Indian and global space startups.
 

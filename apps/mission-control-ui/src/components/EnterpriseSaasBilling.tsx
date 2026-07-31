@@ -24,6 +24,14 @@ interface TierConfig {
 }
 
 const SAAS_TIERS: Record<string, TierConfig> = {
+  ACADEMIC: {
+    name: 'Academic / Student CubeSat',
+    monthlyBasePriceInr: 0,
+    includedFramesM: 10,
+    extraFrameRateInr: 0.50,
+    includedStorageGb: 100,
+    slaTarget: 'Best Effort',
+  },
   STARTER: {
     name: 'ISRO Startup / SmallSat Tier',
     monthlyBasePriceInr: 4999,
@@ -51,11 +59,13 @@ const SAAS_TIERS: Record<string, TierConfig> = {
 };
 
 export function EnterpriseSaasBilling() {
-  const [selectedTier, setSelectedTier] = useState<'STARTER' | 'ENTERPRISE' | 'MEGACONSTELLATION'>('STARTER');
+  const [selectedTier, setSelectedTier] = useState<'ACADEMIC' | 'STARTER' | 'ENTERPRISE' | 'MEGACONSTELLATION'>('STARTER');
   const [satCount, setSatCount] = useState<number>(25);
   const [monthlyFramesM, setMonthlyFramesM] = useState<number>(120); // Millions of frames
   const [storageGb, setStorageGb] = useState<number>(850);
   const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
+  const [gstin, setGstin] = useState<string>('27AAAAA0000A1Z5');
+
 
   const tier = SAAS_TIERS[selectedTier];
   const overageFramesM = Math.max(0, monthlyFramesM - tier.includedFramesM);
@@ -118,7 +128,8 @@ export function EnterpriseSaasBilling() {
       </div>
 
       {/* Tier Selector Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+
         {(Object.keys(SAAS_TIERS) as Array<keyof typeof SAAS_TIERS>).map((key) => {
           const t = SAAS_TIERS[key];
           const isSelected = selectedTier === key;

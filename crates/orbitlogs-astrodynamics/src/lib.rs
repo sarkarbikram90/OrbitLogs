@@ -11,17 +11,24 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+pub mod conjunction;
 pub mod coordinates;
 pub mod navic;
 pub mod tle;
 
+pub use conjunction::{
+    compute_cam_delta_v, compute_collision_probability, compute_covariance_ellipsoid,
+    CamProposal, ConjunctionEvent, CovarianceEllipsoid,
+};
 pub use coordinates::{
     calculate_gmst_rad, calculate_look_angles, datetime_to_jd, ecef_to_enu, ecef_to_geodetic,
     eci_to_ecef, eci_velocity_to_ecef, geodetic_to_ecef, EnuCoords, GeodeticCoords, LookAngles,
 };
 pub use navic::{
-    calculate_navic_iono_free_pseudorange, irnt_to_utc, NavicSatellite, NAVIC_L5_FREQ_MHZ,
-    NAVIC_S_FREQ_MHZ,
+    calculate_navic_iono_free_pseudorange, compute_navic_position_fix, irnt_to_utc,
+    NavicIonosphericModel, NavicNavigationSolution, NavicObservation, NavicSatellite,
+    NAVIC_L5_FREQ_MHZ, NAVIC_S_FREQ_MHZ,
 };
 pub use tle::{predict_contact_windows, AstrodynamicsError, ContactWindow, TleRecord};
+
 

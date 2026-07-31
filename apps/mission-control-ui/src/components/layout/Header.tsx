@@ -34,10 +34,13 @@ const TAB_GROUPS = [
       ['GROUND_OPS', '🌐 GROUND OPS'],
       ['PASSES', '📡 PASSES'],
       ['SSA', '🛡 SSA / DEBRIS'],
+      ['CONJUNCTION', '🎯 3D CONJUNCTION'],
+      ['SPACE_WX', '☀️ SPACE WEATHER'],
       ['FLIGHT_DYNAMICS', '📐 DYNAMICS'],
       ['TWIN', '🧊 DIGITAL TWIN'],
     ],
   },
+
   {
     group: 'INTELLIGENCE & SAAS',
     tabs: [

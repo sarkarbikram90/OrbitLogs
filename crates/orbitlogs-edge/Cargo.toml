@@ -1,0 +1,11 @@
+[package]
+name = "orbitlogs-edge"
+version = "0.1.0"
+edition = "2021"
+description = "OrbitLogs Dish Antenna Edge Gateway — Zero-Copy CCSDS Deframer, Smart Compressor & WASM/ARM64 Runtime"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }

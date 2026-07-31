@@ -12,11 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod compliance;
 pub mod istrac;
 pub mod pus_services;
 
-pub use istrac::{parse_istrac_frame, IstracFrame, IstracStation};
-pub use pus_services::{parse_pus_payload, PusError, PusPayload, PusSecondaryHeader};
+pub use compliance::{generate_audit_report, InSpaceAuditReport};
+pub use istrac::{
+    get_istrac_station_profiles, parse_istrac_frame, IstracFrame, IstracStation,
+    IstracStationProfile,
+};
+pub use pus_services::{
+    parse_pus_payload, PusError, PusPayload, PusSecondaryHeader,
+    Service11TimeSchedule, Service12MonitorDefinition, Service17ConnectionTest,
+    Service20ParameterReport,
+};
+
 
 #[cfg(test)]
 mod tests {

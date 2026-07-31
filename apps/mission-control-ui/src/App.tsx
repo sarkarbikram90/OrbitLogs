@@ -38,6 +38,8 @@ import { AiMissionDirector } from './components/AiMissionDirector';
 import { MissionTimelineView } from './components/MissionTimelineView';
 import { AiCopilot } from './components/AiCopilot';
 import { EnterpriseSaasBilling } from './components/EnterpriseSaasBilling';
+import { ConjunctionRadar } from './components/ConjunctionRadar';
+import { SpaceWeatherRadar } from './components/SpaceWeatherRadar';
 import type { SatelliteHealth, GroundStation, EventLog, ReplaySession } from './types';
 
 export default function App() {
@@ -164,6 +166,8 @@ export default function App() {
         {activeTab === 'GROUND_OPS' && <GroundOperations />}
         {activeTab === 'PASSES' && <PassSchedule selectedSatId={selectedSatId} />}
         {activeTab === 'SSA' && <SsaDashboard selectedSatId={selectedSatId} />}
+        {activeTab === 'CONJUNCTION' && <ConjunctionRadar selectedSatId={selectedSatId} />}
+        {activeTab === 'SPACE_WX' && <SpaceWeatherRadar selectedSatId={selectedSatId} />}
         {activeTab === 'FLIGHT_DYNAMICS' && <FlightDynamics selectedSatId={selectedSatId} />}
         {activeTab === 'TWIN' && <DigitalTwinViewer selectedSatId={selectedSatId} apiKey={apiKey} />}
         {activeTab === 'TRAINING' && <TrainingSimulator selectedSatId={selectedSatId} />}
@@ -175,3 +179,4 @@ export default function App() {
     </div>
   );
 }
+

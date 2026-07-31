@@ -20,7 +20,11 @@
 //! operator recommendations.
 
 pub mod assessors;
+pub mod monte_carlo;
 mod tests;
+
+pub use monte_carlo::{run_monte_carlo_projection, MonteCarloRequest, MonteCarloResult};
+
 
 pub use assessors::{
     ADCS_WARN_PITCH_DRIFT, BATTERY_CRIT_VOLTAGE, BATTERY_WARN_VOLTAGE, COMM_CRIT_PACKET_LOSS,
