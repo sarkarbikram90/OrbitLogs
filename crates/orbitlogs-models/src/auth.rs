@@ -11,11 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use chrono::{DateTime, Utc};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+use chrono::{DateTime, Utc};
+use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
+use uuid::Uuid;
+
+
 
 /// Hashes a plaintext password using Argon2id with a secure random salt.
 pub fn hash_password(password: &str) -> Result<String, String> {
@@ -167,9 +174,6 @@ impl TenantContext {
         self.tenant_id.to_string()
     }
 }
-
-use hmac::{Hmac, Mac};
-
 type HmacSha256 = Hmac<Sha256>;
 
 fn base64_url_encode(data: &[u8]) -> String {

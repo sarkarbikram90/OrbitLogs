@@ -19,11 +19,9 @@
 //! collision avoidance maneuvers.
 
 use chrono::{DateTime, Utc};
-use nalgebra::{Matrix3, Vector3};
+use nalgebra::Matrix3;
 use serde::{Deserialize, Serialize};
 
-/// Gravitational parameter for Earth (km³/s²)
-const MU_EARTH: f64 = 398600.4418;
 
 /// Conjunction event between a primary satellite and a secondary object.
 #[derive(Debug, Clone, Serialize, Deserialize)]

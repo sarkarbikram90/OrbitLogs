@@ -75,7 +75,7 @@ pub struct IstracStationProfile {
     /// Antenna diameter in meters
     pub antenna_diameter_m: f64,
     /// Supported uplink/downlink frequency bands
-    pub frequency_bands: &'static [&'static str],
+    pub frequency_bands: Vec<String>,
     /// WGS-84 latitude in degrees
     pub latitude_deg: f64,
     /// WGS-84 longitude in degrees
@@ -93,7 +93,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
             station: IstracStation::Bengaluru,
             name: "ISTRAC Bengaluru (Byalalu DSN)",
             antenna_diameter_m: 32.0,
-            frequency_bands: &["S-band", "X-band", "Ka-band"],
+            frequency_bands: vec!["S-band".into(), "X-band".into(), "Ka-band".into()],
             latitude_deg: 13.0340,
             longitude_deg: 77.5855,
             altitude_m: 900.0,
@@ -103,7 +103,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
             station: IstracStation::Sriharikota,
             name: "SHAR Centre Sriharikota",
             antenna_diameter_m: 11.0,
-            frequency_bands: &["S-band", "UHF"],
+            frequency_bands: vec!["S-band".into(), "UHF".into()],
             latitude_deg: 13.7199,
             longitude_deg: 80.2304,
             altitude_m: 5.0,
@@ -113,7 +113,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
             station: IstracStation::Lucknow,
             name: "ISTRAC Lucknow",
             antenna_diameter_m: 7.5,
-            frequency_bands: &["S-band"],
+            frequency_bands: vec!["S-band".into()],
             latitude_deg: 26.8467,
             longitude_deg: 80.9462,
             altitude_m: 123.0,
@@ -123,7 +123,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
             station: IstracStation::PortBlair,
             name: "ISTRAC Port Blair",
             antenna_diameter_m: 7.5,
-            frequency_bands: &["S-band"],
+            frequency_bands: vec!["S-band".into()],
             latitude_deg: 11.6234,
             longitude_deg: 92.7265,
             altitude_m: 14.0,
@@ -133,7 +133,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
             station: IstracStation::Mauritius,
             name: "ISTRAC Mauritius",
             antenna_diameter_m: 7.5,
-            frequency_bands: &["S-band"],
+            frequency_bands: vec!["S-band".into()],
             latitude_deg: -20.2485,
             longitude_deg: 57.5001,
             altitude_m: 430.0,
@@ -143,7 +143,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
             station: IstracStation::Bhopal,
             name: "ISTRAC Bhopal",
             antenna_diameter_m: 7.5,
-            frequency_bands: &["S-band"],
+            frequency_bands: vec!["S-band".into()],
             latitude_deg: 23.2599,
             longitude_deg: 77.4126,
             altitude_m: 527.0,
@@ -153,7 +153,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
             station: IstracStation::Brunei,
             name: "ISTRAC Brunei (SE Asia)",
             antenna_diameter_m: 7.5,
-            frequency_bands: &["S-band"],
+            frequency_bands: vec!["S-band".into()],
             latitude_deg: 4.9031,
             longitude_deg: 114.9398,
             altitude_m: 15.0,
@@ -163,7 +163,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
             station: IstracStation::Indonesia,
             name: "ISTRAC Biak (Indonesia)",
             antenna_diameter_m: 11.0,
-            frequency_bands: &["S-band", "X-band"],
+            frequency_bands: vec!["S-band".into(), "X-band".into()],
             latitude_deg: -1.1756,
             longitude_deg: 136.1082,
             altitude_m: 42.0,
@@ -171,6 +171,7 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
         },
     ]
 }
+
 
 
 /// Parsed ISTRAC CCSDS Transfer Frame
