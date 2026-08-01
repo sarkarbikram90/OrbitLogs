@@ -93,8 +93,10 @@ pub fn validate_gstin(gstin: &str) -> bool {
         return false;
     }
 
-    let state_code: Result<u8, _> = clean[0..2].parse();
-    if state_code.is_err() || state_code.unwrap() < 1 || state_code.unwrap() > 37 {
+    let Ok(state_code) = clean[0..2].parse::<u8>() else {
+        return false;
+    };
+    if !(1..=37).contains(&state_code) {
         return false;
     }
 

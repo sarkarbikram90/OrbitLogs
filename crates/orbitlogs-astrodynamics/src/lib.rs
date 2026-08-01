@@ -14,6 +14,7 @@
 pub mod conjunction;
 pub mod coordinates;
 pub mod navic;
+pub mod space_weather;
 pub mod tle;
 
 pub use conjunction::{
@@ -29,6 +30,12 @@ pub use navic::{
     NavicIonosphericModel, NavicNavigationSolution, NavicObservation, NavicSatellite,
     NAVIC_L5_FREQ_MHZ, NAVIC_S_FREQ_MHZ,
 };
+pub use space_weather::{
+    assess_seu_risk, calculate_atmospheric_drag_multiplier, calculate_orbit_decay_rate_m_day,
+    generate_space_weather_observation, GeomagneticStormLevel, RadiationStormLevel,
+    SeuRiskLevel, SpaceWeatherObservation,
+};
 pub use tle::{predict_contact_windows, AstrodynamicsError, ContactWindow, TleRecord};
+
 
 

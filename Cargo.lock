@@ -825,6 +825,7 @@ dependencies = [
  "opentelemetry_sdk",
  "orbitlogs-models",
  "prometheus",
+ "rand 0.8.6",
  "rdkafka",
  "serde",
  "serde_json",

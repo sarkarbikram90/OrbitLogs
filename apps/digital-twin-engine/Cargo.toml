@@ -27,4 +27,5 @@ dashmap = { workspace = true }
 tower-http = { version = "0.5", features = ["cors", "timeout"] }
 subtle = { workspace = true }
 tokio-util = { workspace = true }
+rand = { workspace = true }
 prometheus = { workspace = true }
