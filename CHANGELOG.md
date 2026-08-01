@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [5.0.0] - 2026-08-01
+
+### Added
+- **Space Weather & Solar Flare Monitoring Engine**: Implemented `space_weather.rs` module in `orbitlogs-astrodynamics` modeling NOAA SWPC and ISRO Master Control Facility (MCF) space weather feeds, including solar proton flux (>10 MeV), geomagnetic storm indices ($Kp$ 0–9, $Dst$ nT), thermospheric drag multipliers, LEO orbit decay rates ($m/\text{day}$), and Single Event Upset (SEU) risk levels for avionics.
+- **WASM / ARM64 Dish Edge Gateway Daemon (`orbitlogs-edge-daemon`)**: Created CLI binary entrypoint in `crates/orbitlogs-edge/src/bin/daemon.rs` for dish controllers performing zero-copy CCSDS transfer frame deframing, QoS packet priority classification, and 10x telemetry compression on low-latency backhaul links.
+- **ISRO ISTRAC Ground Station Profiles & ECSS PUS-C Parser**: Added pre-configured ground station profiles in `orbitlogs-pus` (`istrac.rs`) for ISTRAC Bengaluru (Byalalu 32m DSN & TTC), Sriharikota SHAR, Port Blair, Lucknow, Mauritius, Bhopal, Brunei, and Biak (Indonesia).
+- **NavIC (IRNSS) GNSS Positioning & Timing**: Added dual-frequency L5 (1176.45 MHz) and S-band (2492.028 MHz) iono-free pseudorange combination and Gauss-Newton position fix solver in `orbitlogs-astrodynamics` (`navic.rs`).
+- **IN-SPACe Automated Regulatory Audit Export**: Implemented 1-click authorization audit package generator in `orbitlogs-pus` (`compliance.rs`) covering spectrum allocation compliance, telecommand logs, telemetry integrity, and 25-year IADC space debris mitigation compliance.
+- **1-Click Collision Avoidance Maneuver (CAM) RIC Burn Vector Engine**: Integrated Foster/Alfano 2D collision probability ($P_c$), optimal Radial, In-Track, Cross-Track (RIC) thruster burn vector generation, and $1\sigma, 2\sigma, 3\sigma$ covariance ellipsoid rendering in `orbitlogs-astrodynamics` (`conjunction.rs`).
+- **Rupee-Denominated (INR) Tiered Pricing & 18% GST Invoicing**: Added multi-tenant SaaS pricing tiers (Academic ₹0/mo, Startup ₹4,999/mo, Enterprise ₹24,999/mo) and automated GSTIN validation, state-code CGST/SGST/IGST tax calculation, and SAC 998314 invoice generation in `EnterpriseSaasBilling.tsx` and `telemetry-metering-service` (`metering.rs`).
+
+### Fixed
+- **Docker Compose & CI Container Build Fixes**: Updated all 18 microservice Dockerfiles in `apps/*/Dockerfile` to copy `crates/orbitlogs-edge/Cargo.toml` and generate dummy `crates/orbitlogs-edge/src/lib.rs` files during the dependency caching stage, resolving Docker container build failures in GitHub Actions CI pipelines.
+- **GSTIN State Code Ownership Move**: Fixed use-after-move compiler error on `state_code` in `telemetry-metering-service` (`metering.rs`) using non-consuming pattern matching.
+- **Digital Twin Engine Dependencies**: Added missing `rand` workspace dependency in `apps/digital-twin-engine/Cargo.toml`.
+- **Workspace Code Formatting Compliance**: Formatted all workspace crates with `cargo fmt --all`, ensuring `cargo fmt --all --check` completes cleanly in CI.
+
+---
+
 ## [4.5.0] - 2026-07-04
 
 ### Added
