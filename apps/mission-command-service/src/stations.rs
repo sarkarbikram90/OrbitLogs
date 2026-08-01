@@ -50,8 +50,7 @@ fn extract_tenant_context(
             crate::error::AppError::Auth("Missing Authorization Bearer token".to_string())
         })?;
 
-    validate_jwt(token, &state.jwt_secret)
-        .map_err(|e| crate::error::AppError::Auth(e))
+    validate_jwt(token, &state.jwt_secret).map_err(|e| crate::error::AppError::Auth(e))
 }
 
 // --- LIST GROUND STATIONS ---
@@ -139,16 +138,15 @@ pub async fn create_ground_station(
         crate::error::AppError::Internal("Database query failed".to_string())
     })?;
 
-    let max_stations: i32 = sqlx::query_scalar(
-        "SELECT max_ground_stations FROM tenants WHERE id = $1",
-    )
-    .bind(ctx.tenant_id)
-    .fetch_one(&state.db_pool)
-    .await
-    .map_err(|e| {
-        error!(error = %e, "Failed to query tenant limits");
-        crate::error::AppError::Internal("Database query failed".to_string())
-    })?;
+    let max_stations: i32 =
+        sqlx::query_scalar("SELECT max_ground_stations FROM tenants WHERE id = $1")
+            .bind(ctx.tenant_id)
+            .fetch_one(&state.db_pool)
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to query tenant limits");
+                crate::error::AppError::Internal("Database query failed".to_string())
+            })?;
 
     if count >= max_stations as i64 {
         return Err(crate::error::AppError::Validation(format!(

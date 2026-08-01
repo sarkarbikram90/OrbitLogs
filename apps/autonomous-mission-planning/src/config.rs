@@ -19,18 +19,10 @@ use clap::Parser;
 #[command(name = "Autonomous Mission Planner")]
 pub struct Cli {
     /// Planner execution interval in seconds.
-    #[arg(
-        long,
-        env = "PLANNER_INTERVAL_SECS",
-        default_value = "60.0"
-    )]
+    #[arg(long, env = "PLANNER_INTERVAL_SECS", default_value = "60.0")]
     pub interval_secs: f64,
 
     /// HTTP port for health and readiness probes.
-    #[arg(
-        long,
-        env = "PORT",
-        default_value = "8099"
-    )]
+    #[arg(long, env = "PORT", default_value = "8099")]
     pub port: u16,
 }

@@ -108,7 +108,8 @@ async fn main() -> Result<(), anyhow::Error> {
             // Encode binary CCSDS frame
             if let Ok(_bytes) = orbitlogs_packets::encode_record_to_frame(&rec, ticks as u16) {
                 let key = format!("MISSION-CONSTELLATION:{}", sat.id);
-                telemetry::send_telemetry(Arc::clone(&producer), raw_topic.as_str(), &key, &rec).await;
+                telemetry::send_telemetry(Arc::clone(&producer), raw_topic.as_str(), &key, &rec)
+                    .await;
             }
         }
 

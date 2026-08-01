@@ -22,8 +22,6 @@ use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
-
-
 /// Hashes a plaintext password using Argon2id with a secure random salt.
 pub fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
@@ -36,7 +34,10 @@ pub fn hash_password(password: &str) -> Result<String, String> {
 
 /// Verifies a password candidate against an Argon2id (or fallback SHA-256 legacy) hash.
 pub fn verify_password(password: &str, hash: &str) -> bool {
-    if hash.starts_with("$argon2id$") || hash.starts_with("$argon2i$") || hash.starts_with("$argon2d$") {
+    if hash.starts_with("$argon2id$")
+        || hash.starts_with("$argon2i$")
+        || hash.starts_with("$argon2d$")
+    {
         if let Ok(parsed_hash) = PasswordHash::new(hash) {
             return Argon2::default()
                 .verify_password(password.as_bytes(), &parsed_hash)
@@ -64,7 +65,6 @@ pub fn secure_compare(provided: &str, expected: &str) -> bool {
 
     bool::from(provided_hash.ct_eq(&expected_hash))
 }
-
 
 // =========================================================================
 // RBAC Roles
@@ -182,8 +182,16 @@ fn base64_url_encode(data: &[u8]) -> String {
     let mut i = 0;
     while i < data.len() {
         let b0 = data[i] as u32;
-        let b1 = if i + 1 < data.len() { data[i + 1] as u32 } else { 0 };
-        let b2 = if i + 2 < data.len() { data[i + 2] as u32 } else { 0 };
+        let b1 = if i + 1 < data.len() {
+            data[i + 1] as u32
+        } else {
+            0
+        };
+        let b2 = if i + 2 < data.len() {
+            data[i + 2] as u32
+        } else {
+            0
+        };
         let triplet = (b0 << 16) | (b1 << 8) | b2;
 
         out.push(CHARSET[((triplet >> 18) & 0x3F) as usize] as char);
@@ -244,8 +252,7 @@ pub fn create_hs256_token<T: Serialize>(claims: &T, secret: &str) -> Result<Stri
 
     let message = format!("{}.{}", header_b64, claims_b64);
 
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|e| e.to_string())?;
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).map_err(|e| e.to_string())?;
     mac.update(message.as_bytes());
     let sig = mac.finalize().into_bytes();
     let sig_b64 = base64_url_encode(&sig);
@@ -253,7 +260,10 @@ pub fn create_hs256_token<T: Serialize>(claims: &T, secret: &str) -> Result<Stri
     Ok(format!("{}.{}", message, sig_b64))
 }
 
-pub fn decode_hs256_token<T: serde::de::DeserializeOwned>(token: &str, secret: &str) -> Result<T, String> {
+pub fn decode_hs256_token<T: serde::de::DeserializeOwned>(
+    token: &str,
+    secret: &str,
+) -> Result<T, String> {
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
         return Err("Invalid token format".to_string());
@@ -261,13 +271,14 @@ pub fn decode_hs256_token<T: serde::de::DeserializeOwned>(token: &str, secret: &
     let message = format!("{}.{}", parts[0], parts[1]);
     let sig_bytes = base64_url_decode(parts[2])?;
 
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|e| e.to_string())?;
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).map_err(|e| e.to_string())?;
     mac.update(message.as_bytes());
-    mac.verify_slice(&sig_bytes).map_err(|_| "Invalid token signature".to_string())?;
+    mac.verify_slice(&sig_bytes)
+        .map_err(|_| "Invalid token signature".to_string())?;
 
     let claims_bytes = base64_url_decode(parts[1])?;
-    let claims: T = serde_json::from_slice(&claims_bytes).map_err(|e| format!("Invalid claims JSON: {}", e))?;
+    let claims: T =
+        serde_json::from_slice(&claims_bytes).map_err(|e| format!("Invalid claims JSON: {}", e))?;
     Ok(claims)
 }
 
@@ -466,7 +477,10 @@ mod tests {
     #[test]
     fn test_role_parsing() {
         assert_eq!(Role::from_str_opt("Operator"), Some(Role::Operator));
-        assert_eq!(Role::from_str_opt("FLIGHT_DIRECTOR"), Some(Role::FlightDirector));
+        assert_eq!(
+            Role::from_str_opt("FLIGHT_DIRECTOR"),
+            Some(Role::FlightDirector)
+        );
         assert_eq!(Role::from_str_opt("ADMIN"), Some(Role::SuperAdmin));
         assert_eq!(Role::from_str_opt("TenantAdmin"), Some(Role::TenantAdmin));
         assert_eq!(Role::from_str_opt("invalid"), None);
@@ -517,8 +531,15 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         // Create a token that expired 1 hour ago
-        let token = create_jwt(secret, "user@test.com", tenant_id, "test", Role::Operator, -1)
-            .expect("Token creation should succeed");
+        let token = create_jwt(
+            secret,
+            "user@test.com",
+            tenant_id,
+            "test",
+            Role::Operator,
+            -1,
+        )
+        .expect("Token creation should succeed");
 
         let result = validate_jwt(&token, secret);
         assert!(result.is_err());
@@ -528,8 +549,15 @@ mod tests {
     #[test]
     fn test_jwt_wrong_secret() {
         let tenant_id = Uuid::new_v4();
-        let token = create_jwt("correct-secret", "user@test.com", tenant_id, "test", Role::Operator, 1)
-            .expect("Token creation should succeed");
+        let token = create_jwt(
+            "correct-secret",
+            "user@test.com",
+            tenant_id,
+            "test",
+            Role::Operator,
+            1,
+        )
+        .expect("Token creation should succeed");
 
         let result = validate_jwt(&token, "wrong-secret");
         assert!(result.is_err());

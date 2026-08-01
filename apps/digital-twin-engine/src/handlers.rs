@@ -183,7 +183,6 @@ pub async fn post_monte_carlo(
     Ok(Json(result))
 }
 
-
 /// `GET /api/twin/:satellite/timeline`
 ///
 /// Fetches the most recent events for a satellite from the database.

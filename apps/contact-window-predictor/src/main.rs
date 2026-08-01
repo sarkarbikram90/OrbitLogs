@@ -95,21 +95,25 @@ async fn fetch_ground_stations(pool: &PgPool) -> Vec<GroundStation> {
 
     if let Ok(rows) = rows {
         if !rows.is_empty() {
-            return rows.into_iter().map(|r| GroundStation {
-                id: r.get("station_id"),
-                latitude: r.get("latitude"),
-                longitude: r.get("longitude"),
-                altitude_m: r.get("altitude_m"),
-            }).collect();
+            return rows
+                .into_iter()
+                .map(|r| GroundStation {
+                    id: r.get("station_id"),
+                    latitude: r.get("latitude"),
+                    longitude: r.get("longitude"),
+                    altitude_m: r.get("altitude_m"),
+                })
+                .collect();
         }
     }
     get_default_stations()
 }
 
 async fn fetch_active_satellites(pool: &PgPool) -> Vec<String> {
-    let rows = sqlx::query("SELECT satellite_id FROM registered_satellites WHERE status = 'ACTIVE'")
-        .fetch_all(pool)
-        .await;
+    let rows =
+        sqlx::query("SELECT satellite_id FROM registered_satellites WHERE status = 'ACTIVE'")
+            .fetch_all(pool)
+            .await;
 
     if let Ok(rows) = rows {
         if !rows.is_empty() {

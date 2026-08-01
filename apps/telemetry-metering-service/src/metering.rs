@@ -50,10 +50,10 @@ pub struct Invoice {
 
 /// Pricing Tiers in INR (₹)
 pub const COST_PER_1K_TELEMETRY_INR: f64 = 0.50; // ₹0.50 per 1,000 telemetry events
-pub const COST_PER_GB_STORAGE_INR: f64 = 15.00;    // ₹15.00 per GB-month
-pub const BASE_DEVELOPER_PLAN_INR: f64 = 4999.00;  // ₹4,999 / month base platform fee
-pub const GST_RATE: f64 = 0.18;                      // 18% GST for SaaS in India (SAC 998314)
-pub const OPERATING_STATE_CODE: &str = "27";         // 27 = Maharashtra (OrbitLogs HQ)
+pub const COST_PER_GB_STORAGE_INR: f64 = 15.00; // ₹15.00 per GB-month
+pub const BASE_DEVELOPER_PLAN_INR: f64 = 4999.00; // ₹4,999 / month base platform fee
+pub const GST_RATE: f64 = 0.18; // 18% GST for SaaS in India (SAC 998314)
+pub const OPERATING_STATE_CODE: &str = "27"; // 27 = Maharashtra (OrbitLogs HQ)
 
 /// Indian Space Ecosystem Subscription Tiers
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,8 +109,6 @@ pub fn validate_gstin(gstin: &str) -> bool {
         && pan_digits.chars().all(|c| c.is_ascii_digit())
         && pan_last.chars().all(|c| c.is_ascii_uppercase())
 }
-
-
 
 pub async fn record_telemetry_event(
     pool: &PgPool,
@@ -189,13 +187,12 @@ pub async fn generate_monthly_invoice(
     let base_amount_inr = BASE_DEVELOPER_PLAN_INR + telemetry_cost + storage_cost;
 
     // Fetch tenant state_code for GST determination (Intra-state = CGST+SGST, Inter-state = IGST)
-    let tenant_state: String = sqlx::query_scalar(
-        "SELECT COALESCE(state_code, '27') FROM tenants WHERE id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .unwrap_or_else(|| "27".to_string());
+    let tenant_state: String =
+        sqlx::query_scalar("SELECT COALESCE(state_code, '27') FROM tenants WHERE id = $1")
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or_else(|| "27".to_string());
 
     let (cgst, sgst, igst) = if tenant_state == OPERATING_STATE_CODE {
         // Intra-state supply: 9% CGST + 9% SGST

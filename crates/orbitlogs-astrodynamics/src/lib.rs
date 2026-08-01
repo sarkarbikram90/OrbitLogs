@@ -18,8 +18,8 @@ pub mod space_weather;
 pub mod tle;
 
 pub use conjunction::{
-    compute_cam_delta_v, compute_collision_probability, compute_covariance_ellipsoid,
-    CamProposal, ConjunctionEvent, CovarianceEllipsoid,
+    compute_cam_delta_v, compute_collision_probability, compute_covariance_ellipsoid, CamProposal,
+    ConjunctionEvent, CovarianceEllipsoid,
 };
 pub use coordinates::{
     calculate_gmst_rad, calculate_look_angles, datetime_to_jd, ecef_to_enu, ecef_to_geodetic,
@@ -32,10 +32,7 @@ pub use navic::{
 };
 pub use space_weather::{
     assess_seu_risk, calculate_atmospheric_drag_multiplier, calculate_orbit_decay_rate_m_day,
-    generate_space_weather_observation, GeomagneticStormLevel, RadiationStormLevel,
-    SeuRiskLevel, SpaceWeatherObservation,
+    generate_space_weather_observation, GeomagneticStormLevel, RadiationStormLevel, SeuRiskLevel,
+    SpaceWeatherObservation,
 };
 pub use tle::{predict_contact_windows, AstrodynamicsError, ContactWindow, TleRecord};
-
-
-

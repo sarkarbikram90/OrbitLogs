@@ -69,11 +69,7 @@ impl TenantRateLimiter {
     /// Check if a request from a tenant is permitted.
     ///
     /// Returns `Ok(remaining_tokens)` if allowed, or `Err(retry_after_seconds)` if rate limit exceeded.
-    pub fn check_rate_limit(
-        &self,
-        tenant_id: &str,
-        plan_tier: PlanTier,
-    ) -> Result<u32, u32> {
+    pub fn check_rate_limit(&self, tenant_id: &str, plan_tier: PlanTier) -> Result<u32, u32> {
         let max_capacity = plan_tier.max_requests_per_minute();
         let refill_rate_per_sec = max_capacity / 60.0;
         let now = Instant::now();
@@ -118,7 +114,9 @@ mod tests {
 
         // Developer tier has capacity 100
         for _ in 0..100 {
-            assert!(limiter.check_rate_limit("tenant-2", PlanTier::Developer).is_ok());
+            assert!(limiter
+                .check_rate_limit("tenant-2", PlanTier::Developer)
+                .is_ok());
         }
 
         // 101st request should be rejected

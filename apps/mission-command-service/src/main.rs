@@ -302,7 +302,8 @@ mod tests {
 
         let token = orbitlogs_models::auth::create_hs256_token(&claims, secret).unwrap();
 
-        let decoded_claims: Claims = orbitlogs_models::auth::decode_hs256_token(&token, secret).unwrap();
+        let decoded_claims: Claims =
+            orbitlogs_models::auth::decode_hs256_token(&token, secret).unwrap();
 
         assert_eq!(decoded_claims.sub, "test-user");
         assert_eq!(decoded_claims.role, "OPERATOR");

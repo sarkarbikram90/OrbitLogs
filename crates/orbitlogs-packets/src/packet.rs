@@ -256,4 +256,3 @@ mod header_tests {
         assert!(parse_header(&[]).is_err());
     }
 }
-

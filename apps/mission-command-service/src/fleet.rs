@@ -50,8 +50,7 @@ fn extract_tenant_context(
             crate::error::AppError::Auth("Missing Authorization Bearer token".to_string())
         })?;
 
-    validate_jwt(token, &state.jwt_secret)
-        .map_err(|e| crate::error::AppError::Auth(e))
+    validate_jwt(token, &state.jwt_secret).map_err(|e| crate::error::AppError::Auth(e))
 }
 
 // --- LIST SATELLITES ---
@@ -111,7 +110,8 @@ pub async fn create_satellite(
     Json(req): Json<CreateSatelliteRequest>,
 ) -> Result<(StatusCode, Json<RegisteredSatellite>), crate::error::AppError> {
     let ctx = extract_tenant_context(&state, &headers)?;
-    ctx.require_role(Role::Operator).map_err(|e| crate::error::AppError::Forbidden(e))?;
+    ctx.require_role(Role::Operator)
+        .map_err(|e| crate::error::AppError::Forbidden(e))?;
 
     // Validate satellite_id format
     if req.satellite_id.trim().is_empty() {
@@ -133,16 +133,14 @@ pub async fn create_satellite(
     })?;
 
     // Get tenant limits
-    let max_sats: i32 = sqlx::query_scalar(
-        "SELECT max_satellites FROM tenants WHERE id = $1",
-    )
-    .bind(ctx.tenant_id)
-    .fetch_one(&state.db_pool)
-    .await
-    .map_err(|e| {
-        error!(error = %e, "Failed to query tenant limits");
-        crate::error::AppError::Internal("Database query failed".to_string())
-    })?;
+    let max_sats: i32 = sqlx::query_scalar("SELECT max_satellites FROM tenants WHERE id = $1")
+        .bind(ctx.tenant_id)
+        .fetch_one(&state.db_pool)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to query tenant limits");
+            crate::error::AppError::Internal("Database query failed".to_string())
+        })?;
 
     if count >= max_sats as i64 {
         return Err(crate::error::AppError::Validation(format!(
@@ -286,7 +284,8 @@ pub async fn delete_satellite(
     Path(satellite_id): Path<String>,
 ) -> Result<StatusCode, crate::error::AppError> {
     let ctx = extract_tenant_context(&state, &headers)?;
-    ctx.require_role(Role::MissionManager).map_err(|e| crate::error::AppError::Forbidden(e))?;
+    ctx.require_role(Role::MissionManager)
+        .map_err(|e| crate::error::AppError::Forbidden(e))?;
 
     let result = sqlx::query(
         "UPDATE registered_satellites SET status = 'DECOMMISSIONED', updated_at = NOW() \
@@ -332,7 +331,8 @@ pub async fn update_satellite_tle(
     Json(req): Json<UpdateTleRequest>,
 ) -> Result<StatusCode, crate::error::AppError> {
     let ctx = extract_tenant_context(&state, &headers)?;
-    ctx.require_role(Role::Operator).map_err(|e| crate::error::AppError::Forbidden(e))?;
+    ctx.require_role(Role::Operator)
+        .map_err(|e| crate::error::AppError::Forbidden(e))?;
 
     // Basic TLE validation
     if req.tle_line1.len() < 69 || req.tle_line2.len() < 69 {

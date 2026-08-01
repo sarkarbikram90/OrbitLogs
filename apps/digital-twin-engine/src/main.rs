@@ -272,7 +272,6 @@ async fn main() -> Result<(), anyhow::Error> {
             "/api/twin/:satellite/monte-carlo",
             post(handlers::post_monte_carlo),
         )
-
         .route(
             "/api/twin/:satellite/timeline",
             get(handlers::get_twin_timeline),

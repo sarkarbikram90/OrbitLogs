@@ -193,17 +193,38 @@ mod tests {
 
     #[test]
     fn test_geomagnetic_storm_level() {
-        assert_eq!(GeomagneticStormLevel::from_kp(2.0), GeomagneticStormLevel::None);
-        assert_eq!(GeomagneticStormLevel::from_kp(5.2), GeomagneticStormLevel::G1Minor);
-        assert_eq!(GeomagneticStormLevel::from_kp(7.0), GeomagneticStormLevel::G3Strong);
-        assert_eq!(GeomagneticStormLevel::from_kp(9.0), GeomagneticStormLevel::G5Extreme);
+        assert_eq!(
+            GeomagneticStormLevel::from_kp(2.0),
+            GeomagneticStormLevel::None
+        );
+        assert_eq!(
+            GeomagneticStormLevel::from_kp(5.2),
+            GeomagneticStormLevel::G1Minor
+        );
+        assert_eq!(
+            GeomagneticStormLevel::from_kp(7.0),
+            GeomagneticStormLevel::G3Strong
+        );
+        assert_eq!(
+            GeomagneticStormLevel::from_kp(9.0),
+            GeomagneticStormLevel::G5Extreme
+        );
     }
 
     #[test]
     fn test_radiation_storm_level() {
-        assert_eq!(RadiationStormLevel::from_flux_pfu(5.0), RadiationStormLevel::None);
-        assert_eq!(RadiationStormLevel::from_flux_pfu(150.0), RadiationStormLevel::S2Moderate);
-        assert_eq!(RadiationStormLevel::from_flux_pfu(1500.0), RadiationStormLevel::S3Strong);
+        assert_eq!(
+            RadiationStormLevel::from_flux_pfu(5.0),
+            RadiationStormLevel::None
+        );
+        assert_eq!(
+            RadiationStormLevel::from_flux_pfu(150.0),
+            RadiationStormLevel::S2Moderate
+        );
+        assert_eq!(
+            RadiationStormLevel::from_flux_pfu(1500.0),
+            RadiationStormLevel::S3Strong
+        );
     }
 
     #[test]

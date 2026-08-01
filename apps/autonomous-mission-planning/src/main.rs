@@ -19,12 +19,12 @@ mod error;
 mod planner;
 mod timeline;
 
-use std::net::SocketAddr;
-use std::time::Duration;
 use anyhow::Result;
 use axum::{routing::get, Json, Router};
 use clap::Parser;
 use serde_json::{json, Value};
+use std::net::SocketAddr;
+use std::time::Duration;
 use tracing::{info, warn, Level};
 
 pub use command::Command;
@@ -61,9 +61,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Initialize structured logging.
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     info!("Starting Autonomous Mission Planner...");
 

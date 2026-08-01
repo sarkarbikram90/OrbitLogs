@@ -98,7 +98,7 @@ pub async fn rate_limit_middleware(
         });
 
     let now = Instant::now();
-    
+
     // Evict stale rate limiter entries if map gets too large
     if state.rate_limiter.len() > state.cache_capacity {
         let mut stale_keys = Vec::new();

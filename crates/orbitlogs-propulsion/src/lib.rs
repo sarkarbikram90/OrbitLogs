@@ -134,7 +134,14 @@ mod tests {
         let epoch = Utc::now();
 
         let cam_plan = ManeuverPlan::calculate_cam_burn_vector(
-            sat_id, sat_mass, isp, pos_eci, vel_eci, target_miss_m, time_to_ca, epoch,
+            sat_id,
+            sat_mass,
+            isp,
+            pos_eci,
+            vel_eci,
+            target_miss_m,
+            time_to_ca,
+            epoch,
         );
 
         assert_eq!(cam_plan.sat_id, sat_id);
@@ -148,4 +155,3 @@ mod tests {
         assert!(cam_plan.fuel_consumed_kg > 0.0);
     }
 }
-

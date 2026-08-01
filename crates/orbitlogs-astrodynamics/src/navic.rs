@@ -165,10 +165,8 @@ pub fn compute_navic_position_fix(
         let mut d_vec = Vec::new();
 
         for obs in observations {
-            let p_if = calculate_navic_iono_free_pseudorange(
-                obs.l5_pseudorange_m,
-                obs.s_pseudorange_m,
-            );
+            let p_if =
+                calculate_navic_iono_free_pseudorange(obs.l5_pseudorange_m, obs.s_pseudorange_m);
 
             let dx = obs.sat_pos_ecef_m[0] - rx_x;
             let dy = obs.sat_pos_ecef_m[1] - rx_y;
@@ -309,4 +307,3 @@ mod tests {
         assert!(sol.iono_free_active);
     }
 }
-

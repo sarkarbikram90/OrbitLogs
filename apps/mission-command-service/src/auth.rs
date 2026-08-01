@@ -130,10 +130,14 @@ pub async fn register_handler(
     Json(req): Json<orbitlogs_models::auth::RegisterRequest>,
 ) -> Result<(axum::http::StatusCode, Json<RegisterResponse>), crate::error::AppError> {
     if req.tenant_name.trim().is_empty() || req.tenant_slug.trim().is_empty() {
-        return Err(crate::error::AppError::Validation("Tenant name and slug are required".to_string()));
+        return Err(crate::error::AppError::Validation(
+            "Tenant name and slug are required".to_string(),
+        ));
     }
     if req.email.trim().is_empty() || req.password.trim().is_empty() {
-        return Err(crate::error::AppError::Validation("Email and password are required".to_string()));
+        return Err(crate::error::AppError::Validation(
+            "Email and password are required".to_string(),
+        ));
     }
 
     let tenant_id = uuid::Uuid::new_v4();
@@ -238,7 +242,11 @@ pub async fn login_handler(
             return Err(crate::error::AppError::Auth("Invalid API key".to_string()));
         }
 
-        let role_str = if req.role.is_empty() { "Operator" } else { &req.role };
+        let role_str = if req.role.is_empty() {
+            "Operator"
+        } else {
+            &req.role
+        };
         let Some(role) = Role::from_str(role_str) else {
             return Err(crate::error::AppError::Validation(
                 "Invalid role specified".to_string(),
@@ -252,7 +260,8 @@ pub async fn login_handler(
             "orbitlogs-operator",
             default_tenant,
             "system",
-            orbitlogs_models::auth::Role::from_str_opt(role_str).unwrap_or(orbitlogs_models::auth::Role::Operator),
+            orbitlogs_models::auth::Role::from_str_opt(role_str)
+                .unwrap_or(orbitlogs_models::auth::Role::Operator),
             state.jwt_expiration_hours,
         )
         .map_err(|e| crate::error::AppError::Internal(format!("Token generation failed: {}", e)))?;
@@ -269,7 +278,7 @@ pub async fn login_handler(
         let row = sqlx::query(
             "SELECT u.tenant_id, u.role, u.password_hash, t.tenant_slug \
              FROM users u JOIN tenants t ON u.tenant_id = t.id \
-             WHERE u.email = $1 AND u.status = 'ACTIVE'"
+             WHERE u.email = $1 AND u.status = 'ACTIVE'",
         )
         .bind(&req.email)
         .fetch_optional(&state.db_pool)
@@ -281,7 +290,9 @@ pub async fn login_handler(
             let stored_hash: String = row.get("password_hash");
 
             if !orbitlogs_models::auth::verify_password(&req.password, &stored_hash) {
-                return Err(crate::error::AppError::Auth("Invalid email or password".to_string()));
+                return Err(crate::error::AppError::Auth(
+                    "Invalid email or password".to_string(),
+                ));
             }
 
             let tenant_id: uuid::Uuid = row.get("tenant_id");
@@ -307,11 +318,15 @@ pub async fn login_handler(
                 tenant_slug,
             }));
         } else {
-            return Err(crate::error::AppError::Auth("Invalid email or password".to_string()));
+            return Err(crate::error::AppError::Auth(
+                "Invalid email or password".to_string(),
+            ));
         }
     }
 
-    Err(crate::error::AppError::Validation("Either api_key or email+password must be provided".to_string()))
+    Err(crate::error::AppError::Validation(
+        "Either api_key or email+password must be provided".to_string(),
+    ))
 }
 
 #[cfg(test)]

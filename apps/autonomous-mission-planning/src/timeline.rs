@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use chrono::{DateTime, Utc};
 use crate::command::Command;
 use crate::digital_twin::DigitalTwinState;
 use crate::error::SafetyViolation;
+use chrono::{DateTime, Utc};
 
 pub const MAX_BATTERY_PERCENT: f32 = 100.0;
 pub const MIN_SAFE_BATTERY: f32 = 20.0; // Minimum allowable SoC threshold (%)

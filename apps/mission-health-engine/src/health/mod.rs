@@ -21,9 +21,9 @@
 pub mod assessors;
 pub mod types;
 
+pub use assessors::*;
 use orbitlogs_models::TelemetryRecord;
 pub use types::*;
-pub use assessors::*;
 
 pub fn assess_satellite_health(
     record: &TelemetryRecord,
@@ -275,10 +275,8 @@ mod tests {
         let health = assess_satellite_health(&rec, &gs_states);
         assert_eq!(health.overall_state, HealthState::Red);
         assert_eq!(health.communications.state, HealthState::Red);
-        assert!(
-            health
-                .explanation
-                .contains("Critical comm degradation due to onboard transponder anomaly")
-        );
+        assert!(health
+            .explanation
+            .contains("Critical comm degradation due to onboard transponder anomaly"));
     }
 }

@@ -161,9 +161,10 @@ fn calculate_observation_jacobian(_state: &Vector6<f64>) -> Matrix3x6<f64> {
 }
 
 async fn fetch_active_satellites(pool: &PgPool) -> Vec<String> {
-    let rows = sqlx::query("SELECT satellite_id FROM registered_satellites WHERE status = 'ACTIVE'")
-        .fetch_all(pool)
-        .await;
+    let rows =
+        sqlx::query("SELECT satellite_id FROM registered_satellites WHERE status = 'ACTIVE'")
+            .fetch_all(pool)
+            .await;
 
     if let Ok(rows) = rows {
         if !rows.is_empty() {

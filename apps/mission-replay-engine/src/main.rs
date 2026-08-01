@@ -18,7 +18,6 @@ mod handlers;
 mod metrics;
 mod session;
 
-
 use axum::{
     routing::{get, post},
     Router,
@@ -152,10 +151,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let app = Router::new()
         .nest("/api/replays", replay_routes)
         .route("/api/satellites", get(handlers::list_satellites))
-        .route("/api/satellites/:id/export", get(export::export_satellite_data))
+        .route(
+            "/api/satellites/:id/export",
+            get(export::export_satellite_data),
+        )
         .route("/api/ground-stations", get(handlers::list_ground_stations))
         .route("/api/events", get(handlers::list_events))
-
         .route("/metrics", get(handlers::handle_metrics))
         .route("/health", get(handlers::health_check))
         .layer(axum::middleware::from_fn_with_state(

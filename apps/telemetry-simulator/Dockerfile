@@ -38,6 +38,7 @@ COPY crates/orbitlogs-astrodynamics/Cargo.toml crates/orbitlogs-astrodynamics/Ca
 COPY crates/orbitlogs-propulsion/Cargo.toml crates/orbitlogs-propulsion/Cargo.toml
 COPY crates/orbitlogs-test-utils/Cargo.toml crates/orbitlogs-test-utils/Cargo.toml
 COPY crates/orbitlogs-pus/Cargo.toml crates/orbitlogs-pus/Cargo.toml
+COPY crates/orbitlogs-edge/Cargo.toml crates/orbitlogs-edge/Cargo.toml
 
 # Create dummy sources for all workspace members to cache dependency compilation
 RUN set -e; \
@@ -50,7 +51,7 @@ RUN set -e; \
         mkdir -p "apps/${app}/src" && echo 'fn main() {}' > "apps/${app}/src/main.rs"; \
     done; \
     for crt in orbitlogs-models orbitlogs-packets space-schema-registry fleet-health \
-               orbitlogs-astrodynamics orbitlogs-propulsion orbitlogs-test-utils orbitlogs-pus; do \
+               orbitlogs-astrodynamics orbitlogs-propulsion orbitlogs-test-utils orbitlogs-pus orbitlogs-edge; do \
         mkdir -p "crates/${crt}/src" && touch "crates/${crt}/src/lib.rs"; \
     done
 

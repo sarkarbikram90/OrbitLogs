@@ -20,7 +20,9 @@ use crate::digital_twin::DigitalTwinState;
 use crate::timeline::build_demo_timeline;
 
 /// Executes a single planner evaluation cycle on a target digital twin state.
-pub async fn evaluate_twin_timeline(twin: &DigitalTwinState) -> Result<(), crate::error::SafetyViolation> {
+pub async fn evaluate_twin_timeline(
+    twin: &DigitalTwinState,
+) -> Result<(), crate::error::SafetyViolation> {
     info!(satellite = %twin.satellite_id, "Evaluating autonomous mission timeline safety constraints...");
     let timeline = build_demo_timeline(Utc::now());
     timeline.validate_safety_constraints(twin)
@@ -56,7 +58,9 @@ mod tests {
     #[tokio::test]
     fn test_evaluate_nominal_twin() {
         let twin = DigitalTwinState::demo();
-        let res = tokio::runtime::Runtime::new().unwrap().block_on(evaluate_twin_timeline(&twin));
+        let res = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(evaluate_twin_timeline(&twin));
         assert!(res.is_ok());
     }
 

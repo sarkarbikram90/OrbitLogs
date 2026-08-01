@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use serde::{Deserialize, Serialize};
 use crate::domain_error;
+use serde::{Deserialize, Serialize};
 
 /// Macro that generates validated newtype ID structs with full trait impls.
 macro_rules! define_newtype_id {

@@ -251,8 +251,7 @@ pub fn decode_frame_to_record(bytes: &[u8]) -> Result<TelemetryRecord, PacketErr
     if data_apid != packet.apid {
         return Err(PacketError::SubsystemMismatch(format!(
             "The payload header apid {} does not match the packet apid {}",
-            data_apid,
-            packet.apid,
+            data_apid, packet.apid,
         )));
     }
 

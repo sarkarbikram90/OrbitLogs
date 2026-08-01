@@ -99,11 +99,16 @@ mod tests {
     #[test]
     fn test_telemetry_compression() {
         // Create 10 identical nominal frames
-        let frame = vec![0x10, 0x03, 0x19, 0x00, 0x0A, 0x0B, 0x22, 0x09, 0xC4, 0x00, 0xFA, 0x5F];
+        let frame = vec![
+            0x10, 0x03, 0x19, 0x00, 0x0A, 0x0B, 0x22, 0x09, 0xC4, 0x00, 0xFA, 0x5F,
+        ];
         let frames = vec![frame; 10];
 
         let batch = compress_telemetry_frames("SAT-0001", &frames);
         assert_eq!(batch.frame_count, 10);
-        assert!(batch.compression_ratio > 3.0, "Identical frames should compress well");
+        assert!(
+            batch.compression_ratio > 3.0,
+            "Identical frames should compress well"
+        );
     }
 }

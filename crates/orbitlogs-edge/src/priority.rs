@@ -43,7 +43,11 @@ pub struct ClassifiedPacket {
 }
 
 /// Classifies a PUS packet based on service type and payload flags.
-pub fn classify_pus_packet(service_type: u8, subservice_type: u8, payload: &[u8]) -> PacketPriority {
+pub fn classify_pus_packet(
+    service_type: u8,
+    subservice_type: u8,
+    payload: &[u8],
+) -> PacketPriority {
     match service_type {
         1 => PacketPriority::High, // Telecommand verification
         5 => {
@@ -58,7 +62,8 @@ pub fn classify_pus_packet(service_type: u8, subservice_type: u8, payload: &[u8]
             // Check if battery voltage or temp indicates emergency
             if payload.len() >= 10 {
                 let temp_raw = i16::from_be_bytes([payload[8], payload[9]]);
-                if temp_raw > 650 || temp_raw < -200 { // > 65.0°C or < -20.0°C
+                if temp_raw > 650 || temp_raw < -200 {
+                    // > 65.0°C or < -20.0°C
                     return PacketPriority::High;
                 }
             }

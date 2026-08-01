@@ -81,9 +81,15 @@ pub fn run_monte_carlo_projection(
     let scenario = request.scenario.unwrap_or(ScenarioPerturbation::Nominal);
 
     let scenario_name = match &scenario {
-        ScenarioPerturbation::SolarFlare { kp_index, .. } => format!("Solar Flare (Kp = {:.1})", kp_index),
-        ScenarioPerturbation::ThrusterBurn { delta_v_m_s, .. } => format!("Thruster Burn ({:.2} m/s Δv)", delta_v_m_s),
-        ScenarioPerturbation::PayloadBurst { power_w, .. } => format!("High Payload Activity ({:.0} W)", power_w),
+        ScenarioPerturbation::SolarFlare { kp_index, .. } => {
+            format!("Solar Flare (Kp = {:.1})", kp_index)
+        }
+        ScenarioPerturbation::ThrusterBurn { delta_v_m_s, .. } => {
+            format!("Thruster Burn ({:.2} m/s Δv)", delta_v_m_s)
+        }
+        ScenarioPerturbation::PayloadBurst { power_w, .. } => {
+            format!("High Payload Activity ({:.0} W)", power_w)
+        }
         ScenarioPerturbation::Nominal => "Nominal Orbit Operations".to_string(),
     };
 
@@ -111,7 +117,10 @@ pub fn run_monte_carlo_projection(
 
         // Apply scenario effects over horizon
         match scenario {
-            ScenarioPerturbation::SolarFlare { kp_index, duration_hours } => {
+            ScenarioPerturbation::SolarFlare {
+                kp_index,
+                duration_hours,
+            } => {
                 let factor = (kp_index / 9.0) as f64 * (duration_hours / horizon) as f64;
                 sim_temp += 15.0 * factor + rng.gen_range(-3.0..5.0);
                 sim_soc -= 8.0 * factor;
@@ -121,7 +130,10 @@ pub fn run_monte_carlo_projection(
                 sim_fuel = (sim_fuel - fuel_used).max(0.0);
                 sim_temp += 4.0;
             }
-            ScenarioPerturbation::PayloadBurst { power_w, duration_hours } => {
+            ScenarioPerturbation::PayloadBurst {
+                power_w,
+                duration_hours,
+            } => {
                 let drain = (power_w as f64 / 100.0) * (duration_hours / horizon) as f64 * 10.0;
                 sim_soc -= drain;
                 sim_temp += (power_w as f64 / 50.0) * 2.0;
@@ -135,7 +147,10 @@ pub fn run_monte_carlo_projection(
         sim_soc = sim_soc.clamp(0.0, 100.0);
         sim_fuel = sim_fuel.clamp(0.0, 100.0);
 
-        let health_score = (sim_soc * 0.4 + (100.0 - (sim_temp - 20.0).abs() * 2.0).clamp(0.0, 100.0) * 0.3 + sim_fuel * 0.3).clamp(0.0, 100.0);
+        let health_score = (sim_soc * 0.4
+            + (100.0 - (sim_temp - 20.0).abs() * 2.0).clamp(0.0, 100.0) * 0.3
+            + sim_fuel * 0.3)
+            .clamp(0.0, 100.0);
 
         if sim_soc < 20.0 || sim_temp > 60.0 || health_score < 40.0 {
             anomaly_count += 1;

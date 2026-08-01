@@ -22,7 +22,6 @@ use chrono::{DateTime, Utc};
 use nalgebra::Matrix3;
 use serde::{Deserialize, Serialize};
 
-
 /// Conjunction event between a primary satellite and a secondary object.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConjunctionEvent {
@@ -259,9 +258,9 @@ mod tests {
     fn test_collision_probability_high_risk() {
         // Close approach: 200m miss, large covariance
         let cov = [
-            [0.01, 0.0, 0.0],   // 100m sigma radial
-            [0.0, 0.04, 0.0],   // 200m sigma in-track
-            [0.0, 0.0, 0.001],  // 31m sigma cross-track
+            [0.01, 0.0, 0.0],  // 100m sigma radial
+            [0.0, 0.04, 0.0],  // 200m sigma in-track
+            [0.0, 0.0, 0.001], // 31m sigma cross-track
         ];
         let pc = compute_collision_probability(200.0, 14000.0, &cov, 10.0);
         assert!(pc > 0.0, "Pc should be positive for close approach");
@@ -271,13 +270,12 @@ mod tests {
     #[test]
     fn test_collision_probability_safe() {
         // Very far miss: 50km miss, small covariance
-        let cov = [
-            [0.001, 0.0, 0.0],
-            [0.0, 0.001, 0.0],
-            [0.0, 0.0, 0.001],
-        ];
+        let cov = [[0.001, 0.0, 0.0], [0.0, 0.001, 0.0], [0.0, 0.0, 0.001]];
         let pc = compute_collision_probability(50_000.0, 10000.0, &cov, 5.0);
-        assert!(pc < 1e-10, "Pc should be negligible for large miss distance");
+        assert!(
+            pc < 1e-10,
+            "Pc should be negligible for large miss distance"
+        );
     }
 
     #[test]
@@ -294,27 +292,28 @@ mod tests {
             collision_probability: 5e-4,
             primary_position_km: [6800.0, 0.0, 0.0],
             secondary_position_km: [6800.15, 0.0, 0.0],
-            combined_covariance_km2: [
-                [0.01, 0.0, 0.0],
-                [0.0, 0.04, 0.0],
-                [0.0, 0.0, 0.001],
-            ],
+            combined_covariance_km2: [[0.01, 0.0, 0.0], [0.0, 0.04, 0.0], [0.0, 0.0, 0.001]],
             combined_hard_body_radius_m: 10.0,
         };
 
         let proposal = compute_cam_delta_v(
-            &event,
-            5000.0,  // Target 5km miss distance
-            2700.0,  // 45 minutes before TCA
-            500.0,   // 500 kg satellite
-            220.0,   // 220s Isp (hydrazine)
-            95.0,    // 95% fuel remaining
+            &event, 5000.0, // Target 5km miss distance
+            2700.0, // 45 minutes before TCA
+            500.0,  // 500 kg satellite
+            220.0,  // 220s Isp (hydrazine)
+            95.0,   // 95% fuel remaining
         );
 
         assert!(proposal.delta_v_magnitude_m_s > 0.0);
-        assert!(proposal.delta_v_magnitude_m_s < 10.0, "Δv should be reasonable");
+        assert!(
+            proposal.delta_v_magnitude_m_s < 10.0,
+            "Δv should be reasonable"
+        );
         assert!(proposal.propellant_kg > 0.0);
-        assert!(proposal.propellant_kg < 50.0, "Propellant use should be reasonable");
+        assert!(
+            proposal.propellant_kg < 50.0,
+            "Propellant use should be reasonable"
+        );
         assert!(proposal.post_burn_miss_distance_m > event.miss_distance_m);
         assert!(proposal.post_burn_fuel_pct < 95.0);
         assert!(proposal.post_burn_fuel_pct > 0.0);
@@ -322,11 +321,7 @@ mod tests {
 
     #[test]
     fn test_covariance_ellipsoid() {
-        let cov = [
-            [0.04, 0.0, 0.0],
-            [0.0, 0.16, 0.0],
-            [0.0, 0.0, 0.01],
-        ];
+        let cov = [[0.04, 0.0, 0.0], [0.0, 0.16, 0.0], [0.0, 0.0, 0.01]];
 
         let ellipsoid = compute_covariance_ellipsoid(&cov, 3.0);
         assert_eq!(ellipsoid.sigma_level, 3.0);

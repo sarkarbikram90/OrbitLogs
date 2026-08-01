@@ -58,7 +58,10 @@ async fn get_usage_handler(
 ) -> Result<Json<Vec<metering::TenantUsageSummary>>, (StatusCode, String)> {
     let ctx = extract_tenant_context(&state, &headers)?;
     if ctx.tenant_id != tenant_id && ctx.role < orbitlogs_models::auth::Role::SuperAdmin {
-        return Err((StatusCode::FORBIDDEN, "Access denied: tenant ID mismatch".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Access denied: tenant ID mismatch".to_string(),
+        ));
     }
 
     metering::get_tenant_usage(&state.db_pool, tenant_id)
@@ -75,7 +78,10 @@ async fn record_usage_handler(
 ) -> Result<StatusCode, (StatusCode, String)> {
     let ctx = extract_tenant_context(&state, &headers)?;
     if ctx.tenant_id != tenant_id && ctx.role < orbitlogs_models::auth::Role::SuperAdmin {
-        return Err((StatusCode::FORBIDDEN, "Access denied: tenant ID mismatch".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Access denied: tenant ID mismatch".to_string(),
+        ));
     }
 
     let count = payload["count"].as_i64().unwrap_or(1);
@@ -93,14 +99,22 @@ fn extract_tenant_context(
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization Bearer token".to_string()))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Missing Authorization Bearer token".to_string(),
+            )
+        })?;
 
     orbitlogs_models::auth::validate_jwt(token, &state.jwt_secret)
         .map_err(|e| (StatusCode::UNAUTHORIZED, e))
 }
 
 async fn health_check_handler() -> impl axum::response::IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({ "status": "UP", "service": "telemetry-metering-service" })))
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "UP", "service": "telemetry-metering-service" })),
+    )
 }
 
 #[tokio::main]
@@ -129,11 +143,20 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 3).await?;
-    let state = Arc::new(AppState { db_pool, jwt_secret });
+    let state = Arc::new(AppState {
+        db_pool,
+        jwt_secret,
+    });
 
     let app = Router::new()
-        .route("/api/metering/tenants/:tenant_id/usage", get(get_usage_handler))
-        .route("/api/metering/tenants/:tenant_id/record", post(record_usage_handler))
+        .route(
+            "/api/metering/tenants/:tenant_id/usage",
+            get(get_usage_handler),
+        )
+        .route(
+            "/api/metering/tenants/:tenant_id/record",
+            post(record_usage_handler),
+        )
         .route("/health", get(health_check_handler))
         .route("/readiness", get(health_check_handler))
         .route("/liveness", get(health_check_handler))
@@ -142,9 +165,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("Telemetry Metering Service listening on http://localhost:{}", cli.port);
+    info!(
+        "Telemetry Metering Service listening on http://localhost:{}",
+        cli.port
+    );
 
     axum::serve(listener, app).await?;
     Ok(())
 }
-

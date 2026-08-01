@@ -23,17 +23,17 @@ impl AnomalyDetector {
     pub fn new(model_path: &str) -> Self {
         // Since we are running in multiple environments, let's gracefully load the ONNX model
         // and fall back to a mathematical/heuristic reconstruction loss model if the file does not exist.
-        info!(
-            "Initializing ML Anomaly Detector: {}",
-            model_path
-        );
+        info!("Initializing ML Anomaly Detector: {}", model_path);
 
         let session = (|| -> Result<Session, ort::Error> {
             let builder = Session::builder()?;
-            let mut builder = builder.with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?;
+            let mut builder = builder
+                .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?;
             let session = builder.commit_from_file(model_path)?;
             Ok(session)
-        })().map(Mutex::new).ok();
+        })()
+        .map(Mutex::new)
+        .ok();
 
         if session.is_some() {
             info!("Successfully loaded ONNX model for real-time anomaly detection.");

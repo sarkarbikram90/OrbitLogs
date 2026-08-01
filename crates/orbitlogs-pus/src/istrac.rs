@@ -23,14 +23,14 @@ use uuid::Uuid;
 /// Supported ISRO ISTRAC Ground Network Stations
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IstracStation {
-    Bengaluru,    // ISTRAC-BLR (Byalalu 32m DSN & TTC)
-    Lucknow,      // ISTRAC-LKW
-    PortBlair,    // ISTRAC-PB
-    Sriharikota,  // ISTRAC-SHAR
-    Mauritius,    // ISTRAC-MAU
-    Bhopal,       // ISTRAC-BPL (Central India relay)
-    Brunei,       // ISTRAC-BRN (Southeast Asia coverage)
-    Indonesia,    // ISTRAC-IDN (Biak ground station)
+    Bengaluru,   // ISTRAC-BLR (Byalalu 32m DSN & TTC)
+    Lucknow,     // ISTRAC-LKW
+    PortBlair,   // ISTRAC-PB
+    Sriharikota, // ISTRAC-SHAR
+    Mauritius,   // ISTRAC-MAU
+    Bhopal,      // ISTRAC-BPL (Central India relay)
+    Brunei,      // ISTRAC-BRN (Southeast Asia coverage)
+    Indonesia,   // ISTRAC-IDN (Biak ground station)
     Unknown,
 }
 
@@ -171,8 +171,6 @@ pub fn get_istrac_station_profiles() -> Vec<IstracStationProfile> {
         },
     ]
 }
-
-
 
 /// Parsed ISTRAC CCSDS Transfer Frame
 #[derive(Debug, Clone, Serialize, Deserialize)]

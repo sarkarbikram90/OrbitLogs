@@ -26,17 +26,11 @@ pub const BASE_SOLAR_RECOVERY: f32 = 2.0; // Base battery percentage gained from
 pub enum Command {
     ShedSecondaryLoad,
 
-    AdjustRadiatorYaw {
-        angle_degrees: f32,
-    },
+    AdjustRadiatorYaw { angle_degrees: f32 },
 
-    OrientSolarPanels {
-        heading_degrees: f32,
-    },
+    OrientSolarPanels { heading_degrees: f32 },
 
-    ExecuteBurn {
-        vector: [f64; 3],
-    },
+    ExecuteBurn { vector: [f64; 3] },
 }
 
 impl Command {

@@ -20,7 +20,9 @@
 //! priority, applies 10x telemetry compression, and streams prioritized batches back to
 //! OrbitLogs cloud telemetry collectors.
 
-use orbitlogs_edge::{compress_telemetry_frames, deframe_ccsds_frame, classify_pus_packet, PacketPriority};
+use orbitlogs_edge::{
+    classify_pus_packet, compress_telemetry_frames, deframe_ccsds_frame, PacketPriority,
+};
 
 fn main() {
     println!("============================================================");
@@ -38,7 +40,10 @@ fn main() {
     raw_stream.extend_from_slice(&[0x03, 0xE9, 42, 12, 0x00, 0x00]);
     raw_stream.extend_from_slice(&[0x10, 0x03, 0x19, 0x00, 0x0A, 0x0B, 0x22, 0x09]);
 
-    println!("[EDGE] Ingesting {} bytes raw RF bitstream...", raw_stream.len());
+    println!(
+        "[EDGE] Ingesting {} bytes raw RF bitstream...",
+        raw_stream.len()
+    );
 
     match deframe_ccsds_frame(&raw_stream, 14) {
         Ok((frame, consumed)) => {
@@ -51,7 +56,9 @@ fn main() {
             println!("[EDGE] Classified QoS Packet Priority: {:?}", priority);
 
             if priority == PacketPriority::Critical {
-                println!("[EDGE] 🚨 CRITICAL ALERT DETECTED — Emergency transmit bypass activated!");
+                println!(
+                    "[EDGE] 🚨 CRITICAL ALERT DETECTED — Emergency transmit bypass activated!"
+                );
             }
 
             let frame_bytes = frame.payload.to_vec();

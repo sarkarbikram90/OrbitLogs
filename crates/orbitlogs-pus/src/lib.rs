@@ -22,11 +22,9 @@ pub use istrac::{
     IstracStationProfile,
 };
 pub use pus_services::{
-    parse_pus_payload, PusError, PusPayload, PusSecondaryHeader,
-    Service11TimeSchedule, Service12MonitorDefinition, Service17ConnectionTest,
-    Service20ParameterReport,
+    parse_pus_payload, PusError, PusPayload, PusSecondaryHeader, Service11TimeSchedule,
+    Service12MonitorDefinition, Service17ConnectionTest, Service20ParameterReport,
 };
-
 
 #[cfg(test)]
 mod tests {
@@ -50,8 +48,8 @@ mod tests {
         raw.extend_from_slice(&(2850u16).to_be_bytes()); // Voltage
         raw.extend_from_slice(&(2500u16).to_be_bytes()); // Current
         raw.extend_from_slice(&(1200u16).to_be_bytes()); // Solar Output
-        raw.extend_from_slice(&(250i16).to_be_bytes());  // Temperature
-        raw.push(95);                                    // Fuel %
+        raw.extend_from_slice(&(250i16).to_be_bytes()); // Temperature
+        raw.push(95); // Fuel %
 
         let frame = parse_istrac_frame(&raw).unwrap();
         assert_eq!(frame.station, IstracStation::Bengaluru);

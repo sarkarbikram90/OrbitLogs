@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{sync::Arc, time::Duration};
 use orbitlogs_models::TelemetryRecord;
 use rdkafka::producer::{FutureProducer, FutureRecord};
+use std::{sync::Arc, time::Duration};
 use tracing::{debug, error, instrument};
 
 const PRODUCE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -40,9 +40,7 @@ pub async fn send_telemetry(
         }
     };
 
-    let record = FutureRecord::to(topic)
-        .key(key)
-        .payload(&payload);
+    let record = FutureRecord::to(topic).key(key).payload(&payload);
 
     match producer.send(record, PRODUCE_TIMEOUT).await {
         Ok(delivery) => {

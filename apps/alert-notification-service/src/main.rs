@@ -75,14 +75,22 @@ fn extract_tenant_context(
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization Bearer token".to_string()))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Missing Authorization Bearer token".to_string(),
+            )
+        })?;
 
     orbitlogs_models::auth::validate_jwt(token, &state.jwt_secret)
         .map_err(|e| (StatusCode::UNAUTHORIZED, e))
 }
 
 async fn health_check_handler() -> impl axum::response::IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({ "status": "UP", "service": "alert-notification-service" })))
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "UP", "service": "alert-notification-service" })),
+    )
 }
 
 async fn create_rule_handler(
@@ -93,7 +101,10 @@ async fn create_rule_handler(
 ) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, String)> {
     let ctx = extract_tenant_context(&state, &headers)?;
     if ctx.tenant_id != tenant_id && ctx.role < orbitlogs_models::auth::Role::SuperAdmin {
-        return Err((StatusCode::FORBIDDEN, "Access denied: tenant ID mismatch".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Access denied: tenant ID mismatch".to_string(),
+        ));
     }
     ctx.require_role(orbitlogs_models::auth::Role::Operator)
         .map_err(|e| (StatusCode::FORBIDDEN, e))?;
@@ -122,7 +133,10 @@ async fn create_rule_handler(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok((StatusCode::CREATED, Json(serde_json::json!({ "id": id, "status": "created" }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "id": id, "status": "created" })),
+    ))
 }
 
 async fn list_rules_handler(
@@ -132,7 +146,10 @@ async fn list_rules_handler(
 ) -> Result<Json<Vec<webhooks::AlertRule>>, (StatusCode, String)> {
     let ctx = extract_tenant_context(&state, &headers)?;
     if ctx.tenant_id != tenant_id && ctx.role < orbitlogs_models::auth::Role::SuperAdmin {
-        return Err((StatusCode::FORBIDDEN, "Access denied: tenant ID mismatch".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Access denied: tenant ID mismatch".to_string(),
+        ));
     }
 
     let rows = sqlx::query(
@@ -193,10 +210,17 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let db_pool = orbitlogs_models::db::establish_db_connection(&db_url, 3).await?;
     let http_client = Client::new();
-    let state = Arc::new(AppState { db_pool, http_client, jwt_secret });
+    let state = Arc::new(AppState {
+        db_pool,
+        http_client,
+        jwt_secret,
+    });
 
     let app = Router::new()
-        .route("/api/alerts/tenants/:tenant_id/rules", get(list_rules_handler).post(create_rule_handler))
+        .route(
+            "/api/alerts/tenants/:tenant_id/rules",
+            get(list_rules_handler).post(create_rule_handler),
+        )
         .route("/health", get(health_check_handler))
         .route("/readiness", get(health_check_handler))
         .route("/liveness", get(health_check_handler))
@@ -205,7 +229,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("Alert Notification Service listening on http://localhost:{}", cli.port);
+    info!(
+        "Alert Notification Service listening on http://localhost:{}",
+        cli.port
+    );
 
     axum::serve(listener, app).await?;
     Ok(())

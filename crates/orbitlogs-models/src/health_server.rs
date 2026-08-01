@@ -76,7 +76,11 @@ impl HealthServer {
                     let handle = handle.clone();
                     async move {
                         if handle.is_ready() {
-                            (StatusCode::OK, Json(serde_json::json!({ "status": "READY" }))).into_response()
+                            (
+                                StatusCode::OK,
+                                Json(serde_json::json!({ "status": "READY" })),
+                            )
+                                .into_response()
                         } else {
                             (
                                 StatusCode::SERVICE_UNAVAILABLE,
@@ -89,7 +93,10 @@ impl HealthServer {
             );
 
         let addr = SocketAddr::from(([0, 0, 0, 0], port));
-        info!("Kubernetes health probe server listening on http://{}", addr);
+        info!(
+            "Kubernetes health probe server listening on http://{}",
+            addr
+        );
 
         let listener = tokio::net::TcpListener::bind(addr).await?;
         axum::serve(listener, app).await?;

@@ -14,6 +14,7 @@
 
 //! Multi-format data exporter for OrbitLogs telemetry (CSV, Cesium CZML, CCSDS binary).
 
+use crate::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode},
@@ -22,7 +23,6 @@ use axum::{
 use serde::Deserialize;
 use sqlx::Row;
 use std::sync::Arc;
-use crate::AppState;
 
 #[derive(Deserialize)]
 pub struct ExportParams {
@@ -87,7 +87,9 @@ pub async fn export_satellite_data(
             headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
             headers.insert(
                 header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{}_trajectory.czml\"", sat_id).parse().unwrap(),
+                format!("attachment; filename=\"{}_trajectory.czml\"", sat_id)
+                    .parse()
+                    .unwrap(),
             );
             (StatusCode::OK, headers, json_str).into_response()
         }
@@ -100,13 +102,21 @@ pub async fn export_satellite_data(
                 let hdr = [0x08, 0x01, (pkt_num >> 8) as u8, pkt_num as u8, 0x00, 0x10];
                 binary_data.extend_from_slice(&hdr);
                 // Payload dummy bytes
-                binary_data.extend_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x00, 0x11, 0x22, 0x33]);
+                binary_data.extend_from_slice(&[
+                    0xDE, 0xAD, 0xBE, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x00,
+                    0x11, 0x22, 0x33,
+                ]);
             }
             let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, "application/octet-stream".parse().unwrap());
+            headers.insert(
+                header::CONTENT_TYPE,
+                "application/octet-stream".parse().unwrap(),
+            );
             headers.insert(
                 header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{}_telemetry.stream\"", sat_id).parse().unwrap(),
+                format!("attachment; filename=\"{}_telemetry.stream\"", sat_id)
+                    .parse()
+                    .unwrap(),
             );
             (StatusCode::OK, headers, binary_data).into_response()
         }
@@ -123,13 +133,25 @@ pub async fn export_satellite_data(
                 let vel: f64 = row.get("velocity");
                 let fuel: f32 = row.get("fuel_remaining");
 
-                csv_out.push_str(&format!("{},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.1}\n", ts.to_rfc3339(), v, i, w, t, alt, vel, fuel));
+                csv_out.push_str(&format!(
+                    "{},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.1}\n",
+                    ts.to_rfc3339(),
+                    v,
+                    i,
+                    w,
+                    t,
+                    alt,
+                    vel,
+                    fuel
+                ));
             }
             let mut headers = HeaderMap::new();
             headers.insert(header::CONTENT_TYPE, "text/csv".parse().unwrap());
             headers.insert(
                 header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{}_telemetry.csv\"", sat_id).parse().unwrap(),
+                format!("attachment; filename=\"{}_telemetry.csv\"", sat_id)
+                    .parse()
+                    .unwrap(),
             );
             (StatusCode::OK, headers, csv_out).into_response()
         }

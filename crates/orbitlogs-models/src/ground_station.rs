@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::{StationId, StationStatus, WeatherState};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::{StationId, StationStatus, WeatherState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroundStationHealth {

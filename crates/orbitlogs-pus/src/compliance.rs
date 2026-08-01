@@ -163,7 +163,8 @@ pub fn generate_audit_report(
     let spectrum_compliant = true; // Assumed compliant unless OOB events detected
     let debris_compliant = estimated_deorbit_years <= 25.0;
     let telemetry_ok = data_availability >= 95.0;
-    let command_ok = failed_commands == 0 || (failed_commands as f64 / total_commands as f64) < 0.01;
+    let command_ok =
+        failed_commands == 0 || (failed_commands as f64 / total_commands as f64) < 0.01;
 
     if !debris_compliant {
         findings.push(format!(
@@ -196,7 +197,10 @@ pub fn generate_audit_report(
     let overall_compliant = spectrum_compliant && debris_compliant && telemetry_ok && command_ok;
 
     if overall_compliant {
-        findings.push("VERDICT: All IN-SPACe compliance criteria met. Mission operations nominal.".to_string());
+        findings.push(
+            "VERDICT: All IN-SPACe compliance criteria met. Mission operations nominal."
+                .to_string(),
+        );
     }
 
     let report_id = format!(
@@ -231,7 +235,8 @@ pub fn generate_audit_report(
             dual_auth_enforced: true,
         },
         debris_mitigation: DebrisMitigationCompliance {
-            disposal_method: "Controlled atmospheric re-entry via perigee-lowering burns".to_string(),
+            disposal_method: "Controlled atmospheric re-entry via perigee-lowering burns"
+                .to_string(),
             estimated_deorbit_years,
             meets_25_year_guideline: debris_compliant,
             cam_maneuvers_performed: cam_maneuvers,
@@ -262,11 +267,21 @@ mod tests {
         let end = Utc.with_ymd_and_hms(2026, 6, 30, 23, 59, 59).unwrap();
 
         let report = generate_audit_report(
-            "SAT-0001", "Pixxel-Firefly", "Pixxel Space", "INS-2026-0042",
-            start, end,
-            10_000_000, 9_980_000, 3600,
-            5000, 4998, 2, 15,
-            3, 8.5,
+            "SAT-0001",
+            "Pixxel-Firefly",
+            "Pixxel Space",
+            "INS-2026-0042",
+            start,
+            end,
+            10_000_000,
+            9_980_000,
+            3600,
+            5000,
+            4998,
+            2,
+            15,
+            3,
+            8.5,
         );
 
         assert!(report.overall_compliant);
@@ -282,11 +297,21 @@ mod tests {
         let end = Utc.with_ymd_and_hms(2026, 3, 31, 23, 59, 59).unwrap();
 
         let report = generate_audit_report(
-            "SAT-0099", "Test-Mission", "TestCo", "INS-TEST-001",
-            start, end,
-            1_000_000, 999_000, 1800,
-            1000, 999, 1, 5,
-            0, 30.0, // Exceeds 25-year guideline
+            "SAT-0099",
+            "Test-Mission",
+            "TestCo",
+            "INS-TEST-001",
+            start,
+            end,
+            1_000_000,
+            999_000,
+            1800,
+            1000,
+            999,
+            1,
+            5,
+            0,
+            30.0, // Exceeds 25-year guideline
         );
 
         assert!(!report.overall_compliant);

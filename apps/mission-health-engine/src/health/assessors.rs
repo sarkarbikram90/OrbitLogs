@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use orbitlogs_models::TelemetryRecord;
 use super::types::*;
+use orbitlogs_models::TelemetryRecord;
 
 pub fn assess_power(record: &TelemetryRecord) -> SubsystemHealth {
     let v = record.battery_voltage.unwrap_or(13.8);

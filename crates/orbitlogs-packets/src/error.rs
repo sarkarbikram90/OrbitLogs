@@ -15,7 +15,10 @@
 #[derive(Debug)]
 pub enum PacketError {
     InvalidLength(String),
-    InvalidCrc { expected: u16, calculated: u16 },
+    InvalidCrc {
+        expected: u16,
+        calculated: u16,
+    },
     UnknownApid(u16),
     SubsystemMismatch(String),
     ParserError(String),

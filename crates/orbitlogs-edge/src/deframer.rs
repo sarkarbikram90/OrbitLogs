@@ -51,7 +51,10 @@ pub fn find_asm_offset(stream: &[u8]) -> Option<usize> {
 /// Deframes a raw byte buffer starting at a CCSDS sync marker.
 ///
 /// Operates zero-copy by returning slices pointing directly into the input buffer.
-pub fn deframe_ccsds_frame(raw: &[u8], frame_len: usize) -> Result<(DeframedFrame<'_>, usize), DeframerError> {
+pub fn deframe_ccsds_frame(
+    raw: &[u8],
+    frame_len: usize,
+) -> Result<(DeframedFrame<'_>, usize), DeframerError> {
     let asm_idx = find_asm_offset(raw).ok_or(DeframerError::SyncNotFound)?;
     let start = asm_idx + 4; // Skip 4-byte ASM
 
@@ -66,7 +69,8 @@ pub fn deframe_ccsds_frame(raw: &[u8], frame_len: usize) -> Result<(DeframedFram
 
     // Parse CCSDS Primary Header (6 bytes)
     let version = (frame_bytes[0] >> 6) & 0x03;
-    let scid = (((frame_bytes[0] as u16 & 0x3F) << 4) | ((frame_bytes[1] as u16 >> 4) & 0x0F)) as u16;
+    let scid =
+        (((frame_bytes[0] as u16 & 0x3F) << 4) | ((frame_bytes[1] as u16 >> 4) & 0x0F)) as u16;
     let vcid = (frame_bytes[1] >> 1) & 0x07;
     let master_count = frame_bytes[2];
     let vc_count = frame_bytes[3];
@@ -100,7 +104,7 @@ mod tests {
     #[test]
     fn test_zero_copy_deframing() {
         let mut raw = vec![0x1A, 0xCF, 0xFC, 0x1D]; // ASM
-        // Header: Version 0, SCID 1001, VCID 1, Master 42, VC 12
+                                                    // Header: Version 0, SCID 1001, VCID 1, Master 42, VC 12
         raw.extend_from_slice(&[0x03, 0xE9, 42, 12, 0x00, 0x00]);
         raw.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]); // 8-byte payload
 

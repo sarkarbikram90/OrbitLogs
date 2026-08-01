@@ -131,13 +131,19 @@ async fn start_metrics_server(port: u16) {
         .route(
             "/healthz",
             get(|| async {
-                (axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "UP" })))
+                (
+                    axum::http::StatusCode::OK,
+                    axum::Json(serde_json::json!({ "status": "UP" })),
+                )
             }),
         )
         .route(
             "/readyz",
             get(|| async {
-                (axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "READY" })))
+                (
+                    axum::http::StatusCode::OK,
+                    axum::Json(serde_json::json!({ "status": "READY" })),
+                )
             }),
         );
 

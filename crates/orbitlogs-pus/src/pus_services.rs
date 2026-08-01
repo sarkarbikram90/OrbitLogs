@@ -163,7 +163,10 @@ pub enum PusPayload {
     TcVerification(Service1Report),
     Housekeeping(Service3Housekeeping),
     EventReport(Service5EventReport),
-    FunctionExecution { function_id: u16, parameters: Vec<u8> },
+    FunctionExecution {
+        function_id: u16,
+        parameters: Vec<u8>,
+    },
     TimeSchedule(Service11TimeSchedule),
     OnBoardMonitor(Service12MonitorDefinition),
     ConnectionTest(Service17ConnectionTest),
@@ -171,11 +174,18 @@ pub enum PusPayload {
     Raw(Vec<u8>),
 }
 
-pub fn parse_pus_payload(service_type: u8, subservice_type: u8, data: &[u8]) -> Result<PusPayload, PusError> {
+pub fn parse_pus_payload(
+    service_type: u8,
+    subservice_type: u8,
+    data: &[u8],
+) -> Result<PusPayload, PusError> {
     match service_type {
         PUS_SERVICE_1_TC_VERIFICATION => {
             if data.len() < 4 {
-                return Err(PusError::InsufficientData { required: 4, got: data.len() });
+                return Err(PusError::InsufficientData {
+                    required: 4,
+                    got: data.len(),
+                });
             }
             let tc_packet_id = u16::from_be_bytes([data[0], data[1]]);
             let tc_sequence_control = u16::from_be_bytes([data[2], data[3]]);
@@ -194,7 +204,10 @@ pub fn parse_pus_payload(service_type: u8, subservice_type: u8, data: &[u8]) -> 
         }
         PUS_SERVICE_3_HOUSEKEEPING => {
             if data.len() < 10 {
-                return Err(PusError::InsufficientData { required: 10, got: data.len() });
+                return Err(PusError::InsufficientData {
+                    required: 10,
+                    got: data.len(),
+                });
             }
             let struct_id = u16::from_be_bytes([data[0], data[1]]);
             let raw_v = u16::from_be_bytes([data[2], data[3]]);
@@ -208,12 +221,19 @@ pub fn parse_pus_payload(service_type: u8, subservice_type: u8, data: &[u8]) -> 
                 battery_current_a: raw_i as f64 / 1000.0,
                 solar_output_w: raw_w as f64 / 10.0,
                 temp_c: raw_t as f64 / 10.0,
-                fuel_pct: if data.len() >= 11 { data[10] as f32 } else { 100.0 },
+                fuel_pct: if data.len() >= 11 {
+                    data[10] as f32
+                } else {
+                    100.0
+                },
             }))
         }
         PUS_SERVICE_5_EVENT_REPORTING => {
             if data.len() < 3 {
-                return Err(PusError::InsufficientData { required: 3, got: data.len() });
+                return Err(PusError::InsufficientData {
+                    required: 3,
+                    got: data.len(),
+                });
             }
             let event_def_id = u16::from_be_bytes([data[0], data[1]]);
             let severity_level = subservice_type;
@@ -227,16 +247,25 @@ pub fn parse_pus_payload(service_type: u8, subservice_type: u8, data: &[u8]) -> 
         }
         PUS_SERVICE_8_FUNCTION_MGMT => {
             if data.len() < 2 {
-                return Err(PusError::InsufficientData { required: 2, got: data.len() });
+                return Err(PusError::InsufficientData {
+                    required: 2,
+                    got: data.len(),
+                });
             }
             let function_id = u16::from_be_bytes([data[0], data[1]]);
             let parameters = data[2..].to_vec();
-            Ok(PusPayload::FunctionExecution { function_id, parameters })
+            Ok(PusPayload::FunctionExecution {
+                function_id,
+                parameters,
+            })
         }
         PUS_SERVICE_11_TIME_SCHEDULING => {
             // [11,4] Detail report of a time-based schedule entry
             if data.len() < 7 {
-                return Err(PusError::InsufficientData { required: 7, got: data.len() });
+                return Err(PusError::InsufficientData {
+                    required: 7,
+                    got: data.len(),
+                });
             }
             let execution_time_cuc = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
             let scheduled_tc_id = u16::from_be_bytes([data[4], data[5]]);
@@ -253,7 +282,10 @@ pub fn parse_pus_payload(service_type: u8, subservice_type: u8, data: &[u8]) -> 
         PUS_SERVICE_12_MONITORING => {
             // [12,12] Check transition report (parameter monitoring definition)
             if data.len() < 8 {
-                return Err(PusError::InsufficientData { required: 8, got: data.len() });
+                return Err(PusError::InsufficientData {
+                    required: 8,
+                    got: data.len(),
+                });
             }
             let parameter_id = u16::from_be_bytes([data[0], data[1]]);
             let lower_limit = i32::from_be_bytes([data[2], data[3], data[4], data[5]]);
@@ -291,7 +323,10 @@ pub fn parse_pus_payload(service_type: u8, subservice_type: u8, data: &[u8]) -> 
         PUS_SERVICE_20_PARAMETER_MGMT => {
             // [20,2] Parameter value report
             if data.len() < 2 {
-                return Err(PusError::InsufficientData { required: 2, got: data.len() });
+                return Err(PusError::InsufficientData {
+                    required: 2,
+                    got: data.len(),
+                });
             }
             let parameter_count = u16::from_be_bytes([data[0], data[1]]);
             let mut parameters = Vec::new();

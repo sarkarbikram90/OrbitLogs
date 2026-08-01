@@ -14,9 +14,9 @@
 
 //! Subsystem health assessment evaluators.
 
+use super::DigitalTwinState;
 use orbitlogs_models::SubsystemStatus;
 use orbitlogs_models::TelemetryRecord;
-use super::DigitalTwinState;
 
 // Threshold Constants
 pub const BATTERY_WARN_VOLTAGE: f64 = 11.5;
