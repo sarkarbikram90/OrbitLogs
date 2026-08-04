@@ -15,21 +15,15 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use chrono::Utc;
 use clap::Parser;
 use orbitlogs_models::kafka::KafkaConfigBuilder;
-use orbitlogs_models::TelemetryRecord;
-use rdkafka::consumer::{CommitMode, Consumer};
-use rdkafka::message::Message;
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use sqlx::{PgPool, Row};
+use rdkafka::producer::FutureProducer;
+use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info, Level};
-use uuid::Uuid;
 
 mod consumers;
 mod daemons;

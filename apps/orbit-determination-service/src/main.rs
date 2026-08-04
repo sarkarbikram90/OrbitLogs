@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use chrono::{DateTime, Utc};
 use clap::Parser;
 use nalgebra::{Matrix3, Matrix3x6, Matrix6, Vector3, Vector6};
 use sqlx::{PgPool, Row};

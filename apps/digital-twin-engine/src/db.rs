@@ -94,6 +94,7 @@ pub async fn get_twin_timeline(
 /// This is intended to be called periodically (e.g., every N telemetry
 /// updates) to build a degradation history that can be queried for trend
 /// analysis or replay.
+#[allow(dead_code)]
 pub async fn persist_twin_snapshot(
     pool: &PgPool,
     satellite_id: &str,

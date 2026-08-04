@@ -14,7 +14,7 @@
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use rand::Rng;
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 use std::time::Duration;
 use tracing::{error, info, Level};
 use uuid::Uuid;
@@ -50,6 +50,7 @@ impl GroundStationAntenna {
     }
 }
 
+#[allow(dead_code)]
 struct ContactWindow {
     satellite_id: String,
     ground_station_id: String,

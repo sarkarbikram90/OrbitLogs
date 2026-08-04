@@ -15,10 +15,12 @@ use ort::session::Session;
 use std::sync::Mutex;
 use tracing::{info, warn};
 
+#[allow(dead_code)]
 pub struct AnomalyDetector {
     session: Option<Mutex<Session>>,
 }
 
+#[allow(dead_code)]
 impl AnomalyDetector {
     pub fn new(model_path: &str) -> Self {
         // Since we are running in multiple environments, let's gracefully load the ONNX model

@@ -18,7 +18,7 @@ use orbitlogs_models::kafka::KafkaConfigBuilder;
 use orbitlogs_models::TelemetryRecord;
 use rdkafka::consumer::{CommitMode, Consumer};
 use rdkafka::message::Message;
-use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::producer::FutureRecord;
 use sqlx::Row;
 use std::sync::Arc;
 use std::time::Duration;

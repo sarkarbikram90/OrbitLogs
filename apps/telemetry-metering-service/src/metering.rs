@@ -17,7 +17,6 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
-use tracing::error;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

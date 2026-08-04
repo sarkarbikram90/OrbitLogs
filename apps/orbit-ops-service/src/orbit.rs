@@ -20,8 +20,8 @@ use std::f64::consts::PI;
 
 // Re-export persistence/messaging operations for backward compatibility
 pub use crate::orbit_service::{
-    calculate_and_persist_passes, check_tle_expiration, get_latest_tle_or_default,
-    import_tle_internal, scrape_celestrak_tles, ImportTleRequest,
+    check_tle_expiration, get_latest_tle_or_default, import_tle_internal, scrape_celestrak_tles,
+    ImportTleRequest,
 };
 
 pub const EARTH_RADIUS_KM: f64 = 6378.137;

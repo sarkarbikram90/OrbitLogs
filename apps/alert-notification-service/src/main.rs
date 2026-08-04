@@ -15,7 +15,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::{get, post},
+    routing::get,
     Json, Router,
 };
 use clap::Parser;
@@ -23,7 +23,7 @@ use reqwest::Client;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::info;
 use uuid::Uuid;
 
 pub mod webhooks;

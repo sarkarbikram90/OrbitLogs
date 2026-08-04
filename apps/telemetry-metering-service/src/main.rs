@@ -22,7 +22,7 @@ use clap::Parser;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::info;
 use uuid::Uuid;
 
 pub mod metering;

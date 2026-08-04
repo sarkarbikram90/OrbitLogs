@@ -247,7 +247,7 @@ pub async fn login_handler(
         } else {
             &req.role
         };
-        let Some(role) = Role::from_str(role_str) else {
+        let Some(_role) = Role::from_str(role_str) else {
             return Err(crate::error::AppError::Validation(
                 "Invalid role specified".to_string(),
             ));

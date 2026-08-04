@@ -19,7 +19,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use sqlx::{PgPool, Row};
-use tracing::{error, info};
 use uuid::Uuid;
 
 type HmacSha256 = Hmac<Sha256>;
