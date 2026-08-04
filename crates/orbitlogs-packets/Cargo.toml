@@ -18,4 +18,5 @@ tokio = { workspace = true }
 [[bench]]
 name = "packet_bench"
 harness = false
+path = "benches/packet_bench.rs"
 

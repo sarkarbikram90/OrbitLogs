@@ -47,7 +47,8 @@ RUN set -e; \
     for crt in orbitlogs-models orbitlogs-packets space-schema-registry fleet-health \
                orbitlogs-astrodynamics orbitlogs-propulsion orbitlogs-test-utils orbitlogs-pus orbitlogs-edge; do \
         mkdir -p "crates/${crt}/src" && touch "crates/${crt}/src/lib.rs"; \
-    done
+    done; \
+    mkdir -p crates/orbitlogs-packets/benches && touch crates/orbitlogs-packets/benches/packet_bench.rs
 
 RUN cargo build --release -p digital-twin-engine
 

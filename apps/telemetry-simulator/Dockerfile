@@ -53,7 +53,8 @@ RUN set -e; \
     for crt in orbitlogs-models orbitlogs-packets space-schema-registry fleet-health \
                orbitlogs-astrodynamics orbitlogs-propulsion orbitlogs-test-utils orbitlogs-pus orbitlogs-edge; do \
         mkdir -p "crates/${crt}/src" && touch "crates/${crt}/src/lib.rs"; \
-    done
+    done; \
+    mkdir -p crates/orbitlogs-packets/benches && touch crates/orbitlogs-packets/benches/packet_bench.rs
 
 # Build dependencies only (cached unless Cargo.toml/Cargo.lock change)
 RUN cargo build --release -p telemetry-simulator
