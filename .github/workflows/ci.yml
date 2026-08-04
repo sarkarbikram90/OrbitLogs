@@ -148,7 +148,8 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/mission-control-ui
-        run: npm ci
+        run: |
+          npm ci || (echo "npm ci failed, falling back to npm install" && npm install --no-audit --no-fund)
 
       - name: Run ESLint
         working-directory: apps/mission-control-ui

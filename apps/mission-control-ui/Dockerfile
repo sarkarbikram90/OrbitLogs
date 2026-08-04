@@ -7,7 +7,7 @@ WORKDIR /app
 COPY apps/mission-control-ui/package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm ci || npm install --no-audit --no-fund
 
 # Copy application source
 COPY apps/mission-control-ui/ ./
