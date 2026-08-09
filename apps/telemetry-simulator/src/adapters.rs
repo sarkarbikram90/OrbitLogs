@@ -82,11 +82,11 @@ impl OrbitAdapters {
         let period = 86400.0 / mean_motion;
         let angle = (2.0 * std::f64::consts::PI * epoch_offset_sec) / period;
 
-        let lat = (angle.sin() * inclination).clamp(-90.0, 90.0);
-        let lon = ((angle * 1.05).cos() * 180.0).clamp(-180.0, 180.0);
-        let alt = 500.0 + 15.0 * angle.sin(); // elliptical height variance
+        let lati = (angle.sin() * inclination).clamp(-90.0, 90.0);
+        let longi = ((angle * 1.05).cos() * 180.0).clamp(-180.0, 180.0);
+        let alti = 500.0 + 15.0 * angle.sin(); // elliptical height variance
 
-        (lat, lon, alt)
+        (lati, longi, alti)
     }
 
     /// SatNOGS Adapter: Mocks querying SatNOGS DB for transmitter details and frequency allocations
