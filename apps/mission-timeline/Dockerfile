@@ -54,10 +54,7 @@ RUN set -e; \
 
 RUN cargo build --release -p mission-timeline
 
-COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
-COPY crates/orbitlogs-packets/src crates/orbitlogs-packets/src
-COPY crates/space-schema-registry/src crates/space-schema-registry/src
-COPY crates/fleet-health/src crates/fleet-health/src
+COPY crates crates
 COPY apps/mission-timeline/src apps/mission-timeline/src
 
 RUN touch crates/orbitlogs-models/src/lib.rs \

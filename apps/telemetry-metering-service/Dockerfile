@@ -54,7 +54,7 @@ RUN set -e; \
 
 RUN cargo build --release -p telemetry-metering-service
 
-COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
+COPY crates crates
 COPY apps/telemetry-metering-service/src apps/telemetry-metering-service/src
 
 RUN touch crates/orbitlogs-models/src/lib.rs \

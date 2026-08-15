@@ -54,7 +54,7 @@ RUN set -e; \
 
 RUN cargo build --release -p alert-notification-service
 
-COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
+COPY crates crates
 COPY apps/alert-notification-service/src apps/alert-notification-service/src
 
 RUN touch crates/orbitlogs-models/src/lib.rs \

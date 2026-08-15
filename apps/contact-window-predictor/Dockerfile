@@ -54,7 +54,7 @@ RUN set -e; \
 
 RUN cargo build --release -p contact-window-predictor
 
-COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
+COPY crates crates
 COPY crates/orbitlogs-astrodynamics/src crates/orbitlogs-astrodynamics/src
 COPY apps/contact-window-predictor/src apps/contact-window-predictor/src
 

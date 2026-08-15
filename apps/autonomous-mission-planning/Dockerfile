@@ -54,6 +54,7 @@ RUN set -e; \
 
 RUN cargo build --release -p autonomous-mission-planning
 
+COPY crates crates
 COPY apps/autonomous-mission-planning/src apps/autonomous-mission-planning/src
 
 RUN touch apps/autonomous-mission-planning/src/main.rs \

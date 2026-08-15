@@ -1,7 +1,13 @@
 # Builder Stage
-FROM rust:alpine AS builder
+FROM rust:bookworm AS builder
 
-RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev openssl-libs-static zlib-static cmake g++ curl-dev linux-headers
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    pkg-config \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/orbitlogs
 
@@ -54,10 +60,7 @@ RUN set -e; \
 
 RUN cargo build --release -p ai-incident-commander
 
-COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
-COPY crates/orbitlogs-packets/src crates/orbitlogs-packets/src
-COPY crates/space-schema-registry/src crates/space-schema-registry/src
-COPY crates/fleet-health/src crates/fleet-health/src
+COPY crates crates
 COPY apps/ai-incident-commander/src apps/ai-incident-commander/src
 
 RUN touch crates/orbitlogs-models/src/lib.rs \
@@ -67,9 +70,14 @@ RUN touch crates/orbitlogs-models/src/lib.rs \
     && touch apps/ai-incident-commander/src/main.rs \
     && cargo build --release -p ai-incident-commander
 
-FROM alpine:3.21
-RUN apk update && apk upgrade --no-cache && apk add --no-cache ca-certificates libgcc libstdc++ openssl
-RUN addgroup -g 10001 -S orbitlogs && adduser -u 10001 -S orbitlogs -G orbitlogs
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    libcurl4 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+RUN groupadd -g 10001 orbitlogs && useradd -u 10001 -g orbitlogs -m -s /bin/sh orbitlogs
 
 COPY --from=builder /usr/src/orbitlogs/target/release/ai-incident-commander /usr/local/bin/ai-incident-commander
 
@@ -77,6 +85,6 @@ USER orbitlogs
 EXPOSE 8088
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8088/health || exit 1
+    CMD curl -f http://localhost:8088/health || exit 1
 
 ENTRYPOINT ["ai-incident-commander"]

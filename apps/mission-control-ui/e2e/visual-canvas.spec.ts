@@ -16,7 +16,7 @@ import { test, expect } from '@playwright/test';
 test.describe('OrbitLogs Mission Control UI - E2E Visual Canvas Tests', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to local dev server URL
-    await page.goto('http://localhost:5173/');
+    await page.goto('/');
   });
 
   test('should load the 3D globe canvas and verify WebGL context', async ({ page }) => {

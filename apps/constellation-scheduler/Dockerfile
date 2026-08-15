@@ -54,7 +54,7 @@ RUN set -e; \
 
 RUN cargo build --release -p constellation-scheduler
 
-COPY crates/orbitlogs-models/src crates/orbitlogs-models/src
+COPY crates crates
 COPY apps/constellation-scheduler/src apps/constellation-scheduler/src
 
 RUN touch crates/orbitlogs-models/src/lib.rs \
