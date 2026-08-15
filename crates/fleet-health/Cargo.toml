@@ -18,3 +18,5 @@ tokio = { workspace = true }
 [[bench]]
 name = "health_bench"
 harness = false
+path = "benches/health_bench.rs"
+

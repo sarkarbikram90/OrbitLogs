@@ -48,7 +48,8 @@ RUN set -e; \
                orbitlogs-astrodynamics orbitlogs-propulsion orbitlogs-test-utils orbitlogs-pus orbitlogs-edge; do \
         mkdir -p "crates/${crt}/src" && touch "crates/${crt}/src/lib.rs"; \
     done; \
-    mkdir -p crates/orbitlogs-packets/benches && touch crates/orbitlogs-packets/benches/packet_bench.rs
+    mkdir -p crates/orbitlogs-packets/benches && touch crates/orbitlogs-packets/benches/packet_bench.rs; \
+    mkdir -p crates/fleet-health/benches && touch crates/fleet-health/benches/health_bench.rs
 
 RUN cargo build --release -p orbit-ops-service
 
