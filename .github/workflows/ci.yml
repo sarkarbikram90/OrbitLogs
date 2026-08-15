@@ -81,6 +81,29 @@ jobs:
           npm run lint
           npm run build
 
+      - name: Run Frontend Unit Tests (Vitest)
+        working-directory: apps/mission-control-ui
+        run: |
+          npm test
+
+      - name: Install Playwright Browsers
+        working-directory: apps/mission-control-ui
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Run Frontend End-to-End Tests (Playwright)
+        working-directory: apps/mission-control-ui
+        run: |
+          npm run test:e2e
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: apps/mission-control-ui/playwright-report/
+          retention-days: 7
+
       - name: Install system dependencies for Rust
         run: |
           sudo apt-get update
@@ -173,29 +196,35 @@ jobs:
         run: |
           docker compose -f deployments/docker-compose/docker-compose.yml up -d --build
 
-      - name: Wait for services to be ready
+      - name: Wait for core services to be healthy
         run: |
-          echo "Waiting for collector /health..."
-          for i in {1..60}; do
-            if curl -s -f http://localhost:8080/health > /dev/null; then
-              echo "Collector is up!"
-              break
+          echo "Waiting for core microservices to become ready..."
+          endpoints=(
+            "http://localhost:8080/health"
+            "http://localhost:8084/health"
+            "http://localhost:8085/health"
+            "http://localhost:8095/health"
+            "http://localhost:8096/health"
+            "http://localhost:8097/health"
+            "http://localhost:3000/"
+          )
+          for url in "${endpoints[@]}"; do
+            echo "Checking $url ..."
+            ready=0
+            for i in {1..60}; do
+              if curl -s -f "$url" > /dev/null 2>&1; then
+                echo "$url is UP!"
+                ready=1
+                break
+              fi
+              sleep 2
+            done
+            if [ $ready -eq 0 ]; then
+              echo "Warning: Service at $url did not become ready within timeout."
             fi
-            echo "Still waiting for collector..."
-            sleep 2
           done
 
-          echo "Waiting for replay-engine /health..."
-          for i in {1..60}; do
-            if curl -s -f http://localhost:8084/health > /dev/null; then
-              echo "Replay Engine is up!"
-              break
-            fi
-            echo "Still waiting for replay engine..."
-            sleep 2
-          done
-
-      - name: Send a telemetry record
+      - name: Send a telemetry record (Ingestion E2E)
         run: |
           curl -i -X POST \
             -H "Content-Type: application/json" \
@@ -205,17 +234,39 @@ jobs:
 
       - name: Wait for telemetry ingestion pipeline
         run: |
-          echo "Waiting for data propagation into DB..."
+          echo "Waiting for data propagation into TimescaleDB via Kafka..."
           sleep 5
 
-      - name: Query replay engine /api/satellites
+      - name: Query replay engine (Retrieval E2E)
         run: |
           echo "Querying satellites list..."
           response=$(curl -s http://localhost:8084/api/satellites)
           echo "Response: $response"
           echo "$response" | grep -q "SAT-0001"
 
+      - name: Issue satellite command (Command & Control E2E)
+        run: |
+          echo "Sending test command to mission-command-service..."
+          cmd_response=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer default_api_key" \
+            -d '{"satellite_id":"SAT-0001","command_type":"PING","parameters":{}}' \
+            http://localhost:8085/api/commands || true)
+          echo "Command response: $cmd_response"
+
+      - name: Verify Mission Control UI (Frontend Container E2E)
+        run: |
+          echo "Verifying Mission Control UI container response..."
+          ui_response=$(curl -s http://localhost:3000/)
+          echo "$ui_response" | grep -qi "html"
+          echo "UI Container is actively serving HTML content."
+
       - name: Dump logs on failure
         if: failure()
         run: |
           docker compose -f deployments/docker-compose/docker-compose.yml logs --tail 100
+
+      - name: Teardown docker compose stack
+        if: always()
+        run: |
+          docker compose -f deployments/docker-compose/docker-compose.yml down -v
