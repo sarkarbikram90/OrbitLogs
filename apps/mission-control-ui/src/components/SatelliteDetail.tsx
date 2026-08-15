@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { SatelliteHealth, TelemetryRecord } from '../types';
 
 interface SatelliteDetailProps {
@@ -78,6 +78,8 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
   health,
   telemetry,
 }) => {
+  const [prevSatId, setPrevSatId] = useState(satelliteId);
+  const [prevTelemetry, setPrevTelemetry] = useState(telemetry);
   const [history, setHistory] = useState<{
     voltage: number[];
     temperature: number[];
@@ -90,21 +92,22 @@ export const SatelliteDetail: React.FC<SatelliteDetailProps> = ({
     cpu: [],
   });
 
-  // Reset history when satelliteId changes
-  useEffect(() => {
+  if (satelliteId !== prevSatId) {
+    setPrevSatId(satelliteId);
     setHistory({ voltage: [], temperature: [], solar: [], cpu: [] });
-  }, [satelliteId]);
+  }
 
-  // Update history buffer when new telemetry arrives (keep last 20 samples)
-  useEffect(() => {
-    if (!telemetry) return;
-    setHistory((prev) => ({
-      voltage: telemetry.battery_voltage !== undefined ? [...prev.voltage, telemetry.battery_voltage].slice(-20) : prev.voltage,
-      temperature: telemetry.temperature !== undefined ? [...prev.temperature, telemetry.temperature].slice(-20) : prev.temperature,
-      solar: telemetry.solar_panel_output !== undefined ? [...prev.solar, telemetry.solar_panel_output].slice(-20) : prev.solar,
-      cpu: telemetry.cpu_usage !== undefined ? [...prev.cpu, telemetry.cpu_usage].slice(-20) : prev.cpu,
-    }));
-  }, [telemetry]);
+  if (telemetry !== prevTelemetry) {
+    setPrevTelemetry(telemetry);
+    if (telemetry) {
+      setHistory((prev) => ({
+        voltage: telemetry.battery_voltage !== undefined ? [...prev.voltage, telemetry.battery_voltage].slice(-20) : prev.voltage,
+        temperature: telemetry.temperature !== undefined ? [...prev.temperature, telemetry.temperature].slice(-20) : prev.temperature,
+        solar: telemetry.solar_panel_output !== undefined ? [...prev.solar, telemetry.solar_panel_output].slice(-20) : prev.solar,
+        cpu: telemetry.cpu_usage !== undefined ? [...prev.cpu, telemetry.cpu_usage].slice(-20) : prev.cpu,
+      }));
+    }
+  }
 
   if (!satelliteId) {
     return (

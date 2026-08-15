@@ -54,24 +54,28 @@ export function AiMissionDirector({ selectedSatId }: AiMissionDirectorProps) {
   const [loadingPostmortem, setLoadingPostmortem] = useState(false);
   const BACKEND_OPS_URL = getBackendOpsUrl();
 
-  const fetchDirector = async () => {
-    if (!selectedSatId) return;
-    try {
-      const resp = await fetch(`${BACKEND_OPS_URL}/api/director/${selectedSatId}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        setStatus(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch AI Director status:', err);
-    }
-  };
-
   useEffect(() => {
+    let isMounted = true;
+    const fetchDirector = async () => {
+      if (!selectedSatId) return;
+      try {
+        const resp = await fetch(`${BACKEND_OPS_URL}/api/director/${selectedSatId}`);
+        if (resp.ok && isMounted) {
+          const data = await resp.json();
+          setStatus(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch AI Director status:', err);
+      }
+    };
+
     fetchDirector();
     const interval = setInterval(fetchDirector, 5000);
-    return () => clearInterval(interval);
-  }, [selectedSatId]);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedSatId, BACKEND_OPS_URL]);
 
   const handleGeneratePostmortem = async () => {
     if (!selectedSatId) return;

@@ -127,11 +127,12 @@ export function ConjunctionRadar({ selectedSatId }: ConjunctionRadarProps) {
     };
     window.addEventListener('resize', handleResize);
 
+    const container = containerRef.current;
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animId);
-      if (containerRef.current && renderer.domElement) {
-        containerRef.current.removeChild(renderer.domElement);
+      if (container && renderer.domElement) {
+        container.removeChild(renderer.domElement);
       }
       renderer.dispose();
     };

@@ -79,7 +79,7 @@ export const AiCopilot: React.FC<AiCopilotProps> = ({ selectedSatId, apiKey }) =
           { sender: 'AI', text: 'Error contacting AI Incident Commander.' },
         ]);
       }
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         { sender: 'AI', text: 'AI Incident Commander service offline.' },

@@ -113,7 +113,7 @@ export function TrainingSimulator({ selectedSatId }: TrainingSimulatorProps) {
         addLog(`CRITICAL ANOMALY ALERT! ${scenario} detected on satellite ${selectedSatId}.`);
         addLog(`Awaiting operator acknowledgement...`);
       }
-    } catch (err) {
+    } catch {
       addLog(`ERROR: Failed to establish link with simulation coordinator.`);
     }
   };
@@ -130,7 +130,7 @@ export function TrainingSimulator({ selectedSatId }: TrainingSimulatorProps) {
         addLog(`Alert acknowledged by operator. Emergency procedures initialized.`);
         addLog(`Please send appropriate corrective commands via command center.`);
       }
-    } catch (err) {
+    } catch {
       addLog(`ERROR: Acknowledgment carrier lost.`);
     }
   };
@@ -148,7 +148,7 @@ export function TrainingSimulator({ selectedSatId }: TrainingSimulatorProps) {
         setSession(null);
         addLog(`Scenario finalized. Scorecard generated successfully.`);
       }
-    } catch (err) {
+    } catch {
       addLog(`ERROR: Scorecard compile timed out.`);
     }
   };

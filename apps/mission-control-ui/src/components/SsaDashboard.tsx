@@ -73,7 +73,7 @@ export function SsaDashboard({ selectedSatId }: SsaDashboardProps) {
     fetchSsa();
     const interval = setInterval(fetchSsa, 5000);
     return () => clearInterval(interval);
-  }, [selectedSatId]);
+  }, [selectedSatId, BACKEND_OPS_URL]);
 
   return (
     <div className="glass-panel" style={{ height: '100%', padding: '20px', overflowY: 'auto' }}>

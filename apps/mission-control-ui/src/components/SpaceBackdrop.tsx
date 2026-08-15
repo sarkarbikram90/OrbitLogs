@@ -79,8 +79,6 @@ export const SpaceBackdrop: React.FC = () => {
       { x: width * 0.85, y: height * 0.8, vx: -0.22, vy: -0.1, label: 'SAT-0004 (LEO)', color: '#00f0ff' },
     ];
 
-    let gridRotation = 0;
-
     const render = () => {
       // Clear with ultra-deep gradient
       const bgGradient = ctx.createRadialGradient(
@@ -185,7 +183,6 @@ export const SpaceBackdrop: React.FC = () => {
       });
 
       // Draw Horizon Orbital Grid Curve at bottom
-      gridRotation += 0.002;
       ctx.strokeStyle = 'rgba(0, 240, 255, 0.08)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();

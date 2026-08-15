@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Command } from '../types';
 
 const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
@@ -33,6 +33,8 @@ interface CommandCenterProps {
   onJwtTokenChange: (token: string) => void;
 }
 
+type CommandRole = 'OPERATOR' | 'FLIGHT_DIRECTOR' | 'MISSION_MANAGER' | 'ADMINISTRATOR';
+
 export const CommandCenter: React.FC<CommandCenterProps> = ({
   selectedSatId,
   apiKey,
@@ -40,30 +42,45 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
   onJwtTokenChange,
 }) => {
   const [commands, setCommands] = useState<Command[]>([]);
-  const [currentRole, setCurrentRole] = useState<'OPERATOR' | 'FLIGHT_DIRECTOR' | 'MISSION_MANAGER' | 'ADMINISTRATOR'>(
-    (sessionStorage.getItem('CURRENT_ROLE') as any) || 'OPERATOR'
+  const [currentRole, setCurrentRole] = useState<CommandRole>(
+    (sessionStorage.getItem('CURRENT_ROLE') as CommandRole) || 'OPERATOR'
   );
   const [commandType, setCommandType] = useState('REBOOT_FC');
   const [shouldFail, setShouldFail] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const fetchCommands = async () => {
+  const fetchCommands = useCallback(async () => {
     try {
       const resp = await fetch(`${BACKEND_CMD_URL}/api/commands`);
       if (resp.ok) {
         const data = await resp.json();
         setCommands(data);
       }
-    } catch (err) {
+    } catch {
       console.warn('Failed to fetch commands from command service');
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchCommands();
+    let isMounted = true;
+    const load = async () => {
+      try {
+        const resp = await fetch(`${BACKEND_CMD_URL}/api/commands`);
+        if (resp.ok && isMounted) {
+          const data = await resp.json();
+          setCommands(data);
+        }
+      } catch {
+        console.warn('Failed to fetch commands from command service');
+      }
+    };
+    load();
     const interval = setInterval(fetchCommands, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [fetchCommands]);
 
   useEffect(() => {
     const fetchNewToken = async () => {
@@ -115,7 +132,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
         const err = await resp.json();
         alert(`Failed to create command: ${err.error}`);
       }
-    } catch (err) {
+    } catch {
       alert('Error creating command. Service offline.');
     } finally {
       setLoading(false);
@@ -137,7 +154,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
         const err = await resp.json();
         alert(`Action failed: ${err.error}`);
       }
-    } catch (err) {
+    } catch {
       alert('Action failed. Service offline.');
     }
   };
@@ -151,7 +168,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           <span style={roleLabelStyle}>OPERATOR ROLE:</span>
           <select
             value={currentRole}
-            onChange={(e) => setCurrentRole(e.target.value as any)}
+            onChange={(e) => setCurrentRole(e.target.value as CommandRole)}
             style={selectStyle}
           >
             <option value="OPERATOR">Operator</option>

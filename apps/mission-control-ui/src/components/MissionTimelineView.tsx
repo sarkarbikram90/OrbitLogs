@@ -28,32 +28,36 @@ export const MissionTimelineView: React.FC<MissionTimelineViewProps> = ({
   const [severityFilter, setSeverityFilter] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchTimeline = async () => {
-    try {
-      let url = `${BACKEND_TIMELINE_URL}/api/timeline?`;
-      if (selectedSatId) {
-        url += `satellite_id=${selectedSatId}&`;
-      }
-      if (sourceFilter) {
-        url += `source=${sourceFilter}&`;
-      }
-      if (severityFilter) {
-        url += `severity=${severityFilter}&`;
-      }
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const data = await resp.json();
-        setEvents(data);
-      }
-    } catch (err) {
-      console.warn('Failed to fetch timeline from timeline service');
-    }
-  };
-
   useEffect(() => {
+    let isMounted = true;
+    const fetchTimeline = async () => {
+      try {
+        let url = `${BACKEND_TIMELINE_URL}/api/timeline?`;
+        if (selectedSatId) {
+          url += `satellite_id=${selectedSatId}&`;
+        }
+        if (sourceFilter) {
+          url += `source=${sourceFilter}&`;
+        }
+        if (severityFilter) {
+          url += `severity=${severityFilter}&`;
+        }
+        const resp = await fetch(url);
+        if (resp.ok && isMounted) {
+          const data = await resp.json();
+          setEvents(data);
+        }
+      } catch {
+        console.warn('Failed to fetch timeline from timeline service');
+      }
+    };
+
     fetchTimeline();
     const interval = setInterval(fetchTimeline, 2000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [selectedSatId, sourceFilter, severityFilter]);
 
   const filteredEvents = events.filter((e) =>

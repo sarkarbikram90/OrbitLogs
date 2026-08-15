@@ -57,7 +57,7 @@ export function FlightDynamics({ selectedSatId }: FlightDynamicsProps) {
     fetchDynamics();
     const interval = setInterval(fetchDynamics, 5000);
     return () => clearInterval(interval);
-  }, [selectedSatId]);
+  }, [selectedSatId, BACKEND_OPS_URL]);
 
   return (
     <div className="glass-panel" style={{ height: '100%', padding: '20px', overflowY: 'auto' }}>

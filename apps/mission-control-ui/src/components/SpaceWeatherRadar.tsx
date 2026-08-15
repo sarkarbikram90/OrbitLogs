@@ -12,17 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useState } from 'react';
-
 interface SpaceWeatherRadarProps {
   selectedSatId: string | null;
 }
 
 export function SpaceWeatherRadar({ selectedSatId }: SpaceWeatherRadarProps) {
-  const [kpIndex, setKpIndex] = useState(4.2);
-  const [solarProtonFlux, setSolarProtonFlux] = useState(1420);
-  const [dstIndex, setDstIndex] = useState(-48);
-  const [seuRiskLevel, setSeuRiskLevel] = useState<'LOW' | 'ELEVATED' | 'HIGH' | 'CRITICAL'>('ELEVATED');
+  const kpIndex = 4.2;
+  const solarProtonFlux = 1420;
+  const dstIndex = -48;
+  const seuRiskLevel: 'LOW' | 'ELEVATED' | 'HIGH' | 'CRITICAL' = 'ELEVATED';
 
   return (
     <div className="glass-panel tech-corner-panel" style={{ height: '100%', padding: '24px', overflowY: 'auto', color: '#f8fafc' }}>
@@ -64,7 +62,7 @@ export function SpaceWeatherRadar({ selectedSatId }: SpaceWeatherRadarProps) {
         {/* Dst Index */}
         <div style={{ backgroundColor: 'rgba(6, 12, 24, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '16px' }}>
           <span style={{ fontSize: '10px', fontFamily: 'var(--font-display)', color: 'var(--text-muted)' }}>DISTURBANCE STORM TIME (Dst)</span>
-          <div style={{ fontSize: '28px', fontWeight 900, fontFamily: 'var(--font-mono)', color: 'var(--status-yellow)', marginTop: '4px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 900, fontFamily: 'var(--font-mono)', color: 'var(--status-yellow)', marginTop: '4px' }}>
             {dstIndex} <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>nT</span>
           </div>
           <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Ring Current Compression</span>

@@ -288,7 +288,7 @@ export function LoginPage() {
                 <label style={loginLabelStyle}>CONSOLE ROLE CONTEXT</label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
+                  onChange={(e) => setRole(e.target.value as 'OPERATOR' | 'FLIGHT_DIRECTOR' | 'MISSION_MANAGER' | 'ADMINISTRATOR')}
                   className="cyber-input"
                   style={{ cursor: 'pointer' }}
                   disabled={isSubmitting}

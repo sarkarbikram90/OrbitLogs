@@ -14,6 +14,8 @@
 
 import { useState } from 'react';
 
+type TierKey = 'ACADEMIC' | 'STARTER' | 'ENTERPRISE' | 'MEGACONSTELLATION';
+
 interface TierConfig {
   name: string;
   monthlyBasePriceInr: number;
@@ -23,7 +25,7 @@ interface TierConfig {
   slaTarget: string;
 }
 
-const SAAS_TIERS: Record<string, TierConfig> = {
+const SAAS_TIERS: Record<TierKey, TierConfig> = {
   ACADEMIC: {
     name: 'Academic / Student CubeSat',
     monthlyBasePriceInr: 0,
@@ -64,8 +66,6 @@ export function EnterpriseSaasBilling() {
   const [monthlyFramesM, setMonthlyFramesM] = useState<number>(120); // Millions of frames
   const [storageGb, setStorageGb] = useState<number>(850);
   const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
-  const [gstin, setGstin] = useState<string>('27AAAAA0000A1Z5');
-
 
   const tier = SAAS_TIERS[selectedTier];
   const overageFramesM = Math.max(0, monthlyFramesM - tier.includedFramesM);
@@ -130,13 +130,13 @@ export function EnterpriseSaasBilling() {
       {/* Tier Selector Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
 
-        {(Object.keys(SAAS_TIERS) as Array<keyof typeof SAAS_TIERS>).map((key) => {
+        {(Object.keys(SAAS_TIERS) as TierKey[]).map((key) => {
           const t = SAAS_TIERS[key];
           const isSelected = selectedTier === key;
           return (
             <div
               key={key}
-              onClick={() => setSelectedTier(key as any)}
+              onClick={() => setSelectedTier(key)}
               style={{
                 backgroundColor: isSelected ? 'rgba(0, 240, 255, 0.12)' : 'rgba(6, 12, 24, 0.7)',
                 border: isSelected ? '2px solid var(--cyber-cyan)' : '1px solid var(--border-color)',

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { TwinHealthProjection, TelemetryRecord } from '../types';
 
 const getBackendUrl = (envVal: string | undefined, defaultPort: string) => {
@@ -38,7 +38,7 @@ export const DigitalTwinViewer: React.FC<DigitalTwinViewerProps> = ({
   const [projection, setProjection] = useState<TwinHealthProjection | null>(null);
   const [injecting, setInjecting] = useState(false);
 
-  const fetchTwinData = async () => {
+  const fetchTwinData = useCallback(async () => {
     if (!selectedSatId) return;
 
     try {
@@ -55,16 +55,37 @@ export const DigitalTwinViewer: React.FC<DigitalTwinViewerProps> = ({
         const pData = await pResp.json();
         setProjection(pData);
       }
-    } catch (err) {
+    } catch {
       console.warn('Failed to fetch twin data. Digital twin service offline.');
     }
-  };
+  }, [selectedSatId]);
 
   useEffect(() => {
-    fetchTwinData();
+    let isMounted = true;
+    const load = async () => {
+      if (!selectedSatId) return;
+      try {
+        const tResp = await fetch(`${BACKEND_TWIN_URL}/api/twin/${selectedSatId}`);
+        if (tResp.ok && isMounted) {
+          const tData = await tResp.json();
+          setTwin(tData);
+        }
+        const pResp = await fetch(`${BACKEND_TWIN_URL}/api/twin/${selectedSatId}/health`);
+        if (pResp.ok && isMounted) {
+          const pData = await pResp.json();
+          setProjection(pData);
+        }
+      } catch {
+        console.warn('Failed to fetch twin data. Digital twin service offline.');
+      }
+    };
+    load();
     const interval = setInterval(fetchTwinData, 1500);
-    return () => clearInterval(interval);
-  }, [selectedSatId]);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedSatId, fetchTwinData]);
 
   const handleSimulateFailure = async (subsystem: string) => {
     if (!selectedSatId) return;
@@ -87,7 +108,7 @@ export const DigitalTwinViewer: React.FC<DigitalTwinViewerProps> = ({
       } else {
         alert('Failed to inject simulated failure.');
       }
-    } catch (err) {
+    } catch {
       alert('Error contacting digital twin engine.');
     } finally {
       setInjecting(false);

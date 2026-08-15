@@ -46,7 +46,7 @@ export function PassSchedule({ selectedSatId }: PassScheduleProps) {
       try {
         const resp = await fetch(`${BACKEND_OPS_URL}/api/orbit/${selectedSatId}/passes`);
         if (resp.ok) {
-          const data = await resp.ok ? await resp.json() : [];
+          const data = (await resp.json()) as Pass[];
           setPasses(data);
         }
       } catch (err) {
@@ -59,7 +59,7 @@ export function PassSchedule({ selectedSatId }: PassScheduleProps) {
     fetchPasses();
     const interval = setInterval(fetchPasses, 10000);
     return () => clearInterval(interval);
-  }, [selectedSatId]);
+  }, [selectedSatId, BACKEND_OPS_URL]);
 
   return (
     <div className="glass-panel" style={{ height: '100%', padding: '20px', overflowY: 'auto' }}>

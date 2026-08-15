@@ -109,7 +109,7 @@ export function Header() {
                 return (
                   <button
                     key={tabId}
-                    onClick={() => setActiveTab(tabId as any)}
+                    onClick={() => setActiveTab(tabId)}
                     style={{
                       padding: '5px 10px',
                       backgroundColor: isActive ? 'var(--cyber-cyan)' : 'transparent',

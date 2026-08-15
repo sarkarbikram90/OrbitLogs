@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface MissionPlan {
   id: string;
@@ -41,7 +41,7 @@ export function MissionPlanner() {
   const [time, setTime] = useState('');
   const BACKEND_OPS_URL = getBackendOpsUrl();
 
-  const fetchPlans = async () => {
+  const fetchPlans = useCallback(async () => {
     try {
       const resp = await fetch(`${BACKEND_OPS_URL}/api/planner/plans`);
       if (resp.ok) {
@@ -51,11 +51,26 @@ export function MissionPlanner() {
     } catch (err) {
       console.error('Failed to fetch planner schedules:', err);
     }
-  };
+  }, [BACKEND_OPS_URL]);
 
   useEffect(() => {
-    fetchPlans();
-  }, []);
+    let isMounted = true;
+    const load = async () => {
+      try {
+        const resp = await fetch(`${BACKEND_OPS_URL}/api/planner/plans`);
+        if (resp.ok && isMounted) {
+          const data = await resp.json();
+          setPlans(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch planner schedules:', err);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [BACKEND_OPS_URL]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

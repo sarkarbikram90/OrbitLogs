@@ -54,7 +54,7 @@ export function GroundOperations() {
     fetchStatus();
     const interval = setInterval(fetchStatus, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [BACKEND_OPS_URL]);
 
   return (
     <div className="glass-panel" style={{ height: '100%', padding: '20px', overflowY: 'auto' }}>

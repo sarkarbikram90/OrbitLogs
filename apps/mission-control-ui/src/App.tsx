@@ -45,7 +45,7 @@ import type { SatelliteHealth, GroundStation, EventLog, ReplaySession } from './
 export default function App() {
   const { apiKey, jwtToken } = useAuthStore();
   const { mode, selectedSatId, activeTab, setMode, setSatellites, setGroundStations } = useFleetStore();
-  const { setEvents, setHealth, clearTelemetry } = useTelemetryStore();
+  const { setEvents, clearTelemetry } = useTelemetryStore();
   const { replaySession, setReplaySession } = useReplayStore();
 
   useWebSocket();

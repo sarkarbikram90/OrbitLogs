@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { API_CONFIG } from '../config';
-import { RegisteredSat, RegisteredStation } from '../components/fleet/types';
+import type { RegisteredSat, RegisteredStation } from '../components/fleet/types';
 
 export function useFleetRegistry() {
   const { jwtToken, apiKey } = useAuthStore();
@@ -47,8 +47,34 @@ export function useFleetRegistry() {
   }, [tokenToUse]);
 
   useEffect(() => {
-    fetchFleetData();
-  }, [fetchFleetData]);
+    let isMounted = true;
+    const loadFleet = async () => {
+      try {
+        const satsResp = await fetch(`${API_CONFIG.COMMAND_URL}/api/fleet/satellites`, {
+          headers: { Authorization: `Bearer ${tokenToUse}` },
+        });
+        if (satsResp.ok && isMounted) {
+          const data = await satsResp.json();
+          setSats(data.satellites || []);
+        }
+
+        const stnResp = await fetch(`${API_CONFIG.COMMAND_URL}/api/fleet/ground-stations`, {
+          headers: { Authorization: `Bearer ${tokenToUse}` },
+        });
+        if (stnResp.ok && isMounted) {
+          const data = await stnResp.json();
+          setStations(data.ground_stations || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch registered fleet:', err);
+      }
+    };
+
+    loadFleet();
+    return () => {
+      isMounted = false;
+    };
+  }, [tokenToUse]);
 
   const addSatellite = async (payload: {
     satellite_id: string;
