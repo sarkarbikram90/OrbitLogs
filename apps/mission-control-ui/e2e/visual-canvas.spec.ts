@@ -71,7 +71,7 @@ test.describe('OrbitLogs Mission Control UI - E2E Visual Canvas Tests', () => {
       sessionStorage.setItem('JWT_TOKEN', 'test-token');
     });
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const headerTitle = page.locator('.header-title');
     await headerTitle.waitFor({ state: 'visible', timeout: 10000 });
