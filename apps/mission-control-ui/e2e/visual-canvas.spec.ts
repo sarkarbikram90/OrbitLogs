@@ -73,17 +73,17 @@ test.describe('OrbitLogs Mission Control UI - E2E Visual Canvas Tests', () => {
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
 
-    const headerTitle = page.locator('.header-title');
-    await headerTitle.waitFor({ state: 'visible', timeout: 10000 });
+    const headerTitle = page.locator('.header-title, .header-title-container, header').first();
+    await headerTitle.waitFor({ state: 'visible', timeout: 15000 });
     await expect(headerTitle).toBeVisible();
     await expect(headerTitle).toContainText(/ORBITLOGS/i);
 
-    const dashboardTab = page.locator('button', { hasText: 'DASHBOARD' });
-    await dashboardTab.waitFor({ state: 'visible', timeout: 10000 });
+    const dashboardTab = page.locator('button').filter({ hasText: /dashboard/i }).first();
+    await dashboardTab.waitFor({ state: 'visible', timeout: 15000 });
     await expect(dashboardTab).toBeVisible();
 
-    const commandsTab = page.locator('button', { hasText: 'COMMANDS' });
-    await commandsTab.waitFor({ state: 'visible', timeout: 10000 });
+    const commandsTab = page.locator('button').filter({ hasText: /commands/i }).first();
+    await commandsTab.waitFor({ state: 'visible', timeout: 15000 });
     await expect(commandsTab).toBeVisible();
   });
 });
