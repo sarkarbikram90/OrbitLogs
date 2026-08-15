@@ -34,6 +34,7 @@ COPY crates/orbitlogs-propulsion/Cargo.toml crates/orbitlogs-propulsion/Cargo.to
 COPY crates/orbitlogs-test-utils/Cargo.toml crates/orbitlogs-test-utils/Cargo.toml
 COPY crates/orbitlogs-pus/Cargo.toml crates/orbitlogs-pus/Cargo.toml
 COPY crates/orbitlogs-edge/Cargo.toml crates/orbitlogs-edge/Cargo.toml
+COPY migrations migrations
 
 RUN set -e; \
     for app in telemetry-simulator telemetry-collector mission-health-engine \
@@ -59,7 +60,7 @@ RUN touch apps/autonomous-mission-planning/src/main.rs \
     && cargo build --release -p autonomous-mission-planning
 
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates libgcc libstdc++ openssl
+RUN apk update && apk upgrade --no-cache && apk add --no-cache ca-certificates libgcc libstdc++ openssl
 RUN addgroup -g 10001 -S orbitlogs && adduser -u 10001 -S orbitlogs -G orbitlogs
 
 COPY --from=builder /usr/src/orbitlogs/target/release/autonomous-mission-planning /usr/local/bin/autonomous-mission-planning

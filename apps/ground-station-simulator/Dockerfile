@@ -35,6 +35,7 @@ COPY crates/orbitlogs-propulsion/Cargo.toml crates/orbitlogs-propulsion/Cargo.to
 COPY crates/orbitlogs-test-utils/Cargo.toml crates/orbitlogs-test-utils/Cargo.toml
 COPY crates/orbitlogs-pus/Cargo.toml crates/orbitlogs-pus/Cargo.toml
 COPY crates/orbitlogs-edge/Cargo.toml crates/orbitlogs-edge/Cargo.toml
+COPY migrations migrations
 
 RUN set -e; \
     for app in telemetry-simulator telemetry-collector mission-health-engine \
@@ -68,7 +69,7 @@ RUN touch crates/orbitlogs-models/src/lib.rs \
     && cargo build --release -p ground-station-simulator
 
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates libgcc libstdc++ openssl
+RUN apk update && apk upgrade --no-cache && apk add --no-cache ca-certificates libgcc libstdc++ openssl
 RUN addgroup -g 10001 -S orbitlogs && adduser -u 10001 -S orbitlogs -G orbitlogs
 
 COPY --from=builder /usr/src/orbitlogs/target/release/ground-station-simulator /usr/local/bin/ground-station-simulator

@@ -39,6 +39,7 @@ COPY crates/orbitlogs-propulsion/Cargo.toml crates/orbitlogs-propulsion/Cargo.to
 COPY crates/orbitlogs-test-utils/Cargo.toml crates/orbitlogs-test-utils/Cargo.toml
 COPY crates/orbitlogs-pus/Cargo.toml crates/orbitlogs-pus/Cargo.toml
 COPY crates/orbitlogs-edge/Cargo.toml crates/orbitlogs-edge/Cargo.toml
+COPY migrations migrations
 
 # Create dummy sources for all workspace members to cache dependency compilation
 RUN set -e; \
@@ -77,7 +78,7 @@ RUN touch crates/orbitlogs-models/src/lib.rs \
 
 # Runner Stage
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates libgcc libstdc++ openssl
+RUN apk update && apk upgrade --no-cache && apk add --no-cache ca-certificates libgcc libstdc++ openssl
 
 # Create non-root user for security hardening (UID/GID 10001)
 RUN addgroup -g 10001 -S orbitlogs && adduser -u 10001 -S orbitlogs -G orbitlogs

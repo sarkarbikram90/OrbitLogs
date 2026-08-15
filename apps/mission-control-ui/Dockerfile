@@ -16,7 +16,10 @@ COPY apps/mission-control-ui/ ./
 RUN npm run build
 
 # Runner stage
-FROM nginx:1.25-alpine
+FROM nginx:alpine
+
+# Upgrade system packages for security patches
+RUN apk update && apk upgrade --no-cache
 
 # Create non-root user/group for security hardening (UID/GID 10001)
 RUN addgroup -g 10001 -S orbitlogs && adduser -u 10001 -S orbitlogs -G orbitlogs

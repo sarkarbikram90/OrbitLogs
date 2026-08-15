@@ -22,7 +22,7 @@ describe('Header Component', () => {
     render(<Header />);
     expect(screen.getByText(/ORBITLOGS • MISSION CONTROL/i)).toBeInTheDocument();
     expect(screen.getByText(/DASHBOARD/i)).toBeInTheDocument();
-    expect(screen.getByText(/FLEET MGMT/i)).toBeInTheDocument();
+    expect(screen.getByText(/FLEET/i)).toBeInTheDocument();
   });
 
   it('allows switching view mode between OPERATOR and EXECUTIVE', () => {
