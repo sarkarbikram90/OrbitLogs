@@ -20,9 +20,9 @@ import { useAuthStore } from '../../stores/authStore';
 describe('Header Component', () => {
   it('renders title and navigation tabs', () => {
     render(<Header />);
-    expect(screen.getByText(/OrbitLogs - Mission Control/i)).toBeInTheDocument();
-    expect(screen.getByText('DASHBOARD')).toBeInTheDocument();
-    expect(screen.getByText('FLEET MGMT')).toBeInTheDocument();
+    expect(screen.getByText(/ORBITLOGS • MISSION CONTROL/i)).toBeInTheDocument();
+    expect(screen.getByText(/DASHBOARD/i)).toBeInTheDocument();
+    expect(screen.getByText(/FLEET MGMT/i)).toBeInTheDocument();
   });
 
   it('allows switching view mode between OPERATOR and EXECUTIVE', () => {

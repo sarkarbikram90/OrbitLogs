@@ -1,7 +1,7 @@
 # Builder Stage
 FROM rust:alpine AS builder
 
-RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev cmake g++
+RUN apk add --no-cache musl-dev gcc make pkgconfig openssl-dev openssl-libs-static zlib-static cmake g++ curl-dev linux-headers
 
 WORKDIR /usr/src/orbitlogs
 
