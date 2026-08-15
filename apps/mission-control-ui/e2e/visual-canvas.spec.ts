@@ -71,16 +71,19 @@ test.describe('OrbitLogs Mission Control UI - E2E Visual Canvas Tests', () => {
       sessionStorage.setItem('JWT_TOKEN', 'test-token');
     });
     await page.reload();
-    await page.waitForLoadState('domcontentloaded');
+    await page.waitForLoadState('networkidle');
 
     const headerTitle = page.locator('.header-title');
+    await headerTitle.waitFor({ state: 'visible', timeout: 10000 });
     await expect(headerTitle).toBeVisible();
     await expect(headerTitle).toContainText(/ORBITLOGS/i);
 
     const dashboardTab = page.locator('button', { hasText: 'DASHBOARD' });
+    await dashboardTab.waitFor({ state: 'visible', timeout: 10000 });
     await expect(dashboardTab).toBeVisible();
 
     const commandsTab = page.locator('button', { hasText: 'COMMANDS' });
+    await commandsTab.waitFor({ state: 'visible', timeout: 10000 });
     await expect(commandsTab).toBeVisible();
   });
 });
