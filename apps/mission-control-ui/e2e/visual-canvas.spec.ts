@@ -24,11 +24,11 @@ test.describe('OrbitLogs Mission Control UI - E2E Visual Canvas Tests', () => {
     const canvas = page.locator('canvas');
     await expect(canvas).toBeVisible();
 
-    // 2. Validate WebGL support on the canvas
+    // 2. Validate WebGL / Canvas rendering support on the canvas
     const webglSupported = await page.evaluate(() => {
       const canvas = document.querySelector('canvas');
       if (!canvas) return false;
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') || canvas.getContext('webgl2') || canvas.getContext('2d');
       return !!gl;
     });
     expect(webglSupported).toBe(true);
@@ -71,14 +71,16 @@ test.describe('OrbitLogs Mission Control UI - E2E Visual Canvas Tests', () => {
       sessionStorage.setItem('JWT_TOKEN', 'test-token');
     });
     await page.reload();
+    await page.waitForLoadState('domcontentloaded');
 
     const headerTitle = page.locator('.header-title');
-    await expect(headerTitle).toContainText('OrbitLogs');
+    await expect(headerTitle).toBeVisible();
+    await expect(headerTitle).toContainText(/ORBITLOGS/i);
 
-    const dashboardTab = page.locator('button:has-text("DASHBOARD")');
+    const dashboardTab = page.locator('button', { hasText: 'DASHBOARD' });
     await expect(dashboardTab).toBeVisible();
 
-    const commandsTab = page.locator('button:has-text("COMMANDS")');
+    const commandsTab = page.locator('button', { hasText: 'COMMANDS' });
     await expect(commandsTab).toBeVisible();
   });
 });

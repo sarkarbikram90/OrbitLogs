@@ -1,5 +1,5 @@
 # Builder Stage
-FROM rust:bookworm AS builder
+FROM rust:trixie AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libcurl4-openssl-dev \
     build-essential \
+    libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/orbitlogs
@@ -70,7 +71,7 @@ RUN touch crates/orbitlogs-models/src/lib.rs \
     && touch apps/ai-incident-commander/src/main.rs \
     && cargo build --release -p ai-incident-commander
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \

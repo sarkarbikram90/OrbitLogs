@@ -23,6 +23,16 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
+    launchOptions: {
+      args: [
+        '--enable-webgl',
+        '--use-gl=angle',
+        '--use-angle=swiftshader',
+        '--ignore-gpu-blocklist',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+      ],
+    },
   },
   projects: [
     {
